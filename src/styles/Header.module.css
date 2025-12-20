@@ -1,0 +1,175 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  background: rgba(2, 6, 23, 0.85);
+  border-bottom: 1px solid #1e293b;
+}
+
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  color: #facc15;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.nav {
+  display: flex;
+  gap: 28px;
+  font-size: 14px;
+}
+
+.link {
+  position: relative;
+  color: #e5e7eb;
+  transition: color 0.2s;
+}
+
+.link:hover {
+  color: #facc15;
+}
+
+.active {
+  color: #facc15;
+}
+
+.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 2px;
+  background: #facc15;
+}
+
+.auth {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.user {
+  font-size: 14px;
+  color: #e5e7eb;
+}
+
+.auth button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #020617;
+  font-size: 13px;
+}
+
+.login {
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid #facc15;
+  color: #facc15;
+}
+
+/* thêm vào cuối file */
+
+.menuBtn {
+  display: none;
+  font-size: 22px;
+  background: none;
+  color: white;
+}
+
+.mobile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .nav {
+    display: none;
+  }
+
+  .menuBtn {
+    display: block;
+  }
+
+  .mobile {
+    display: flex;
+    flex-direction: column;
+    background: #020617;
+    border-top: 1px solid #1e293b;
+  }
+
+  .mobile a {
+    padding: 14px 24px;
+    border-bottom: 1px solid #1e293b;
+  }
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.logo {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.nav {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.avatarWrap {
+  position: relative;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #020617;
+  font-weight: 800;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: 52px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  min-width: 160px;
+}
+
+.menu a,
+.menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  color: white;
+}
+
+.menu a:hover,
+.menu button:hover {
+  background: rgba(255,255,255,0.06);
+}
