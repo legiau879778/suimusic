@@ -3,187 +3,187 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import styles from "@/styles/admin.module.css";
+
 import {
   getAuthors,
   approveAuthor,
   rejectAuthor,
   Author,
 } from "@/lib/authorStore";
+
 import {
   getWorks,
   verifyWork,
   Work,
 } from "@/lib/workStore";
-import styles from "@/styles/admin.module.css";
 
-type Tab = "overview" | "authors" | "works";
+import { getAdminStats } from "@/lib/stats";
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [tab, setTab] = useState<Tab>("overview");
   const [authors, setAuthors] = useState<Author[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
+  const [stats, setStats] = useState<any>(null);
 
+  /* ===== AUTH CHECK ===== */
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
-      router.replace("/login");
-      return;
+      router.push("/");
     }
-    setAuthors(getAuthors());
-    setWorks(getWorks());
   }, [user, loading]);
 
-  if (loading || !user) return null;
-
-  const stats = {
-    totalAuthors: authors.length,
-    approvedAuthors: authors.filter(a => a.status === "approved").length,
-    pendingAuthors: authors.filter(a => a.status === "pending").length,
-    totalWorks: works.length,
-    verifiedWorks: works.filter(w => w.status === "verified").length,
-    pendingWorks: works.filter(w => w.status === "pending").length,
+  const reload = () => {
+    setAuthors(getAuthors().filter(a => a.status === "pending"));
+    setWorks(getWorks().filter(w => w.status === "pending"));
+    setStats(getAdminStats());
   };
+
+  useEffect(() => {
+    if (user?.role === "admin") reload();
+  }, [user]);
+
+  if (!user || user.role !== "admin" || !stats) return null;
+
+  const authorMax = Math.max(
+    stats.authors.pending,
+    stats.authors.approved,
+    stats.authors.rejected,
+    1
+  );
+
+  const workTotal =
+    stats.works.pending +
+    stats.works.verified +
+    stats.works.traded || 1;
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1>Admin Dashboard</h1>
-        <p>Quản lý toàn bộ hệ thống bản quyền</p>
-      </div>
+      <h1 className={styles.title}>Admin Dashboard</h1>
 
-      {/* TABS */}
-      <div className={styles.tabs}>
-        <TabBtn active={tab==="overview"} onClick={()=>setTab("overview")}>
-          Tổng quan
-        </TabBtn>
-        <TabBtn active={tab==="authors"} onClick={()=>setTab("authors")}>
-          Duyệt tác giả ({stats.pendingAuthors})
-        </TabBtn>
-        <TabBtn active={tab==="works"} onClick={()=>setTab("works")}>
-          Duyệt tác phẩm ({stats.pendingWorks})
-        </TabBtn>
-      </div>
+      {/* ================== 1️⃣ CHARTS ================== */}
+      <section className={styles.section}>
+        <h2>Thống kê hệ thống</h2>
 
-      {/* OVERVIEW */}
-      {tab === "overview" && (
-        <>
-          <div className={styles.stats}>
-            <Stat title="Tổng tác giả" value={stats.totalAuthors} />
-            <Stat title="Tác giả đã duyệt" value={stats.approvedAuthors} />
-            <Stat title="Tổng tác phẩm" value={stats.totalWorks} />
-            <Stat title="Tác phẩm đã duyệt" value={stats.verifiedWorks} />
+        <div className={styles.summary}>
+          <div className={styles.card}>
+            <h3>Tác giả</h3>
+            <p>Tổng: {stats.authors.total}</p>
+            <p>Pending: {stats.authors.pending}</p>
+            <p>Approved: {stats.authors.approved}</p>
+            <p>Rejected: {stats.authors.rejected}</p>
           </div>
 
-          <div className={styles.chart}>
-            <Bar
-              label="Tác giả đã duyệt"
-              value={stats.approvedAuthors}
-              max={stats.totalAuthors}
-            />
-            <Bar
-              label="Tác phẩm đã duyệt"
-              value={stats.verifiedWorks}
-              max={stats.totalWorks}
-            />
+          <div className={styles.card}>
+            <h3>Tác phẩm</h3>
+            <p>Tổng: {stats.works.total}</p>
+            <p>Pending: {stats.works.pending}</p>
+            <p>Verified: {stats.works.verified}</p>
+            <p>Traded: {stats.works.traded}</p>
           </div>
-        </>
-      )}
+        </div>
 
-      {/* AUTHORS */}
-      {tab === "authors" && (
-        <div className={styles.list}>
-          {authors.filter(a => a.status === "pending").map(a => (
-            <div key={a.id} className={styles.card}>
-              <h3>{a.name}</h3>
-              <p className={styles.meta}>
-                Mã: {a.id} • Quốc tịch: {a.nationality}
-              </p>
-              <div className={styles.actions}>
-                <button
-                  className={styles.approve}
-                  onClick={() => {
-                    approveAuthor(a.id);
-                    setAuthors(getAuthors());
-                  }}
-                >
-                  Duyệt
-                </button>
-                <button
-                  className={styles.reject}
-                  onClick={() => {
-                    rejectAuthor(a.id);
-                    setAuthors(getAuthors());
-                  }}
-                >
-                  Từ chối
-                </button>
-              </div>
+        {/* BAR CHART */}
+        <div className={styles.barChart}>
+          {[
+            { label: "Pending", value: stats.authors.pending },
+            { label: "Approved", value: stats.authors.approved },
+            { label: "Rejected", value: stats.authors.rejected },
+          ].map(i => (
+            <div key={i.label} className={styles.barItem}>
+              <div
+                className={styles.bar}
+                style={{ height: `${(i.value / authorMax) * 100}%` }}
+              />
+              <span>{i.label}</span>
+              <b>{i.value}</b>
             </div>
           ))}
         </div>
-      )}
+      </section>
 
-      {/* WORKS */}
-      {tab === "works" && (
-        <div className={styles.list}>
-          {works.filter(w => w.status === "pending").map(w => (
-            <div key={w.id} className={styles.card}>
-              <h3>{w.title}</h3>
-              <p className={styles.meta}>
-                Author ID: {w.authorId}
-              </p>
-              <p className={styles.hash}>{w.fileHash}</p>
-              <div className={styles.actions}>
-                <button
-                  className={styles.approve}
-                  onClick={() => {
-                    verifyWork(w.id);
-                    setWorks(getWorks());
-                  }}
-                >
-                  Duyệt tác phẩm
-                </button>
-              </div>
+      {/* ================== 2️⃣ DUYỆT TÁC GIẢ ================== */}
+      <section className={styles.section}>
+        <h2>Duyệt tác giả</h2>
+
+        {authors.length === 0 && (
+          <p className={styles.empty}>Không có tác giả chờ duyệt</p>
+        )}
+
+        {authors.map(a => (
+          <div key={a.id} className={styles.reviewCard}>
+            <div>
+              <b>{a.stageName}</b> ({a.name})<br />
+              Ngày sinh: {a.birthDate}<br />
+              Quốc tịch: {a.nationality}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
-/* ===== UI COMPONENTS ===== */
+            <div className={styles.actions}>
+              <button
+                className={styles.approve}
+                onClick={() => {
+                  approveAuthor(a.id);
+                  reload();
+                }}
+              >
+                Duyệt
+              </button>
 
-function TabBtn({ active, onClick, children }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className={`${styles.tab} ${active ? styles.active : ""}`}
-    >
-      {children}
-    </button>
-  );
-}
+              <button
+                className={styles.reject}
+                onClick={() => {
+                  rejectAuthor(a.id);
+                  reload();
+                }}
+              >
+                Từ chối
+              </button>
+            </div>
+          </div>
+        ))}
+      </section>
 
-function Stat({ title, value }: any) {
-  return (
-    <div className={styles.stat}>
-      <p>{title}</p>
-      <h2>{value}</h2>
-    </div>
-  );
-}
+      {/* ================== 3️⃣ DUYỆT TÁC PHẨM ================== */}
+      <section className={styles.section}>
+        <h2>Duyệt tác phẩm</h2>
 
-function Bar({ label, value, max }: any) {
-  const percent = max === 0 ? 0 : (value / max) * 100;
-  return (
-    <div className={styles.barWrap}>
-      <p>{label}</p>
-      <div className={styles.barBg}>
-        <div className={styles.barFill} style={{ width: `${percent}%` }} />
-      </div>
+        {works.length === 0 && (
+          <p className={styles.empty}>Không có tác phẩm chờ duyệt</p>
+        )}
+
+        {works.map(w => (
+          <div key={w.id} className={styles.reviewCard}>
+            <div>
+              <b>{w.title}</b>
+              <div className={styles.hash}>{w.fileHash}</div>
+            </div>
+
+            <div className={styles.actions}>
+              <button
+                className={styles.approve}
+                onClick={() => {
+                  verifyWork(w.id);
+                  reload();
+                }}
+              >
+                Duyệt
+              </button>
+
+              <button
+                className={styles.reject}
+                onClick={() => {
+                  alert("Đã từ chối (mock)");
+                  reload();
+                }}
+              >
+                Từ chối
+              </button>
+            </div>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }

@@ -1,91 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAuthors, Author } from "@/lib/authorStore";
-import styles from "@/styles/search.module.css";
 
-export default function SearchAuthorPage() {
-  const authors = getAuthors();
+export default function SearchPage() {
+  const [keyword, setKeyword] = useState("");
+  const [authors, setAuthors] = useState<Author[]>([]);
 
-  const [name, setName] = useState("");
-  const [authorId, setAuthorId] = useState("");
-  const [nation, setNation] = useState("");
+  useEffect(() => {
+    // ✅ CHỈ LẤY TÁC GIẢ ĐÃ DUYỆT
+    const approvedAuthors = getAuthors().filter(
+      a => a.status === "approved"
+    );
+    setAuthors(approvedAuthors);
+  }, []);
 
-  const filtered = authors.filter((a) => {
-    if (
-      name &&
-      !a.name.toLowerCase().includes(name.toLowerCase())
-    )
-      return false;
+  const filtered = useMemo(() => {
+    const k = keyword.toLowerCase().trim();
 
-    if (
-      authorId &&
-      !a.id.toLowerCase().includes(authorId.toLowerCase())
-    )
-      return false;
+    if (!k) return authors;
 
-    if (
-      nation &&
-      !a.nationality
-        .toLowerCase()
-        .includes(nation.toLowerCase())
-    )
-      return false;
-
-    return true;
-  });
+    return authors.filter(a =>
+      (a.stageName && a.stageName.toLowerCase().includes(k)) ||
+      (a.name && a.name.toLowerCase().includes(k)) ||
+      (a.id && a.id.toLowerCase().includes(k)) ||
+      (a.nationality && a.nationality.toLowerCase().includes(k))
+    );
+  }, [keyword, authors]);
 
   return (
-    <div className={styles.page}>
+    <div style={{ padding: 40 }}>
       <h1>Tra cứu tác giả</h1>
-      <p className={styles.sub}>
-        Tra cứu thông tin tác giả và tác phẩm đã đăng ký
-      </p>
 
-      {/* FILTER BAR */}
-      <div className={styles.filters}>
-        <input
-          placeholder="Tên tác giả"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <input
+        placeholder="Tên tác giả / Mã tác giả / Quốc tịch"
+        value={keyword}
+        onChange={e => setKeyword(e.target.value)}
+        style={{ width: 360, marginBottom: 24 }}
+      />
 
-        <input
-          placeholder="Mã tác giả"
-          value={authorId}
-          onChange={(e) => setAuthorId(e.target.value)}
-        />
+      {filtered.length === 0 && (
+        <p>Không tìm thấy tác giả phù hợp</p>
+      )}
 
-        <input
-          placeholder="Quốc tịch"
-          value={nation}
-          onChange={(e) => setNation(e.target.value)}
-        />
-      </div>
-
-      {/* RESULT */}
-      <div className={styles.grid}>
-        {filtered.map((a) => (
+      <div style={{ display: "grid", gap: 16 }}>
+        {filtered.map(a => (
           <Link
             key={a.id}
             href={`/author/${a.id}`}
-            className={styles.card}
+            style={{
+              padding: 16,
+              border: "1px solid #334155",
+              borderRadius: 12,
+              display: "block",
+            }}
           >
-            <div className={styles.avatar}>
-              {a.name.charAt(0)}
-            </div>
-            <h3>{a.name}</h3>
-            <p>Mã: {a.id}</p>
-            <p>Quốc tịch: {a.nationality}</p>
+            <b>{a.stageName || a.name}</b>
+            <div>Mã: {a.id}</div>
+            <div>Quốc tịch: {a.nationality}</div>
           </Link>
         ))}
-
-        {filtered.length === 0 && (
-          <p className={styles.empty}>
-            Không tìm thấy tác giả
-          </p>
-        )}
       </div>
     </div>
   );

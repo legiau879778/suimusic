@@ -1,45 +1,71 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { getWork } from "@/lib/workStore";
-import styles from "@/styles/work.module.css";
+import { getWorks, updateTradeStatus } from "@/lib/workStore";
+import styles from "@/styles/workDetail.module.css";
 
 export default function WorkDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const work = getWork(id);
+  const work = getWorks().find(w => w.id === id);
 
-  if (!work) return <p style={{ padding: 40 }}>Không tìm thấy tác phẩm</p>;
+  if (!work) return <p className={styles.empty}>Không tìm thấy tác phẩm</p>;
 
   return (
     <div className={styles.page}>
-      <h1>{work.title}</h1>
+      <div className={styles.panel}>
+        <h1>{work.title}</h1>
 
-      <div className={styles.meta}>
-        <p><b>Tác giả:</b> {work.author}</p>
-        <p><b>Chủ sở hữu:</b> {work.owner}</p>
-        <p><b>Trạng thái:</b> {work.status}</p>
-      </div>
+        <div className={styles.meta}>
+          <span>🔐 SHA256: {work.fileHash}</span>
+          <span>
+            📌 Trạng thái:{" "}
+            <b className={styles[work.status]}>
+              {work.status}
+            </b>
+          </span>
+        </div>
 
-      <div className={styles.hash}>
-        <b>SHA256:</b>
-        <span>{work.fileHash}</span>
-      </div>
+        <h3 className={styles.sub}>Giao dịch bản quyền</h3>
 
-      <h2>Lịch sử giao dịch</h2>
+        {work.trades.length === 0 && (
+          <p className={styles.empty}>Chưa có giao dịch</p>
+        )}
 
-      <div className={styles.timeline}>
-        {work.history.map((h, i) => (
-          <div key={i} className={styles.event}>
-            <span className={styles.dot} />
-            <div>
-              <p><b>{h.type}</b></p>
-              {h.txHash && <p>Tx: {h.txHash}</p>}
-              <p className={styles.time}>
-                {new Date(h.time).toLocaleString()}
-              </p>
+        <div className={styles.trades}>
+          {work.trades.map(t => (
+            <div key={t.id} className={styles.tradeCard}>
+              <div>
+                👤 Người mua: <b>{t.buyer}</b>
+              </div>
+              <div>
+                📅 {new Date(t.date).toLocaleDateString()}
+              </div>
+              <div>
+                Trạng thái: <b>{t.status}</b>
+              </div>
+
+              {t.status === "pending" && (
+                <div className={styles.actions}>
+                  <button
+                    onClick={() =>
+                      updateTradeStatus(work.id, t.id, "accepted")
+                    }
+                  >
+                    Chấp nhận
+                  </button>
+                  <button
+                    className={styles.reject}
+                    onClick={() =>
+                      updateTradeStatus(work.id, t.id, "rejected")
+                    }
+                  >
+                    Từ chối
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

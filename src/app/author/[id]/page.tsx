@@ -30,7 +30,7 @@ export default function AuthorPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div className={styles.avatar}>{author.stageName[0]}</div>
+        <div className={styles.avatar}>{(author.stageName || author.name || "?").charAt(0).toUpperCase()}</div>
         <div>
           <h1 className={styles.name}>{author.stageName}</h1>
           <p className={styles.meta}>

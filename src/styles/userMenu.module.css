@@ -1,0 +1,45 @@
+.wrapper {
+  position: relative;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #020617;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dropdown {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  background: #020617;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 180px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 200;
+}
+
+.dropdown a,
+.dropdown button {
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  color: #e5e7eb;
+}
+
+.dropdown a:hover,
+.dropdown button:hover {
+  background: #1e293b;
+}

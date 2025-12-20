@@ -1,17 +1,132 @@
-.page{padding:40px;max-width:1300px;margin:auto}
-.header{margin-bottom:32px}
-.header p{color:var(--muted)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
-.stat{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;padding:24px}
-.stat p{color:var(--muted)} .stat h2{font-size:32px}
-.tabs{display:flex;gap:16px;margin:28px 0}
-.tab{padding:10px 22px;border-radius:999px;border:1px solid var(--border);color:#fff}
-.active{background:var(--accent);color:#020617;font-weight:600}
-.list{display:flex;flex-direction:column;gap:16px}
-.card{background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:20px}
-.actions{display:flex;gap:12px;margin-top:12px}
-.approve{background:var(--success);color:#000;padding:8px 18px;border-radius:999px}
-.reject{background:var(--danger);color:#fff;padding:8px 18px;border-radius:999px}
-.chart{margin-top:32px}
-.barBg{height:12px;background:var(--border);border-radius:999px}
-.barFill{height:100%;background:var(--accent);border-radius:999px}
+.page {
+  padding: 60px 40px;
+  max-width: 1200px;
+  margin: auto;
+}
+
+.title {
+  font-size: 32px;
+  margin-bottom: 36px;
+}
+
+.summary {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  flex: 1;
+}
+
+.section {
+  margin-bottom: 56px;
+}
+
+/* ===== BAR CHART ===== */
+.barChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 40px;
+  height: 260px;
+  padding: 24px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.barItem {
+  text-align: center;
+  flex: 1;
+}
+
+.bar {
+  width: 48px;
+  margin: auto;
+  background: var(--accent);
+  border-radius: 12px 12px 0 0;
+  transition: height 0.3s ease;
+}
+
+.barItem span {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-muted);
+}
+
+/* ===== PIE CHART ===== */
+.pieWrapper {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px;
+}
+
+.pie {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+}
+
+.legend p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dotPending,
+.dotVerified,
+.dotTraded {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dotPending { background: #facc15; }
+.dotVerified { background: #22c55e; }
+.dotTraded { background: #60a5fa; }
+
+.reviewCard {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.approve {
+  background: var(--accent);
+  color: #020617;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.reject {
+  background: #1f2937;
+  color: #f87171;
+  padding: 8px 18px;
+  border-radius: 999px;
+}
+
+.hash {
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}

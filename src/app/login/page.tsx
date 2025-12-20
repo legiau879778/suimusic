@@ -1,40 +1,67 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import styles from "@/styles/form.module.css";
+import { getAuthors } from "@/lib/authorStore";
 
 export default function LoginPage() {
-  const { login } = useAuth();
-  const router = useRouter();
   const [username, setUsername] = useState("");
+  const router = useRouter();
+  const { loginAsAdmin, loginAsAuthor } = useAuth();
 
   const submit = () => {
-    if (!username) return alert("Nhập username");
+    if (!username.trim()) {
+      alert("Nhập tên đăng nhập");
+      return;
+    }
 
-    login({
-      username,
-      role: username === "admin" ? "admin" : "user",
-    });
+    // ADMIN
+    if (username === "admin") {
+      loginAsAdmin();
+      router.push("/admin");
+      return;
+    }
 
-    router.push("/");
+    // AUTHOR
+    const uname = username.toLowerCase();
+    const author = getAuthors().find(
+      a =>
+        (a.stageName && a.stageName.toLowerCase() === uname) ||
+        (a.name && a.name.toLowerCase() === uname)
+    );
+
+    if (!author) {
+      alert("Không tìm thấy tác giả");
+      return;
+    }
+
+    loginAsAuthor(author.id, author.stageName || author.name);
+
+    if (author.status === "approved") {
+      router.push("/manage");
+    } else {
+      alert("Tác giả đang chờ duyệt");
+      router.push("/");
+    }
   };
 
   return (
-    <div className={styles.wrapper}>
-      <h1 className={styles.title}>Đăng nhập</h1>
+    <div className="auth-page">
+      <h1>Đăng nhập</h1>
 
       <input
-        className={styles.input}
-        placeholder="Username"
+        placeholder="Admin hoặc nghệ danh tác giả"
         value={username}
-        onChange={(e) => setUsername(e.target.value)}
+        onChange={e => setUsername(e.target.value)}
       />
 
-      <button className={styles.primary} onClick={submit}>
-        Đăng nhập
-      </button>
+      <button onClick={submit}>Đăng nhập</button>
+
+      <p style={{ marginTop: 16 }}>
+        Chưa có tài khoản?{" "}
+        <a href="/register-author">Đăng ký tác giả</a>
+      </p>
     </div>
   );
 }

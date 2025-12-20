@@ -1,95 +1,112 @@
-export type WorkStatus = "pending" | "verified" | "rejected" | "traded";
+/* ===================== TYPES ===================== */
 
-export type TxEvent = {
-  type: "REGISTER" | "VERIFY" | "TRADE";
-  txHash?: string;
-  time: number;
+export type TradeStatus = "pending" | "accepted" | "rejected";
+
+export type Trade = {
+  id: string;
+  buyer: string;
+  date: string;
+  status: TradeStatus;
 };
+
+export type WorkStatus = "pending" | "verified" | "rejected";
 
 export type Work = {
   id: string;
   title: string;
   authorId: string;
+  duration: number;
   fileHash: string;
   status: WorkStatus;
-  history: TxEvent[];
+  createdAt: number;
+  trades: Trade[];
 };
+
+/* ===================== STORAGE ===================== */
 
 const KEY = "works";
 
-function safeLoad(): Work[] {
+const load = (): Work[] => {
   if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
+  return JSON.parse(localStorage.getItem(KEY) || "[]");
+};
 
-function safeSave(data: Work[]) {
+const save = (data: Work[]) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(KEY, JSON.stringify(data));
-}
+};
 
-export function getWorks(): Work[] {
-  return safeLoad();
-}
+/* ===================== WORK ===================== */
 
-export function countWorksByAuthor(authorId: string): number {
-  return safeLoad().filter(w => w.authorId === authorId).length;
-}
+export const getWorks = (): Work[] => load();
 
-export function addWork(data: {
+export const addWork = (data: {
   title: string;
   authorId: string;
+  duration: number;
   fileHash: string;
-}) {
-  const works = safeLoad();
+}) => {
+  const works = load();
+
   works.push({
     id: crypto.randomUUID(),
     title: data.title,
     authorId: data.authorId,
+    duration: data.duration,
     fileHash: data.fileHash,
     status: "pending",
-    history: [{ type: "REGISTER", time: Date.now() }],
+    createdAt: Date.now(),
+    trades: [],
   });
-  safeSave(works);
-}
 
-export function verifyWork(id: string) {
-  safeSave(
-    safeLoad().map(w =>
-      w.id === id
-        ? {
-            ...w,
-            status: "verified",
-            history: [
-              ...w.history,
-              { type: "VERIFY", txHash: "0x" + Date.now(), time: Date.now() },
-            ],
-          }
-        : w
-    )
-  );
-}
+  save(works);
+};
 
-export function tradeWork(id: string, buyer?: string) {
-  safeSave(
-    safeLoad().map(w =>
-      w.id === id
-        ? {
-            ...w,
-            status: "traded",
-            history: [
-              ...w.history,
-              {
-                type: "TRADE",
-                txHash: "0xTRADE_" + Date.now(),
-                time: Date.now(),
-              },
-            ],
-          }
-        : w
-    )
-  );
-}
+export const verifyWork = (
+  workId: string,
+  status: "verified" | "rejected"
+) => {
+  const works = load();
+  const w = works.find(w => w.id === workId);
+  if (!w) return;
+
+  w.status = status;
+  save(works);
+};
+
+export const countWorksByAuthor = (authorId: string): number => {
+  return load().filter(w => w.authorId === authorId).length;
+};
+
+/* ===================== TRADE ===================== */
+
+export const addTrade = (workId: string, buyer: string) => {
+  const works = load();
+  const w = works.find(w => w.id === workId);
+  if (!w) return;
+
+  w.trades.push({
+    id: crypto.randomUUID(),
+    buyer,
+    date: new Date().toISOString(),
+    status: "pending",
+  });
+
+  save(works);
+};
+
+export const updateTradeStatus = (
+  workId: string,
+  tradeId: string,
+  status: TradeStatus
+) => {
+  const works = load();
+  const w = works.find(w => w.id === workId);
+  if (!w) return;
+
+  const t = w.trades.find(t => t.id === tradeId);
+  if (!t) return;
+
+  t.status = status;
+  save(works);
+};
