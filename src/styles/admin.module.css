@@ -1,132 +1,56 @@
 .page {
-  padding: 60px 40px;
-  max-width: 1200px;
-  margin: auto;
+  min-height: 100vh;
+  padding: 40px;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color: #fff;
 }
 
 .title {
-  font-size: 32px;
-  margin-bottom: 36px;
+  font-size: 28px;
+  margin-bottom: 24px;
 }
 
-.summary {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 48px;
+.panel {
+  backdrop-filter: blur(14px);
+  background: rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 24px;
 }
 
 .card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 24px;
-  flex: 1;
-}
-
-.section {
-  margin-bottom: 56px;
-}
-
-/* ===== BAR CHART ===== */
-.barChart {
-  display: flex;
-  align-items: flex-end;
-  gap: 40px;
-  height: 260px;
-  padding: 24px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-}
-
-.barItem {
-  text-align: center;
-  flex: 1;
-}
-
-.bar {
-  width: 48px;
-  margin: auto;
-  background: var(--accent);
-  border-radius: 12px 12px 0 0;
-  transition: height 0.3s ease;
-}
-
-.barItem span {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-muted);
-}
-
-/* ===== PIE CHART ===== */
-.pieWrapper {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 28px;
-}
-
-.pie {
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-}
-
-.legend p {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.dotPending,
-.dotVerified,
-.dotTraded {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.dotPending { background: #facc15; }
-.dotVerified { background: #22c55e; }
-.dotTraded { background: #60a5fa; }
-
-.reviewCard {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  padding: 16px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.35);
 }
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 .approve {
-  background: var(--accent);
-  color: #020617;
-  padding: 8px 18px;
-  border-radius: 999px;
-  font-weight: 700;
+  background: #22c55e;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .reject {
-  background: #1f2937;
-  color: #f87171;
-  padding: 8px 18px;
-  border-radius: 999px;
+  background: #ef4444;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
-.hash {
-  font-size: 12px;
-  color: var(--text-muted);
-  word-break: break-all;
+.pending { color: #facc15; }
+.verified { color: #22c55e; }
+.rejected { color: #ef4444; }
+
+.empty {
+  opacity: 0.6;
 }

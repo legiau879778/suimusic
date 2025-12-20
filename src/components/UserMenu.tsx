@@ -57,7 +57,7 @@ export default function UserMenu() {
         >
           <div
             style={{ padding: 8, cursor: "pointer" }}
-            onClick={() => router.push("/profile")}
+            onClick={() => router.push("/")}
           >
             Hồ sơ
           </div>

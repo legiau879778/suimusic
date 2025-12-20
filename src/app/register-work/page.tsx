@@ -4,15 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getAuthorById } from "@/lib/authorStore";
-import { addWork } from "@/lib/workStore";
+import { addWork, MarketStatus } from "@/lib/workStore";
 import styles from "@/styles/registerWork.figma.module.css";
-
-function formatDuration(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 
 /* ===== SHA256 ===== */
 async function sha256(file: File) {
@@ -36,8 +29,9 @@ export default function RegisterWorkPage() {
   const [duration, setDuration] = useState("");
   const [completedDate, setCompletedDate] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [market, setMarket] =
-    useState<"published" | "unpublished">("unpublished");
+
+  // ✅ FIX: dùng đúng MarketStatus
+  const [market, setMarket] = useState<MarketStatus>("private");
 
   /* ===== AUTHOR ===== */
   const [author, setAuthor] = useState<any>(null);
@@ -62,6 +56,7 @@ export default function RegisterWorkPage() {
     }
   }, [user, loading, router]);
 
+  /* ===== SUBMIT ===== */
   const submit = async () => {
     if (!file) return alert("Vui lòng tải file gốc");
     if (!agree) return alert("Bạn chưa xác nhận thông tin");
@@ -71,12 +66,12 @@ export default function RegisterWorkPage() {
     addWork({
       title,
       authorId: user!.id,
-      fileHash,
       genre,
       language,
-      duration,
       completedDate,
-      marketStatus: market,
+      duration: Number(duration),
+      fileHash,
+      marketStatus: market, // ✅ đúng type
     });
 
     alert("Đăng ký tác phẩm thành công. Chờ admin duyệt.");
@@ -87,144 +82,160 @@ export default function RegisterWorkPage() {
 
   return (
     <div className={styles.page}>
-      <div className="style.outer">
-      <div className={styles.panel}>
-        <h1 className={styles.title}>Đăng ký bảo vệ tác phẩm</h1>
+      <div className={styles.outer}>
+        <div className={styles.panel}>
+          <h1 className={styles.title}>Đăng ký bảo vệ tác phẩm</h1>
 
-        {/* ===== STEP 1 ===== */}
-        {step === 1 && (
-          <>
-            <h2 className={styles.section}>Thông tin tác phẩm</h2>
+          {/* ===== STEP 1 ===== */}
+          {step === 1 && (
+            <>
+              <h2 className={styles.section}>Thông tin tác phẩm</h2>
 
-            <div className={styles.formGrid}>
-              <input
-                className={styles.field}
-                placeholder="Tên tác phẩm"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-              />
-
-              <input
-                className={styles.field}
-                placeholder="Thể loại"
-                value={genre}
-                onChange={e => setGenre(e.target.value)}
-              />
-
-              <input
-                className={styles.field}
-                placeholder="Ngôn ngữ"
-                value={language}
-                onChange={e => setLanguage(e.target.value)}
-              />
-
-              <input
-                className={styles.field}
-                placeholder="Thời lượng"
-                value={duration}
-                onChange={e => setDuration(e.target.value)}
-              />
-
-              <input
-                className={styles.field}
-                type="date"
-                value={completedDate}
-                onChange={e => setCompletedDate(e.target.value)}
-              />
-
-              <input
-                className={`${styles.field} ${styles.full}`}
-                type="file"
-                accept="audio/*"
-                onChange={e => setFile(e.target.files?.[0] || null)}
-              />
-            </div>
-
-            <div className={styles.radioRow}>
-              <label>
+              <div className={styles.formGrid}>
                 <input
-                  type="radio"
-                  checked={market === "published"}
-                  onChange={() => setMarket("published")}
+                  className={styles.field}
+                  placeholder="Tên tác phẩm"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
                 />
-                Đã có trên thị trường
-              </label>
 
-              <label>
                 <input
-                  type="radio"
-                  checked={market === "unpublished"}
-                  onChange={() => setMarket("unpublished")}
+                  className={styles.field}
+                  placeholder="Thể loại"
+                  value={genre}
+                  onChange={e => setGenre(e.target.value)}
                 />
-                Chưa có trên thị trường
-              </label>
-            </div>
 
-            <div className={styles.actionsCenter}>
-              <button
-                className={styles.primary}
-                onClick={() => setStep(2)}
-              >
-                Tiếp theo
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ===== STEP 2 ===== */}
-        {step === 2 && (
-          <>
-            <h2 className={styles.section}>Thông tin tác giả</h2>
-
-            <div className={styles.formGrid}>
-              <input className={styles.field} value={author.name} disabled />
-              <input className={styles.field} value={author.birthDate} disabled />
-              <input className={styles.field} value={author.nationality} disabled />
-              <input className={styles.field} value={author.stageName || ""} disabled />
-              <input className={styles.field} value={author.contact || ""}
-  onChange={e =>
-    setAuthor({ ...author, contact: e.target.value })
-  }placeholder="Email/Số điện thoại"/>
-              <input className={styles.field} value={author.position || ""} placeholder="Vai trò (Ca sĩ, nhà sáng tác..)"/>
-              <input
-                className={`${styles.field} ${styles.full}`}
-                value={author.address || ""} placeholder="Mã ví"disabled/>
-            </div>
-
-            <div className={styles.checkboxWrap}>
-              <label className={styles.checkboxRow}>
                 <input
-                  type="checkbox"
-                  checked={agree}
-                  onChange={e => setAgree(e.target.checked)}
-                  className={styles.hiddenCheckbox}
+                  className={styles.field}
+                  placeholder="Ngôn ngữ"
+                  value={language}
+                  onChange={e => setLanguage(e.target.value)}
                 />
-                <span className={styles.customCheckbox} />
-                <span className={styles.checkboxText}>
-                  Tôi xin cam kết mọi dữ liệu khai báo là đúng sự thật
-                </span>
-              </label>
-            </div>
 
+                <input
+                  className={styles.field}
+                  placeholder="Thời lượng (giây)"
+                  value={duration}
+                  onChange={e => setDuration(e.target.value)}
+                />
 
-            <div className={styles.actionsBetween}>
-              <button
-                className={styles.outline}
-                onClick={() => setStep(1)}
-              >
-                Quay lại
-              </button>
+                <input
+                  className={styles.field}
+                  type="date"
+                  value={completedDate}
+                  onChange={e => setCompletedDate(e.target.value)}
+                />
 
-              <button
-                className={styles.primary}
-                onClick={submit}
-              >
-                Hoàn tất đăng ký
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+                <input
+                  className={`${styles.field} ${styles.full}`}
+                  type="file"
+                  accept="audio/*"
+                  onChange={e => setFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
+              {/* ===== MARKET STATUS ===== */}
+              <div className={styles.radioRow}>
+                <label>
+                  <input
+                    type="radio"
+                    checked={market === "public"}
+                    onChange={() => setMarket("public")}
+                  />
+                  Đã có trên thị trường
+                </label>
+
+                <label>
+                  <input
+                    type="radio"
+                    checked={market === "private"}
+                    onChange={() => setMarket("private")}
+                  />
+                  Chưa có trên thị trường
+                </label>
+              </div>
+
+              <div className={styles.actionsCenter}>
+                <button
+                  className={styles.primary}
+                  onClick={() => setStep(2)}
+                >
+                  Tiếp theo
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ===== STEP 2 ===== */}
+          {step === 2 && (
+            <>
+              <h2 className={styles.section}>Thông tin tác giả</h2>
+
+              <div className={styles.formGrid}>
+                <input className={styles.field} value={author.name} disabled />
+                <input className={styles.field} value={author.birthDate} disabled />
+                <input className={styles.field} value={author.nationality} disabled />
+                <input className={styles.field} value={author.stageName || ""} disabled />
+                <input
+                  className={styles.field}
+                  value={author.contact || ""}
+                  onChange={e =>
+                    setAuthor({ ...author, contact: e.target.value })
+                  }
+                  placeholder="Email / Số điện thoại"
+                />
+                <input
+                  className={styles.field}
+                  value={author.position || ""}
+                  placeholder="Vai trò (Ca sĩ, nhà sáng tác...)"
+                  onChange={e =>
+                    setAuthor({ ...author, position: e.target.value })
+                  }
+                />
+                <input
+                  className={`${styles.field} ${styles.full}`}
+                  value={author.address || ""}
+                  placeholder="Mã ví"
+                  disabled
+                />
+              </div>
+
+              {/* ===== COMMIT ===== */}
+              <div className={styles.checkboxWrap}>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={agree}
+                    onChange={e => setAgree(e.target.checked)}
+                    className={styles.hiddenCheckbox}
+                  />
+                  <span className={styles.customCheckbox} />
+                  <span className={styles.checkboxText}>
+                    Tôi xin cam kết mọi dữ liệu khai báo là đúng sự thật
+                  </span>
+                </label>
+              </div>
+
+              <div className={styles.actionsBetween}>
+                <button
+                  className={styles.outline}
+                  onClick={() => setStep(1)}
+                >
+                  Quay lại
+                </button>
+
+                <button
+                  className={styles.primary}
+                  disabled={!agree}
+                  onClick={submit}
+                >
+                  Hoàn tất đăng ký
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
