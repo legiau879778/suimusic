@@ -17,6 +17,13 @@ export type Trade = {
 export type MarketStatus = "private" | "public" | "tradeable";
 export type WorkStatus = "pending" | "verified" | "rejected";
 
+/* ===== ON-CHAIN TRADE ===== */
+export type OnchainTrade = {
+  buyer: string;   // wallet address
+  txHash: string;
+  time: number;
+};
+
 export type Work = {
   id: string;
   title: string;
@@ -38,6 +45,9 @@ export type Work = {
   approvalMap?: Record<string, number>; // adminEmail -> weight
   rejectionBy?: string[];               // admin reject
   quorumWeight?: number;                // total weight required
+
+  /* ===== ON-CHAIN SYNC ===== */
+  onchainTrades?: OnchainTrade[];
 };
 
 /* ================= STORAGE ================= */
@@ -86,7 +96,8 @@ export const addWork = (data: {
 
     approvalMap: {},
     rejectionBy: [],
-    quorumWeight: 3, // ✅ mặc định (ví dụ: 3 weight)
+    quorumWeight: 3, // ✅ default quorum
+    onchainTrades: [],
   });
 
   save(works);
@@ -95,7 +106,7 @@ export const addWork = (data: {
 export const countWorksByAuthor = (authorId: string) =>
   load().filter(w => w.authorId === authorId).length;
 
-/* ================= TRADE ================= */
+/* ================= OFF-CHAIN TRADE (LEGACY) ================= */
 
 export const addTrade = (workId: string, buyer: string) => {
   const works = load();
@@ -128,6 +139,51 @@ export const updateTradeStatus = (
   save(works);
 };
 
+/* ================= ON-CHAIN SYNC ================= */
+
+/**
+ * Sync when blockchain tx SUCCESS
+ * - dùng để disable double-buy
+ * - hiển thị trạng thái UI
+ */
+export function syncTradeSuccess(
+  workId: string,
+  buyer: string,
+  txHash: string
+) {
+  const works = load();
+  const w = works.find(x => x.id === workId);
+  if (!w) return;
+
+  w.onchainTrades ||= [];
+
+  // tránh ghi trùng tx
+  if (w.onchainTrades.some(t => t.txHash === txHash)) {
+    return;
+  }
+
+  w.onchainTrades.push({
+    buyer,
+    txHash,
+    time: Date.now(),
+  });
+
+  save(works);
+}
+
+/**
+ * Check wallet đã mua tác phẩm này chưa
+ * (dùng cho Trade page)
+ */
+export function hasBoughtWork(
+  work: Work,
+  walletAddress: string
+) {
+  return work.onchainTrades?.some(
+    t => t.buyer.toLowerCase() === walletAddress.toLowerCase()
+  );
+}
+
 /* ================= MULTI ADMIN APPROVAL ================= */
 
 /**
@@ -145,10 +201,7 @@ export function approveWork(workId: string, adminWeight = 1) {
   w.rejectionBy ||= [];
   w.quorumWeight ||= 3;
 
-  // đã reject thì không approve
   if (w.rejectionBy.includes(admin.email)) return;
-
-  // đã approve rồi thì bỏ
   if (w.approvalMap[admin.email]) return;
 
   w.approvalMap[admin.email] = adminWeight;

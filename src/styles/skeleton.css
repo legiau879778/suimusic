@@ -1,0 +1,12 @@
+.skeleton {
+  border-radius: 26px;
+  height: 200px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,.04) 25%,
+    rgba(255,255,255,.12) 37%,
+    rgba(255,255,255,.04) 63%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+}

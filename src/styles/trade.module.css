@@ -1,45 +1,105 @@
-.page {
-  max-width: 1100px;
-  margin: auto;
-  padding: 40px;
+@import "./ui.shared.css";
+
+/* =====================
+   TRADE CARD
+===================== */
+
+.price {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 14px 0;
+  color: #facc15;
 }
 
-.title {
-  font-size: 26px;
-  margin-bottom: 20px;
+.buy {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    #facc15,
+    #f59e0b
+  );
+  color: #111;
+  font-weight: 600;
 }
 
-.work {
-  background: rgba(20, 25, 50, 0.55);
-  backdrop-filter: blur(14px);
-  border-radius: 18px;
-  padding: 20px;
-  margin-bottom: 20px;
+.buy:hover {
+  filter: brightness(1.05);
 }
 
-.trade {
+/* =====================
+   MODAL OVERLAY
+===================== */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 10px;
-  background: rgba(0,0,0,0.3);
-  padding: 10px;
-  border-radius: 10px;
+  justify-content: center;
+  z-index: 1000;
 }
 
-.actions button {
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+/* =====================
+   MODAL
+===================== */
+
+.modal {
+  width: 420px;
+  border-radius: 24px;
+  padding: 24px;
+  background: linear-gradient(
+    180deg,
+    rgba(30,35,70,.95),
+    rgba(15,20,45,.98)
+  );
+  border: 1px solid var(--border-soft);
+  animation: scaleIn .25s ease;
+}
+
+.modal h3 {
+  margin-bottom: 10px;
+}
+
+.modal p {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.modalActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.confirm {
+  flex: 1;
   background: #22c55e;
+  color: #022c22;
+  padding: 12px;
+  border-radius: 12px;
 }
 
-.reject {
-  background: #ef4444 !important;
-  color: white;
+.cancel {
+  flex: 1;
+  background: rgba(255,255,255,.1);
+  padding: 12px;
+  border-radius: 12px;
 }
 
-.empty {
-  opacity: 0.6;
+.success {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.error {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.buy:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

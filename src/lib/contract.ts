@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import ABI from "@/abi/CopyrightRegistry.json";
+import ABI from "abi.";
 
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
 const CONTRACT_ADDRESS =
