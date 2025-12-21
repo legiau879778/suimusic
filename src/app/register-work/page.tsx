@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getAuthorById } from "@/lib/authorStore";
 import { addWork, MarketStatus } from "@/lib/workStore";
-import styles from "@/styles/registerWork.figma.module.css";
 
 /* ===== SHA256 ===== */
 async function sha256(file: File) {

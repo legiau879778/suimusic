@@ -1,41 +1,56 @@
 .header {
   height: 72px;
-  padding: 0 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  padding: 0 48px;
 
-  background: rgba(2, 6, 23, 0.65);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+
+  background: linear-gradient(
+    180deg,
+    rgba(15,23,42,.95),
+    rgba(2,6,23,.9)
+  );
+
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  border-bottom: 1px solid rgba(148,163,184,.15);
 }
 
 /* LOGO */
 .logo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  text-decoration: none;
 }
 
 .logoText {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
+  letter-spacing: .14em;
   color: #facc15;
 }
 
 /* MENU */
 .nav {
   display: flex;
-  gap: 28px;
+  justify-content: center;
+  gap: 80px;
 }
 
 .nav a,
 .nav button {
   background: none;
   border: none;
-  color: #e5e7eb;
+  padding: 0;
+
   font-size: 14px;
+  font-weight: bold;
+  color: #e5e7eb;
   cursor: pointer;
+  text-decoration: none; /* bỏ gạch chân */
+
+  transition: color .2s ease;
 }
 
 .nav a:hover,
@@ -43,13 +58,40 @@
   color: #facc15;
 }
 
-/* LOGIN */
-.login {
+/* ACTIVE */
+.active {
+  color: #facc15 !important;
   font-weight: 700;
-  color: #facc15;
 }
 
-.admin {
-  color: #f87171;
-  font-weight: 700;
+/* RIGHT */
+.right {
+  display: flex;
+  align-items: center;
+}
+
+/* LOGIN ICON – FONT AWESOME */
+.loginIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(250,204,21,.12);
+  color: #facc15;
+  text-decoration: none;
+
+  transition: background .2s ease, transform .2s ease;
+}
+
+.loginIcon i {
+  font-size: 15px;
+}
+
+.loginIcon:hover {
+  background: rgba(215, 180, 39, 0.22);
+  transform: scale(1.05);
 }

@@ -1,67 +1,147 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { getAuthors } from "@/lib/authorStore";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import styles from "@/styles/login.module.css";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
-  const router = useRouter();
-  const { loginAsAdmin, loginAsAuthor } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState<"user" | "author">("user");
 
-  const submit = () => {
-    if (!username.trim()) {
-      alert("Nhập tên đăng nhập");
-      return;
+  // user login
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  /* ===== AUTO CLEAR ERROR ===== */
+  useEffect(() => {
+    if (email) setEmailError("");
+  }, [email]);
+
+  useEffect(() => {
+    if (password) setPasswordError("");
+  }, [password]);
+
+  /* ===== HANDLERS ===== */
+  const submitUser = () => {
+    let hasError = false;
+    if (!email) {
+      setEmailError("Vui lòng nhập email");
+      hasError = true;
     }
-
-    // ADMIN
-    if (username === "admin") {
-      loginAsAdmin();
-      router.push("/admin");
-      return;
+    if (!password) {
+      setPasswordError("Vui lòng nhập mật khẩu");
+      hasError = true;
     }
+    if (hasError) return;
 
-    // AUTHOR
-    const uname = username.toLowerCase();
-    const author = getAuthors().find(
-      a =>
-        (a.stageName && a.stageName.toLowerCase() === uname) ||
-        (a.name && a.name.toLowerCase() === uname)
-    );
+    alert("User login (email/password)");
+  };
 
-    if (!author) {
-      alert("Không tìm thấy tác giả");
-      return;
-    }
-
-    loginAsAuthor(author.id, author.stageName || author.name);
-
-    if (author.status === "approved") {
-      router.push("/manage");
-    } else {
-      alert("Tác giả đang chờ duyệt");
-      router.push("/");
-    }
+  const connectWallet = () => {
+    alert("Connect wallet (Metamask / WalletConnect)");
+    // TODO: wallet connect logic
   };
 
   return (
-    <div className="auth-page">
-      <h1>Đăng nhập</h1>
+    <div className={styles.page}>
+      <div className={styles.bg} />
 
-      <input
-        placeholder="Admin hoặc nghệ danh tác giả"
-        value={username}
-        onChange={e => setUsername(e.target.value)}
-      />
+      <div
+        className={`${styles.panel} ${
+          mode === "author" ? styles.authorMode : styles.userMode
+        }`}
+      >
+        {/* LEFT */}
+        <div className={styles.left}>
+          {mode === "user" && (
+            <>
+              <h1>ĐĂNG NHẬP</h1>
 
-      <button onClick={submit}>Đăng nhập</button>
+              <div className={styles.inputWrap}>
+                <input
+                  placeholder="Email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                />
+                {emailError && (
+                  <span className={styles.errorText}>{emailError}</span>
+                )}
+              </div>
 
-      <p style={{ marginTop: 16 }}>
-        Chưa có tài khoản?{" "}
-        <a href="/register-author">Đăng ký tác giả</a>
-      </p>
+              <div className={styles.inputWrap}>
+                <input
+                  type="password"
+                  placeholder="Mật khẩu"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                />
+                {passwordError && (
+                  <span className={styles.errorText}>{passwordError}</span>
+                )}
+              </div>
+
+              <button className={styles.primaryBtn} onClick={submitUser}>
+                Đăng nhập
+              </button>
+
+              <p className={styles.register}>
+                Chưa có tài khoản? <Link href="/register">Đăng ký</Link>
+              </p>
+            </>
+          )}
+
+          {mode === "author" && (
+            <button
+              className={styles.backBtn}
+              onClick={() => setMode("user")}
+            >
+              ← Quay lại đăng nhập user
+            </button>
+          )}
+        </div>
+
+        {/* RIGHT */}
+        <div className={styles.right}>
+          {mode === "user" && (
+            <div className={styles.authorRow}>
+              <button
+                className={styles.switchBtn}
+                onClick={() => setMode("author")}
+              >
+                Đăng nhập tác giả
+              </button>
+
+              <button className={styles.googleIcon}>
+                <i className="fa-brands fa-google" />
+              </button>
+            </div>
+          )}
+
+          {mode === "author" && (
+            <>
+              <div className={styles.rightTitle}>
+                Đăng nhập tác giả
+              </div>
+
+              <button
+                className={styles.walletBtn}
+                onClick={connectWallet}
+              >
+                <i className="fa-brands fa-ethereum" />
+                Connect Wallet
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
