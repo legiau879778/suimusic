@@ -1,0 +1,80 @@
+.page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.card {
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,.06),
+    rgba(255,255,255,.02)
+  );
+  border: 1px solid var(--border-soft);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.account {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.role {
+  font-size: 13px;
+  color: var(--secondary);
+}
+
+.walletList {
+  list-style: none;
+  margin: 10px 0;
+}
+
+.walletList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px dashed var(--border-soft);
+  font-size: 14px;
+}
+
+.activeWallet {
+  background: rgba(250,204,21,.1);
+  border-radius: 10px;
+}
+
+.activeBadge {
+  font-size: 12px;
+  color: var(--secondary);
+}
+
+.connectBtn {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(250,204,21,.2);
+}
+
+.remove {
+  margin-left: auto;
+  color: #f87171;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 10px;
+}

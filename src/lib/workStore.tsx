@@ -1,6 +1,10 @@
 // src/lib/workStore.ts
 import { addReviewLog } from "./reviewLogStore";
 import { getCurrentUser } from "./authStore";
+import { getActiveAdminWallet } from "./adminWalletStore";
+
+/* ================= TYPES ================= */
+
 export type TradeStatus = "pending" | "accepted" | "rejected";
 
 export type Trade = {
@@ -9,11 +13,9 @@ export type Trade = {
   date: string;
   status: TradeStatus;
 };
+
 export type MarketStatus = "private" | "public" | "tradeable";
 export type WorkStatus = "pending" | "verified" | "rejected";
-
-const STORAGE_KEY = "works";
-
 
 export type Work = {
   id: string;
@@ -24,14 +26,37 @@ export type Work = {
   language: string;
   completedDate: string;
 
-  marketStatus: MarketStatus; // ✅ camelCase
-
+  marketStatus: MarketStatus;
   duration: number;
   fileHash: string;
+
   status: WorkStatus;
   createdAt: number;
   trades: Trade[];
+
+  /* ===== MULTI ADMIN APPROVAL ===== */
+  approvalMap?: Record<string, number>; // adminEmail -> weight
+  rejectionBy?: string[];               // admin reject
+  quorumWeight?: number;                // total weight required
 };
+
+/* ================= STORAGE ================= */
+
+const STORAGE_KEY = "works";
+
+const load = (): Work[] => {
+  if (typeof window === "undefined") return [];
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+};
+
+const save = (data: Work[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+};
+
+/* ================= CRUD ================= */
+
+export const getWorks = (): Work[] => load();
 
 export const addWork = (data: {
   title: string;
@@ -39,7 +64,7 @@ export const addWork = (data: {
   genre: string;
   language: string;
   completedDate: string;
-  marketStatus: MarketStatus; // ✅ camelCase
+  marketStatus: MarketStatus;
   duration: number;
   fileHash: string;
 }) => {
@@ -58,40 +83,17 @@ export const addWork = (data: {
     status: "pending",
     createdAt: Date.now(),
     trades: [],
+
+    approvalMap: {},
+    rejectionBy: [],
+    quorumWeight: 3, // ✅ mặc định (ví dụ: 3 weight)
   });
 
   save(works);
 };
 
-
-/* ================= STORAGE ================= */
-
-const load = (): Work[] => {
-  if (typeof window === "undefined") return [];
-  return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-};
-
-const save = (data: Work[]) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-};
-
-/* ================= CRUD ================= */
-
-export const getWorks = (): Work[] => load();
-
-
-export const verifyWork = (
-  workId: string,
-  status: "verified" | "rejected"
-) => {
-  const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w) return;
-
-  w.status = status;
-  save(works);
-};
+export const countWorksByAuthor = (authorId: string) =>
+  load().filter(w => w.authorId === authorId).length;
 
 /* ================= TRADE ================= */
 
@@ -126,55 +128,97 @@ export const updateTradeStatus = (
   save(works);
 };
 
-export const countWorksByAuthor = (authorId: string) =>
-  load().filter(w => w.authorId === authorId).length;
+/* ================= MULTI ADMIN APPROVAL ================= */
 
-/* DUYỆT */
-export function approveWork(id: string) {
-  const works = getWorks();
+/**
+ * ADMIN APPROVE (CÓ WEIGHT)
+ */
+export function approveWork(workId: string, adminWeight = 1) {
+  const works = load();
   const admin = getCurrentUser();
+  if (!admin) return;
 
-  const updated = works.map((w) =>
-    w.id === id ? { ...w, status: "approved" } : w
-  );
+  const w = works.find(x => x.id === workId);
+  if (!w || w.status !== "pending") return;
 
-  const work = works.find((w) => w.id === id);
+  w.approvalMap ||= {};
+  w.rejectionBy ||= [];
+  w.quorumWeight ||= 3;
 
-  if (work && admin) {
-    addReviewLog({
-      id: crypto.randomUUID(),
-      workId: id,
-      workTitle: work.title,
-      adminEmail: admin.email,
-      action: "approved",
-      time: new Date().toISOString(),
-    });
+  // đã reject thì không approve
+  if (w.rejectionBy.includes(admin.email)) return;
+
+  // đã approve rồi thì bỏ
+  if (w.approvalMap[admin.email]) return;
+
+  w.approvalMap[admin.email] = adminWeight;
+
+  const totalWeight = Object.values(w.approvalMap)
+    .reduce((a, b) => a + b, 0);
+
+  if (totalWeight >= w.quorumWeight) {
+    w.status = "verified";
   }
 
-  saveWorks(updated);
+  const wallet = getActiveAdminWallet(admin.email);
+
+  addReviewLog({
+    id: crypto.randomUUID(),
+    workId,
+    workTitle: w.title,
+    adminEmail: admin.email,
+    adminWallet: wallet?.address || "N/A",
+    action: "approved",
+    time: new Date().toISOString(),
+  });
+
+  save(works);
 }
 
-/* TỪ CHỐI */
-export function rejectWork(id: string) {
-  const works = getWorks();
+/**
+ * ADMIN REJECT (1 PHIẾU LÀ ĐỦ)
+ */
+export function rejectWork(workId: string) {
+  const works = load();
   const admin = getCurrentUser();
+  if (!admin) return;
 
-  const updated = works.map((w) =>
-    w.id === id ? { ...w, status: "rejected" } : w
-  );
+  const w = works.find(x => x.id === workId);
+  if (!w || w.status !== "pending") return;
 
-  const work = works.find((w) => w.id === id);
+  w.rejectionBy ||= [];
 
-  if (work && admin) {
-    addReviewLog({
-      id: crypto.randomUUID(),
-      workId: id,
-      workTitle: work.title,
-      adminEmail: admin.email,
-      action: "rejected",
-      time: new Date().toISOString(),
-    });
-  }
+  if (w.rejectionBy.includes(admin.email)) return;
 
-  saveWorks(updated);
+  w.rejectionBy.push(admin.email);
+  w.status = "rejected";
+
+  const wallet = getActiveAdminWallet(admin.email);
+
+  addReviewLog({
+    id: crypto.randomUUID(),
+    workId,
+    workTitle: w.title,
+    adminEmail: admin.email,
+    adminWallet: wallet?.address || "N/A",
+    action: "rejected",
+    time: new Date().toISOString(),
+  });
+
+  save(works);
+}
+
+/**
+ * UNDO / RESET REVIEW
+ */
+export function undoReview(workId: string) {
+  const works = load();
+  const w = works.find(x => x.id === workId);
+  if (!w) return;
+
+  w.status = "pending";
+  w.approvalMap = {};
+  w.rejectionBy = [];
+
+  save(works);
 }

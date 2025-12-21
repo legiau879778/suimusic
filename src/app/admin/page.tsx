@@ -19,143 +19,96 @@ export default function AdminPage() {
   const router = useRouter();
   const user = getCurrentUser();
 
-  const [pending, setPending] = useState<any[]>([]);
+  const [works, setWorks] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
-  const [keyword, setKeyword] = useState("");
-  const [action, setAction] = useState<
-    "all" | "approved" | "rejected" | "undo"
-  >("all");
 
-  /* ===== AUTH + INIT ===== */
   useEffect(() => {
     if (!user || user.role !== "admin") {
       router.push("/");
       return;
     }
-    setPending(getWorks().filter((w) => w.status === "pending"));
+    setWorks(getWorks());
+    setLogs(getReviewLogs());
   }, []);
 
-  /* ===== REALTIME LOG (SERVER-SIDE SSE) ===== */
-  useEffect(() => {
-    const es = new EventSource("/api/admin/log-stream");
-    es.onmessage = (e) => {
-      setLogs(JSON.parse(e.data));
-    };
-    return () => es.close();
-  }, []);
-
-  /* ===== ACTIONS ===== */
-  const approve = (id: string) => {
-    approveWork(id);
-    setPending((p) => p.filter((w) => w.id !== id));
+  const refresh = () => {
+    setWorks(getWorks());
+    setLogs(getReviewLogs());
   };
-
-  const reject = (id: string) => {
-    rejectWork(id);
-    setPending((p) => p.filter((w) => w.id !== id));
-  };
-
-  const exportCSV = () => {
-    const csv = exportLogsCSV();
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "review-log.csv";
-    a.click();
-  };
-
-  /* ===== FILTER ===== */
-  const filteredLogs = logs.filter((l) => {
-    const matchText =
-      l.workTitle.toLowerCase().includes(keyword.toLowerCase()) ||
-      l.adminEmail.toLowerCase().includes(keyword.toLowerCase());
-
-    const matchAction =
-      action === "all" ? true : l.action === action;
-
-    return matchText && matchAction;
-  });
 
   return (
     <div className={styles.page}>
-      <h1>Admin – Duyệt tác phẩm</h1>
+      <h1>Admin – Multi-Admin Approval</h1>
 
-      {/* ===== PENDING ===== */}
-      <section>
-        <h2>Chờ duyệt</h2>
+      {/* ===== WORKS ===== */}
+      <div className={styles.grid}>
+        {works.map((w) => (
+          <div key={w.id} className={styles.card}>
+            <h3>{w.title}</h3>
 
-        <div className={styles.grid}>
-          {pending.map((w) => (
-            <div key={w.id} className={styles.card}>
-              <h3>{w.title}</h3>
-              <p>{w.authorName}</p>
+            <p>
+              Duyệt:{" "}
+              {(w.approvals?.length || 0)} /{" "}
+              {w.quorum || 2}
+            </p>
 
+            <p>Trạng thái: {w.status}</p>
+
+            {w.status === "pending" && (
               <div className={styles.actions}>
                 <button
                   className={styles.approve}
-                  onClick={() => approve(w.id)}
+                  onClick={() => {
+                    approveWork(w.id);
+                    refresh();
+                  }}
                 >
-                  ✔ Duyệt
+                  ✔ Approve
                 </button>
+
                 <button
                   className={styles.reject}
-                  onClick={() => reject(w.id)}
+                  onClick={() => {
+                    rejectWork(w.id);
+                    refresh();
+                  }}
                 >
-                  ✖ Từ chối
+                  ✖ Reject
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            )}
+
+            {w.status !== "pending" && (
+              <button
+                className={styles.undo}
+                onClick={() => {
+                  undoReview(w.id);
+                  refresh();
+                }}
+              >
+                ↩ Undo
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
 
       {/* ===== LOG ===== */}
       <section className={styles.logSection}>
         <h2>Lịch sử duyệt</h2>
-
-        <div className={styles.filters}>
-          <input
-            placeholder="Tìm tác phẩm / admin"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-
-          <select
-            value={action}
-            onChange={(e) =>
-              setAction(e.target.value as any)
-            }
-          >
-            <option value="all">Tất cả</option>
-            <option value="approved">Đã duyệt</option>
-            <option value="rejected">Từ chối</option>
-            <option value="undo">Undo</option>
-          </select>
-
-          <button onClick={exportCSV}>
-            ⬇ Export CSV
-          </button>
-        </div>
+        <button onClick={exportLogsCSV}>
+          ⬇ Export CSV
+        </button>
 
         <ul className={styles.log}>
-          {filteredLogs.map((l) => (
+          {logs.map((l) => (
             <li key={l.id}>
-              <strong>{l.workTitle}</strong> — {l.action} <br />
-              bởi {l.adminEmail}
+              <strong>{l.workTitle}</strong> – {l.action}
+              <br />
+              {l.adminEmail}
               <span>
                 {new Date(l.time).toLocaleString()}
               </span>
-
-              {l.action !== "undo" && (
-                <button
-                  className={styles.undo}
-                  onClick={() => undoReview(l.workId)}
-                >
-                  ↩ Undo
-                </button>
-              )}
             </li>
           ))}
         </ul>
