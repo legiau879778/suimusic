@@ -1,67 +1,88 @@
 .page {
-  min-height: 100vh;
-  padding: 40px;
-  display: flex;
-  justify-content: center;
+  padding: 80px 0;
 }
 
 .panel {
-  width: 100%;
-  max-width: 900px;
-  background: rgba(20, 25, 45, 0.55);
-  backdrop-filter: blur(14px);
-  border-radius: 20px;
-  padding: 30px;
-  border: 1px solid rgba(255,255,255,0.1);
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 48px;
+  padding: 48px;
+  border-radius: 28px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border-soft);
 }
 
-.badges {
-  display: flex;
-  gap: 10px;
+.preview {
+  position: relative;
+}
+
+.preview img {
+  width: 100%;
+  border-radius: 20px;
+}
+
+.glow {
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(
+    circle,
+    rgba(250,204,21,.35),
+    transparent 70%
+  );
+  filter: blur(40px);
+  z-index: -1;
+}
+
+.info h1 {
+  font-size: 32px;
   margin: 12px 0;
 }
 
 .badge {
-  padding: 4px 14px;
+  display: inline-block;
+  padding: 6px 14px;
   border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: capitalize;
+  background: rgba(34,197,94,.15);
+  color: #22c55e;
 }
 
-/* work status */
-.pending { background: #facc15; color: #000; }
-.verified { background: #22c55e; color: #000; }
-.rejected { background: #ef4444; color: #fff; }
-
-/* market status */
-.private {
-  background: rgba(255,255,255,0.15);
-  color: #e5e7eb;
+.author {
+  color: var(--text-muted);
 }
 
-.public {
-  background: #3b82f6;
-  color: #fff;
+.meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 32px 0;
 }
 
-.tradeable {
-  background: linear-gradient(135deg, #8b5cf6, #ec4899);
-  color: #fff;
+.meta label {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.section {
-  margin-top: 20px;
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.hash {
-  margin-top: 20px;
+.meta span {
+  display: block;
   font-size: 14px;
-  opacity: 0.8;
+  word-break: break-all;
 }
 
-.empty {
-  opacity: 0.6;
+.actions {
+  display: flex;
+  gap: 18px;
+}
+
+.primary {
+  padding: 14px 26px;
+  background: linear-gradient(90deg,#facc15,#fde047);
+  border-radius: 16px;
+  color: #020617;
+  font-weight: 600;
+}
+
+.secondary {
+  padding: 14px 26px;
+  border-radius: 16px;
+  border: 1px solid var(--border-soft);
 }

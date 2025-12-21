@@ -1,6 +1,6 @@
-import "./globals.css";
+// UPDATED: layout spacing + structure
 
-import { AuthProvider } from "@/context/AuthContext";
+import "@/app/globals.css";
 import Header from "@/components/Header";
 
 export default function RootLayout({
@@ -11,10 +11,12 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body>
-        <AuthProvider>
-          <Header />
-          {children}
-        </AuthProvider>
+        <Header />
+        <main>
+          <div className="container">
+            {children}
+          </div>
+        </main>
       </body>
     </html>
   );

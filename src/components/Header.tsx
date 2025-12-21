@@ -1,18 +1,50 @@
 "use client";
 
+// UPDATED: mobile menu swipe to close
+
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import styles from "@/styles/header.module.css";
 import { useAuth } from "@/context/AuthContext";
 import UserMenu from "./UserMenu";
-import styles from "@/styles/header.module.css";
 
 export default function Header() {
   const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
+  const [scrolled, setScrolled] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dragX, setDragX] = useState(0);
+
+  const lastScroll = useRef(0);
+  const startX = useRef(0);
+
+  /* SCROLL BEHAVIOR */
+  useEffect(() => {
+    const onScroll = () => {
+      const current = window.scrollY;
+
+      setScrolled(current > 20);
+
+      if (current > lastScroll.current && current > 120) {
+        setHidden(true);
+      } else {
+        setHidden(false);
+      }
+
+      lastScroll.current = current;
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const go = (href: string) => {
+    setMenuOpen(false);
     if (!user) router.push("/login");
     else router.push(href);
   };
@@ -20,65 +52,119 @@ export default function Header() {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
-  return (
-    <header className={styles.header}>
-      {/* LOGO */}
-      <Link href="/" className={styles.logo}>
-        <Image
-          src="/images/logo.png"
-          alt="Chainstorm"
-          width={34}
-          height={34}
-          priority
-        />
-        <span className={styles.logoText}>CHAINSTORM</span>
-      </Link>
+  /* SWIPE HANDLERS */
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+  };
 
-      {/* MENU */}
-      <nav className={styles.nav}>
-        <Link href="/" className={isActive("/") ? styles.active : ""}>
+  const onTouchMove = (e: React.TouchEvent) => {
+    const delta = e.touches[0].clientX - startX.current;
+    if (delta > 0) setDragX(delta);
+  };
+
+  const onTouchEnd = () => {
+    if (dragX > 80) {
+      setMenuOpen(false);
+    }
+    setDragX(0);
+  };
+
+  return (
+    <>
+      <header
+        className={[
+          styles.header,
+          scrolled ? styles.scrolled : "",
+          hidden ? styles.hidden : "",
+        ].join(" ")}
+      >
+        <div className={styles.inner}>
+          {/* LOGO */}
+          <Link href="/" className={styles.logo}>
+            <Image
+              src="/images/logo.png"
+              alt="Chainstorm"
+              width={32}
+              height={32}
+              priority
+            />
+            <span>CHAINSTORM</span>
+          </Link>
+
+          {/* DESKTOP NAV */}
+          <nav className={styles.nav}>
+            <Link href="/" className={isActive("/") ? styles.active : ""}>
+              Trang chủ
+            </Link>
+            <button onClick={() => go("/search")}>Tra cứu</button>
+            <button onClick={() => go("/manage")}>Quản lý</button>
+            <button onClick={() => go("/trade")}>Giao dịch</button>
+          </nav>
+
+          {/* RIGHT */}
+          <div className={styles.right}>
+            {user ? (
+              <UserMenu />
+            ) : (
+              <button
+                className={styles.login}
+                onClick={() => router.push("/login")}
+              >
+                Đăng nhập
+              </button>
+            )}
+
+            <button
+              className={styles.menuToggle}
+              onClick={() => setMenuOpen(true)}
+            >
+              ☰
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* OVERLAY */}
+      {menuOpen && (
+        <div
+          className={styles.overlay}
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      {/* MOBILE MENU */}
+      <aside
+        className={`${styles.mobileMenu} ${
+          menuOpen ? styles.open : ""
+        }`}
+        style={{ transform: `translateX(${menuOpen ? dragX : 100}%)` }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <button
+          className={styles.close}
+          onClick={() => setMenuOpen(false)}
+        >
+          ✕
+        </button>
+
+        <Link href="/" onClick={() => setMenuOpen(false)}>
           Trang chủ
         </Link>
+        <button onClick={() => go("/search")}>Tra cứu</button>
+        <button onClick={() => go("/manage")}>Quản lý</button>
+        <button onClick={() => go("/trade")}>Giao dịch</button>
 
-        <button
-          onClick={() => go("/manage")}
-          className={isActive("/manage") ? styles.active : ""}
-        >
-          Quản lý tác phẩm
-        </button>
-
-        <Link
-          href="/search"
-          className={isActive("/search") ? styles.active : ""}
-        >
-          Tra cứu tác phẩm
-        </Link>
-
-        <button
-          onClick={() => go("/register-work")}
-          className={isActive("/register-work") ? styles.active : ""}
-        >
-          Đăng ký tác phẩm
-        </button>
-
-        <button
-          onClick={() => go("/trade")}
-          className={isActive("/trade") ? styles.active : ""}
-        >
-          Giao dịch bản quyền
-        </button>
-      </nav>
-
-      {/* RIGHT */}
-      <div className={styles.right}>
-        {user ? (
-          <UserMenu />
-        ) : (
-          <Link href="/login" className={styles.loginIcon} aria-label="Đăng nhập">
-            <i className="fa-solid fa-user"></i>
-          </Link>
+        {!user && (
+          <button
+            className={styles.mobileLogin}
+            onClick={() => router.push("/login")}
+          >
+            Đăng nhập
+          </button>
         )}
-      </div>
-    </header>
+      </aside>
+    </>
   );
 }
