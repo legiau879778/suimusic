@@ -2,20 +2,20 @@
 
 /*
   FIXED:
-  - Hook order stable
-  - No conditional hooks
-  - Auto clear error safe
+  - No setState inside useEffect
+  - No hook order issue
+  - ESLint clean (react-hooks/set-state-in-effect)
 */
 
 import styles from "@/styles/login.module.css";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login as loginUser } from "@/lib/authStore";
 
 type Mode = "user" | "author";
 
 export default function LoginPage() {
-  /* ================== STATE (TOP LEVEL) ================== */
+  /* ================== STATE ================== */
   const [mode, setMode] = useState<Mode>("user");
 
   const [email, setEmail] = useState("");
@@ -26,23 +26,17 @@ export default function LoginPage() {
 
   const router = useRouter();
 
-  /* ================== EFFECTS (TOP LEVEL) ================== */
-
-  // Auto clear email error
-  useEffect(() => {
-    if (emailError && email) {
-      setEmailError("");
-    }
-  }, [email, emailError]);
-
-  // Auto clear password error
-  useEffect(() => {
-    if (passwordError && password) {
-      setPasswordError("");
-    }
-  }, [password, passwordError]);
-
   /* ================== HANDLERS ================== */
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (emailError) setEmailError("");
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (passwordError) setPasswordError("");
+  };
 
   const handleUserLogin = () => {
     let hasError = false;
@@ -88,13 +82,13 @@ export default function LoginPage() {
               className={mode === "user" ? styles.active : ""}
               onClick={() => setMode("user")}
             >
-              User
+              Người dùng
             </button>
             <button
               className={mode === "author" ? styles.active : ""}
               onClick={() => setMode("author")}
             >
-              Author
+              Tác giả
             </button>
           </div>
 
@@ -105,10 +99,14 @@ export default function LoginPage() {
                 <label>Email</label>
                 <input
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) =>
+                    handleEmailChange(e.target.value)
+                  }
                 />
                 {emailError && (
-                  <span className={styles.error}>{emailError}</span>
+                  <span className={styles.error}>
+                    {emailError}
+                  </span>
                 )}
               </div>
 
@@ -117,10 +115,14 @@ export default function LoginPage() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) =>
+                    handlePasswordChange(e.target.value)
+                  }
                 />
                 {passwordError && (
-                  <span className={styles.error}>{passwordError}</span>
+                  <span className={styles.error}>
+                    {passwordError}
+                  </span>
                 )}
               </div>
 
@@ -144,7 +146,7 @@ export default function LoginPage() {
                 className={styles.submit}
                 onClick={handleAuthorLogin}
               >
-                Connect Wallet
+                Kết nối ví
               </button>
             </>
           )}
