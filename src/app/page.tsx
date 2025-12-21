@@ -1,17 +1,11 @@
 "use client";
 
-/*
-  UPDATED: Home page full
-  - Restore 2 info panels
-  - Bullet icons (SVG)
-  - Stable showcase + responsive
-*/
-
 import styles from "@/styles/home.module.css";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { getWorks } from "@/lib/workStore";
-import { useInView } from "@/hooks/useInView";
+import WorkThumbnail from "@/components/WorkThumbnail";
 
 type FeaturedWork = {
   id: string;
@@ -19,12 +13,12 @@ type FeaturedWork = {
   hash: string;
   author: string;
   type: string;
+  image?: string;
 };
 
 export default function HomePage() {
   const sliderRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
   const [works, setWorks] = useState<FeaturedWork[]>([]);
 
   /* LOAD + NORMALIZE WORKS */
@@ -33,48 +27,35 @@ export default function HomePage() {
       .filter((w: any) => w.status === "approved")
       .slice(0, 8);
 
-    const normalized: FeaturedWork[] = rawWorks.map((w: any) => ({
-      id: w.id,
-      title: w.title || "Untitled Work",
-      hash: w.hash || "",
-      author: w.authorName || "Unknown author",
-      type: w.type || "Digital Work",
-    }));
-
-    setWorks(normalized);
+    setWorks(
+      rawWorks.map((w: any) => ({
+        id: w.id,
+        title: w.title || "Untitled Work",
+        hash: w.hash || "",
+        author: w.authorName || "Unknown author",
+        type: w.type || "Digital Work",
+        image: w.image,
+      }))
+    );
   }, []);
 
-  /* AUTO SCROLL SLIDER */
+  /* AUTO SCROLL */
   useEffect(() => {
     const slider = sliderRef.current;
     if (!slider) return;
 
-    const start = () => {
-      intervalRef.current = setInterval(() => {
-        slider.scrollBy({ left: 280, behavior: "smooth" });
+    intervalRef.current = setInterval(() => {
+      slider.scrollBy({ left: 280, behavior: "smooth" });
+      if (
+        slider.scrollLeft + slider.clientWidth >=
+        slider.scrollWidth - 10
+      ) {
+        slider.scrollTo({ left: 0, behavior: "smooth" });
+      }
+    }, 3800);
 
-        if (
-          slider.scrollLeft + slider.clientWidth >=
-          slider.scrollWidth - 10
-        ) {
-          slider.scrollTo({ left: 0, behavior: "smooth" });
-        }
-      }, 3800);
-    };
-
-    const stop = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-
-    start();
-    slider.addEventListener("mouseenter", stop);
-    slider.addEventListener("mouseleave", start);
-
-    return () => {
-      stop();
-      slider.removeEventListener("mouseenter", stop);
-      slider.removeEventListener("mouseleave", start);
-    };
+    return () =>
+      intervalRef.current && clearInterval(intervalRef.current);
   }, []);
 
   const infoLeft = [
@@ -105,8 +86,8 @@ export default function HomePage() {
           </h1>
 
           <p>
-            Chainstorm là nền tảng đăng ký, xác thực và giao dịch quyền
-            sở hữu trí tuệ minh bạch, không trung gian.
+            Chainstorm là nền tảng đăng ký, xác thực và giao dịch
+            quyền sở hữu trí tuệ minh bạch, không trung gian.
           </p>
 
           <div className={styles.heroActions}>
@@ -120,71 +101,63 @@ export default function HomePage() {
         </div>
 
         <div className={styles.heroRight}>
-          <img src="/images/hero.png" alt="Hero" />
+          <Image
+            src="/images/hero.png"
+            alt="Chainstorm Hero"
+            width={520}
+            height={420}
+            priority
+            placeholder="blur"
+            blurDataURL="/images/blur.png"
+          />
         </div>
       </div>
 
       {/* FEATURED WORKS */}
       <div className={styles.sliderPanel}>
         <div className={styles.sliderHeader}>
-          <div>
-            <h2>Tác phẩm nổi bật</h2>
-            <p>Những tác phẩm đã được xác thực bản quyền</p>
-          </div>
-
-          <Link href="/search" className={styles.more}>
-            Xem tất cả →
-          </Link>
+          <h2>Tác phẩm nổi bật</h2>
         </div>
 
         <div className={styles.slider} ref={sliderRef}>
-          {works.map((work) => {
-            const { ref, visible } = useInView<HTMLAnchorElement>();
-            return (
-              <Link
-                key={work.id}
-                ref={ref}
-                href={`/work/${work.id}`}
-                className={`${styles.workCard} ${
-                  visible ? styles.show : ""
-                }`}
-              >
-                <div className={styles.thumb}>
-                  <span>{work.type}</span>
-                </div>
+          {works.map((work) => (
+            <Link
+              key={work.id}
+              href={`/work/${work.id}`}
+              className={styles.workCard}
+            >
+              <WorkThumbnail
+                src={work.image}
+                label={work.type}
+              />
 
-                <h4>{work.title}</h4>
+              <h4>{work.title}</h4>
 
-                <div className={styles.workMeta}>
-                  <span className={styles.approved}>Approved</span>
-                  <span className={styles.hash}>
-                    {work.hash
-                      ? `${work.hash.slice(0, 10)}…`
-                      : "No hash"}
-                  </span>
-                </div>
-
-                <span className={styles.author}>
-                  {work.author}
+              <div className={styles.workMeta}>
+                <span className={styles.approved}>Approved</span>
+                <span className={styles.hash}>
+                  {work.hash
+                    ? `${work.hash.slice(0, 10)}…`
+                    : "No hash"}
                 </span>
-              </Link>
-            );
-          })}
+              </div>
+
+              <span className={styles.author}>
+                {work.author}
+              </span>
+            </Link>
+          ))}
         </div>
       </div>
 
-      {/* INFO PANELS */}
+      {/* INFO PANELS (ĐÃ KHÔI PHỤC) */}
       <div className={styles.infoPanels}>
         <div className={styles.infoPanel}>
           <h3>Website Chainstorm dùng để làm gì?</h3>
           <ul>
             {infoLeft.map((item, i) => (
               <li key={i}>
-                <span className={styles.bulletIcon}>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M5 13l4 4L19 7" />
-                  </svg>
-                </span>
+                <span className={styles.bulletIcon}>✔</span>
                 {item}
               </li>
             ))}
@@ -196,11 +169,7 @@ export default function HomePage() {
           <ul>
             {infoRight.map((item, i) => (
               <li key={i}>
-                <span className={styles.bulletIcon}>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12 2l7 4v6c0 5-3.5 9.5-7 10-3.5-.5-7-5-7-10V6l7-4z" />
-                  </svg>
-                </span>
+                <span className={styles.bulletIcon}>★</span>
                 {item}
               </li>
             ))}

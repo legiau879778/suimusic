@@ -1,6 +1,6 @@
 "use client";
 
-// UPDATED: mobile menu swipe to close
+// UPDATED: public search, protected private routes
 
 import Link from "next/link";
 import Image from "next/image";
@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import styles from "@/styles/header.module.css";
 import { useAuth } from "@/context/AuthContext";
 import UserMenu from "./UserMenu";
+
+const PRIVATE_ROUTES = ["/manage", "/trade", "/register-work"];
 
 export default function Header() {
   const { user } = useAuth();
@@ -27,7 +29,6 @@ export default function Header() {
   useEffect(() => {
     const onScroll = () => {
       const current = window.scrollY;
-
       setScrolled(current > 20);
 
       if (current > lastScroll.current && current > 120) {
@@ -43,16 +44,25 @@ export default function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  /* ROUTE GUARD */
   const go = (href: string) => {
     setMenuOpen(false);
-    if (!user) router.push("/login");
-    else router.push(href);
+
+    const isPrivate = PRIVATE_ROUTES.some((r) =>
+      href.startsWith(r)
+    );
+
+    if (isPrivate && !user) {
+      router.push("/login");
+    } else {
+      router.push(href);
+    }
   };
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
-  /* SWIPE HANDLERS */
+  /* SWIPE */
   const onTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
   };
@@ -63,9 +73,7 @@ export default function Header() {
   };
 
   const onTouchEnd = () => {
-    if (dragX > 80) {
-      setMenuOpen(false);
-    }
+    if (dragX > 80) setMenuOpen(false);
     setDragX(0);
   };
 
@@ -96,7 +104,16 @@ export default function Header() {
             <Link href="/" className={isActive("/") ? styles.active : ""}>
               Trang chủ
             </Link>
-            <button onClick={() => go("/search")}>Tra cứu</button>
+
+            {/* PUBLIC */}
+            <Link
+              href="/search"
+              className={isActive("/search") ? styles.active : ""}
+            >
+              Tra cứu
+            </Link>
+
+            {/* PRIVATE */}
             <button onClick={() => go("/manage")}>Quản lý</button>
             <button onClick={() => go("/trade")}>Giao dịch</button>
           </nav>
@@ -149,10 +166,15 @@ export default function Header() {
           ✕
         </button>
 
+        {/* PUBLIC */}
         <Link href="/" onClick={() => setMenuOpen(false)}>
           Trang chủ
         </Link>
-        <button onClick={() => go("/search")}>Tra cứu</button>
+        <Link href="/search" onClick={() => setMenuOpen(false)}>
+          Tra cứu
+        </Link>
+
+        {/* PRIVATE */}
         <button onClick={() => go("/manage")}>Quản lý</button>
         <button onClick={() => go("/trade")}>Giao dịch</button>
 
