@@ -1,45 +1,50 @@
-.wrapper {
+.wrap {
   position: relative;
 }
 
 .avatar {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: var(--accent);
-  color: #020617;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
+  border: 1px solid var(--border-soft);
 }
 
-.dropdown {
+.menu {
   position: absolute;
   right: 0;
-  top: 48px;
-  background: #020617;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  min-width: 180px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  z-index: 200;
+  top: 44px;
+  width: 220px;
+  padding: 14px;
+  border-radius: 18px;
+
+  background: linear-gradient(
+    180deg,
+    rgba(30,35,70,.95),
+    rgba(15,20,45,.98)
+  );
+
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 20px 40px rgba(0,0,0,.4);
 }
 
-.dropdown a,
-.dropdown button {
-  padding: 10px 12px;
-  border-radius: 8px;
+.menu a,
+.menu button {
+  display: block;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.menu button {
   text-align: left;
-  background: transparent;
-  color: #e5e7eb;
+  color: #f87171;
 }
 
-.dropdown a:hover,
-.dropdown button:hover {
-  background: #1e293b;
+.user {
+  margin-bottom: 10px;
+}
+
+.user span {
+  font-size: 12px;
+  color: var(--text-muted);
 }

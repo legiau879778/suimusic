@@ -1,72 +1,59 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import Link from "next/link";
+import { signOut, useSession } from "next-auth/react";
+import styles from "@/styles/userMenu.module.css";
+import { getCurrentUser } from "@/lib/authStore";
 
 export default function UserMenu() {
-  const { user, logout } = useAuth();
+  const { data } = useSession();
+  const user = getCurrentUser();
+
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
   }, []);
 
-  if (!user || !user.name) return null;
+  if (!data?.user) return null;
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <div
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: "#facc15",
-          color: "#020617",
-          fontWeight: 800,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-        }}
-      >
-        {user.name.charAt(0).toUpperCase()}
-      </div>
+    <div className={styles.wrap} ref={ref}>
+      <img
+        src={data.user.image || ""}
+        className={styles.avatar}
+        onClick={() => setOpen((v) => !v)}
+      />
 
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 46,
-            background: "#020617",
-            border: "1px solid rgba(148,163,184,.2)",
-            borderRadius: 14,
-            padding: 12,
-            minWidth: 160,
-          }}
-        >
-          <div
-            style={{ padding: 8, cursor: "pointer" }}
-            onClick={() => router.push("/")}
-          >
-            Hồ sơ
+        <div className={styles.menu}>
+          <div className={styles.user}>
+            <strong>{data.user.name}</strong>
+            <span>{data.user.email}</span>
           </div>
-          <div
-            style={{ padding: 8, cursor: "pointer" }}
-            onClick={logout}
+
+          <Link href="/manage">Quản lý tác phẩm</Link>
+
+          {user?.role === "admin" && (
+            <Link href="/admin">Admin duyệt</Link>
+          )}
+
+          <button
+            onClick={() => {
+              signOut();
+              setOpen(false);
+            }}
           >
             Đăng xuất
-          </div>
+          </button>
         </div>
       )}
     </div>

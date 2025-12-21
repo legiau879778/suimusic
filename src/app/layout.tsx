@@ -1,6 +1,5 @@
-// UPDATED: layout spacing + structure
-
-import "@/app/globals.css";
+import "./globals.css";
+import ClientProviders from "./ClientProviders";
 import Header from "@/components/Header";
 
 export default function RootLayout({
@@ -11,12 +10,10 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body>
-        <Header />
-        <main>
-          <div className="container">
-            {children}
-          </div>
-        </main>
+        <ClientProviders>
+          <Header />
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );

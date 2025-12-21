@@ -1,5 +1,6 @@
 import Image from "next/image";
 import styles from "@/styles/workThumbnail.module.css";
+import { BLUR_THUMB } from "@/lib/blur";
 
 type Props = {
   src?: string;
@@ -18,8 +19,9 @@ export default function WorkThumbnail({
         fill
         sizes="(max-width: 768px) 70vw, 240px"
         className={styles.image}
+        loading="lazy"
         placeholder="blur"
-        blurDataURL="/images/bg.png"
+        blurDataURL={BLUR_THUMB}
       />
       <span className={styles.label}>{label}</span>
     </div>

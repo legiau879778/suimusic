@@ -1,74 +1,165 @@
 "use client";
 
+import styles from "@/styles/admin.module.css";
 import { useEffect, useState } from "react";
 import {
   getWorks,
-  verifyWork,
-  Work,
+  approveWork,
+  rejectWork,
+  undoReview,
 } from "@/lib/workStore";
-
-import styles from "@/styles/admin.module.css";
+import {
+  getReviewLogs,
+  exportLogsCSV,
+} from "@/lib/reviewLogStore";
+import { getCurrentUser } from "@/lib/authStore";
+import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
-  const [works, setWorks] = useState<Work[]>([]);
+  const router = useRouter();
+  const user = getCurrentUser();
 
-  const reload = () => {
-    setWorks(getWorks());
+  const [pending, setPending] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [keyword, setKeyword] = useState("");
+  const [action, setAction] = useState<
+    "all" | "approved" | "rejected" | "undo"
+  >("all");
+
+  /* ===== AUTH + INIT ===== */
+  useEffect(() => {
+    if (!user || user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+    setPending(getWorks().filter((w) => w.status === "pending"));
+  }, []);
+
+  /* ===== REALTIME LOG (SERVER-SIDE SSE) ===== */
+  useEffect(() => {
+    const es = new EventSource("/api/admin/log-stream");
+    es.onmessage = (e) => {
+      setLogs(JSON.parse(e.data));
+    };
+    return () => es.close();
+  }, []);
+
+  /* ===== ACTIONS ===== */
+  const approve = (id: string) => {
+    approveWork(id);
+    setPending((p) => p.filter((w) => w.id !== id));
   };
 
-  useEffect(() => {
-    reload();
-  }, []);
+  const reject = (id: string) => {
+    rejectWork(id);
+    setPending((p) => p.filter((w) => w.id !== id));
+  };
+
+  const exportCSV = () => {
+    const csv = exportLogsCSV();
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "review-log.csv";
+    a.click();
+  };
+
+  /* ===== FILTER ===== */
+  const filteredLogs = logs.filter((l) => {
+    const matchText =
+      l.workTitle.toLowerCase().includes(keyword.toLowerCase()) ||
+      l.adminEmail.toLowerCase().includes(keyword.toLowerCase());
+
+    const matchAction =
+      action === "all" ? true : l.action === action;
+
+    return matchText && matchAction;
+  });
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Admin – Duyệt tác phẩm</h1>
+      <h1>Admin – Duyệt tác phẩm</h1>
 
-      <div className={styles.panel}>
-        {works.length === 0 && (
-          <p className={styles.empty}>Chưa có tác phẩm</p>
-        )}
+      {/* ===== PENDING ===== */}
+      <section>
+        <h2>Chờ duyệt</h2>
 
-        {works.map(w => (
-          <div key={w.id} className={styles.card}>
-            <div>
-              <b>{w.title}</b>
-              <p>Author ID: {w.authorId}</p>
-              <p>Hash: {w.fileHash}</p>
-              <p>
-                Trạng thái:{" "}
-                <span className={styles[w.status]}>
-                  {w.status}
-                </span>
-              </p>
-            </div>
+        <div className={styles.grid}>
+          {pending.map((w) => (
+            <div key={w.id} className={styles.card}>
+              <h3>{w.title}</h3>
+              <p>{w.authorName}</p>
 
-            {w.status === "pending" && (
               <div className={styles.actions}>
                 <button
                   className={styles.approve}
-                  onClick={() => {
-                    verifyWork(w.id, "verified");
-                    reload();
-                  }}
+                  onClick={() => approve(w.id)}
                 >
-                  Duyệt
+                  ✔ Duyệt
                 </button>
-
                 <button
                   className={styles.reject}
-                  onClick={() => {
-                    verifyWork(w.id, "rejected");
-                    reload();
-                  }}
+                  onClick={() => reject(w.id)}
                 >
-                  Từ chối
+                  ✖ Từ chối
                 </button>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== LOG ===== */}
+      <section className={styles.logSection}>
+        <h2>Lịch sử duyệt</h2>
+
+        <div className={styles.filters}>
+          <input
+            placeholder="Tìm tác phẩm / admin"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+
+          <select
+            value={action}
+            onChange={(e) =>
+              setAction(e.target.value as any)
+            }
+          >
+            <option value="all">Tất cả</option>
+            <option value="approved">Đã duyệt</option>
+            <option value="rejected">Từ chối</option>
+            <option value="undo">Undo</option>
+          </select>
+
+          <button onClick={exportCSV}>
+            ⬇ Export CSV
+          </button>
+        </div>
+
+        <ul className={styles.log}>
+          {filteredLogs.map((l) => (
+            <li key={l.id}>
+              <strong>{l.workTitle}</strong> — {l.action} <br />
+              bởi {l.adminEmail}
+              <span>
+                {new Date(l.time).toLocaleString()}
+              </span>
+
+              {l.action !== "undo" && (
+                <button
+                  className={styles.undo}
+                  onClick={() => undoReview(l.workId)}
+                >
+                  ↩ Undo
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

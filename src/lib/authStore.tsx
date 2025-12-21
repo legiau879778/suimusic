@@ -1,28 +1,32 @@
+export type Role = "user" | "admin";
+
 export type User = {
-  username: string;
-  role: "user" | "admin";
-  authorId?: string;
+  email: string;
+  name?: string;
+  avatar?: string;
+  role: Role;
 };
 
-const KEY = "auth_user";
+const AUTH_KEY = "CHAINSTORM_AUTH";
 
-export function login(username: string) {
-  const user: User = {
-    username,
-    role: username === "admin" ? "admin" : "user",
-  };
-  localStorage.setItem(KEY, JSON.stringify(user));
+/* EMAIL ADMIN (TẠM – CÓ THỂ ĐƯA RA ENV) */
+const ADMIN_EMAILS = ["legiau879778@gmail.com"];
+
+export function saveUser(user: User) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
 }
 
 export function getCurrentUser(): User | null {
   if (typeof window === "undefined") return null;
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "null");
-  } catch {
-    return null;
-  }
+  return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
 }
 
 export function logout() {
-  localStorage.removeItem(KEY);
+  localStorage.removeItem(AUTH_KEY);
+}
+
+/* UTILS */
+export function isAdmin(email?: string | null) {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email);
 }

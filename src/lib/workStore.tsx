@@ -1,4 +1,6 @@
 // src/lib/workStore.ts
+import { addReviewLog } from "./reviewLogStore";
+import { getCurrentUser } from "./authStore";
 export type TradeStatus = "pending" | "accepted" | "rejected";
 
 export type Trade = {
@@ -126,3 +128,53 @@ export const updateTradeStatus = (
 
 export const countWorksByAuthor = (authorId: string) =>
   load().filter(w => w.authorId === authorId).length;
+
+/* DUYỆT */
+export function approveWork(id: string) {
+  const works = getWorks();
+  const admin = getCurrentUser();
+
+  const updated = works.map((w) =>
+    w.id === id ? { ...w, status: "approved" } : w
+  );
+
+  const work = works.find((w) => w.id === id);
+
+  if (work && admin) {
+    addReviewLog({
+      id: crypto.randomUUID(),
+      workId: id,
+      workTitle: work.title,
+      adminEmail: admin.email,
+      action: "approved",
+      time: new Date().toISOString(),
+    });
+  }
+
+  saveWorks(updated);
+}
+
+/* TỪ CHỐI */
+export function rejectWork(id: string) {
+  const works = getWorks();
+  const admin = getCurrentUser();
+
+  const updated = works.map((w) =>
+    w.id === id ? { ...w, status: "rejected" } : w
+  );
+
+  const work = works.find((w) => w.id === id);
+
+  if (work && admin) {
+    addReviewLog({
+      id: crypto.randomUUID(),
+      workId: id,
+      workTitle: work.title,
+      adminEmail: admin.email,
+      action: "rejected",
+      time: new Date().toISOString(),
+    });
+  }
+
+  saveWorks(updated);
+}
