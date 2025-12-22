@@ -1,80 +1,93 @@
 "use client";
 
 import { useState } from "react";
-import styles from "@/components/admin/workReviewModal.module.css";
-import { approveWork, rejectWork } from "@/lib/workStore";
+import styles from "@/styles/work.module.css";
+import { approveWork, rejectWork, Work } from "@/lib/workStore";
 import { useAuth } from "@/context/AuthContext";
 
-export default function WorkPreviewModal({
+type Props = {
+  work: Work;
+  onClose: () => void;
+};
+
+export default function WorkReviewModal({
   work,
   onClose,
-}: {
-  work: any;
-  onClose: () => void;
-}) {
+}: Props) {
   const { user } = useAuth();
-  const [reason, setReason] = useState("");
   const [proof, setProof] = useState("");
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  if (!user) return null;
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div
-        className={styles.modal}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>{work.title}</h2>
+    <div className={styles.overlay}>
+      <div className={styles.modal}>
+        <h2>Duyệt tác phẩm</h2>
 
-        <div className={styles.meta}>
-          <div><b>Tác giả:</b> {work.authorId}</div>
-          <div><b>Market:</b> {work.marketStatus}</div>
-          <div><b>Hash:</b></div>
-          <code>{work.fileHash}</code>
-        </div>
-
-        {/* PROOF */}
-        <label className={styles.label}>
-          Proof duyệt (hash / URL)
-        </label>
-        <input
-          className={styles.input}
-          value={proof}
-          onChange={(e) => setProof(e.target.value)}
-          placeholder="IPFS hash / tx hash / URL"
-        />
-
-        {/* REJECT REASON */}
-        <label className={styles.label}>
-          Lý do từ chối
-        </label>
+        {/* ===== APPROVE ===== */}
         <textarea
-          className={styles.textarea}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Nhập lý do từ chối…"
+          placeholder="Proof / Tx hash (tuỳ chọn)"
+          value={proof}
+          onChange={e => setProof(e.target.value)}
         />
 
-        <div className={styles.actions}>
-          <button
-            className={styles.approve}
-            onClick={async () => {
-              await approveWork(work.id, proof);
-              onClose();
-            }}
-          >
-            Duyệt
-          </button>
+        <button
+          className={styles.approve}
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
 
-          <button
-            className={styles.reject}
-            disabled={!reason.trim()}
-            onClick={() => {
-              rejectWork(work.id, user!.email, reason);
-              onClose();
-            }}
-          >
-            Từ chối
-          </button>
-        </div>
+            await approveWork({
+            workId: work.id,
+            admin: {
+              email: user.email,
+              role: user.role,
+            },
+            adminWeight: 1,
+            proof,
+          });
+
+
+            setLoading(false);
+            onClose();
+          }}
+        >
+          Duyệt
+        </button>
+
+        {/* ===== REJECT ===== */}
+        <textarea
+          placeholder="Lý do từ chối"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+        />
+
+        <button
+          className={styles.reject}
+          disabled={!reason.trim() || loading}
+          onClick={() => {
+            rejectWork({
+            workId: work.id,
+            admin: {
+              email: user.email,
+              role: user.role,
+            },
+            reason,
+          });
+            onClose();
+          }}
+        >
+          Từ chối
+        </button>
+
+        <button
+          className={styles.close}
+          onClick={onClose}
+        >
+          Đóng
+        </button>
       </div>
     </div>
   );

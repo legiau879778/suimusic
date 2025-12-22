@@ -1,56 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import styles from "@/styles/admin/table.module.css";
-import { getReviewLogs } from "@/lib/reviewLogStore";
-import { exportCSV } from "@/lib/exportCsv";
+import type { ReviewLog } from "@/lib/reviewLogStore";
+import styles from "@/styles/admin/reviewTable.module.css";
 
-export default function ReviewLogTable() {
-  const [logs, setLogs] = useState<any[]>([]);
-
-  useEffect(() => {
-    setLogs(getReviewLogs());
-
-    const update = () => setLogs(getReviewLogs());
-    window.addEventListener("review-log-updated", update);
-    window.addEventListener("storage", update);
-
-    return () => {
-      window.removeEventListener("review-log-updated", update);
-      window.removeEventListener("storage", update);
-    };
-  }, []);
-
+export default function ReviewLogTable({
+  logs,
+}: {
+  logs: ReviewLog[];
+}) {
   return (
-    <div className={styles.card}>
-      <button
-        className={styles.export}
-        onClick={() => exportCSV("review_logs.csv", logs)}
-      >
-        Export CSV
-      </button>
-
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Tác phẩm</th>
-            <th>Admin</th>
-            <th>Hành động</th>
-            <th>Thời gian</th>
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th>Tác phẩm</th>
+          <th>Hành động</th>
+          <th>Admin</th>
+          <th>Vai trò</th>
+          <th>Thời gian</th>
+        </tr>
+      </thead>
+      <tbody>
+        {logs.map(log => (
+          <tr key={log.id}>
+            <td>{log.workTitle}</td>
+            <td>{log.action}</td>
+            <td>{log.adminEmail}</td>
+            <td>{log.adminRole}</td>
+            <td>{new Date(log.time).toLocaleString()}</td>
           </tr>
-        </thead>
-
-        <tbody>
-          {logs.map(l => (
-            <tr key={l.id}>
-              <td>{l.workTitle}</td>
-              <td>{l.adminEmail}</td>
-              <td>{l.action}</td>
-              <td>{l.time}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }

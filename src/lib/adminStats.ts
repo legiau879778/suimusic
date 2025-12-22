@@ -1,36 +1,62 @@
-import { getWorks } from "./workStore";
-import { getUsers } from "./userStore";
+import { Work } from "@/lib/workStore";
 
-export function getAdminStats() {
-  const works = getWorks() || [];
-  const users = getUsers() || [];
+export type ApprovalByDay = {
+  date: string;
+  verified: number;
+  rejected: number;
+};
 
+export function buildAdminStats(works: Work[]) {
   const verified = works.filter(w => w.status === "verified");
-  const pending = works.filter(w => w.status === "pending");
   const rejected = works.filter(w => w.status === "rejected");
 
-  const approvalByDay: Record<string, number> = {};
+  const approvalByDay: Record<
+    string,
+    { verified: number; rejected: number }
+  > = {};
 
+  /* ===== VERIFIED ===== */
   verified.forEach(w => {
-    const d = new Date(w.createdAt)
+    if (!w.verifiedAt) return;
+
+    const d = new Date(w.verifiedAt)
       .toISOString()
       .slice(0, 10);
-    approvalByDay[d] =
-      (approvalByDay[d] || 0) + 1;
+
+    approvalByDay[d] ||= {
+      verified: 0,
+      rejected: 0,
+    };
+
+    approvalByDay[d].verified++;
   });
 
+  /* ===== REJECTED ===== */
+  rejected.forEach(w => {
+    if (!w.rejectedAt) return;
+
+    const d = new Date(w.rejectedAt)
+      .toISOString()
+      .slice(0, 10);
+
+    approvalByDay[d] ||= {
+      verified: 0,
+      rejected: 0,
+    };
+
+    approvalByDay[d].rejected++;
+  });
+
+  const approvalStats: ApprovalByDay[] =
+    Object.entries(approvalByDay).map(
+      ([date, v]) => ({
+        date,
+        verified: v.verified,
+        rejected: v.rejected,
+      })
+    );
+
   return {
-    verified: verified.length,
-    pending: pending.length,
-    rejected: rejected.length,
-
-    verifiedList: verified.map(w => w.title),
-
-    admins: users.filter(u => u.role === "admin").length,
-    users: users.filter(u => u.role === "user").length,
-
-    approvalByDay: Object.entries(approvalByDay).map(
-      ([date, count]) => ({ date, count })
-    ), // ✅ LUÔN LÀ ARRAY
+    approvalByDay: approvalStats,
   };
 }

@@ -1,54 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import styles from "@/styles/admin/chart.module.css";
-import { getAllWorks } from "@/lib/workStore";
+import { ApprovalByDay } from "@/lib/adminStats";
 
-export default function ApprovalLineChart() {
-  const [data, setData] = useState<any[]>([]);
+type Props = {
+  data: ApprovalByDay[];
+};
 
-  const build = () => {
-    const works = getAllWorks();
-    const map: Record<string, any> = {};
-
-    works.forEach((w) => {
-      const date =
-        (w.verifiedAt || w.rejectedAt || "")
-          .slice(0, 10);
-
-      if (!date) return;
-
-      map[date] ||= { verified: 0, rejected: 0 };
-
-      if (w.status === "verified")
-        map[date].verified++;
-      if (w.status === "rejected")
-        map[date].rejected++;
-    });
-
-    setData(
-      Object.entries(map).map(([d, v]) => ({
-        date: d,
-        ...v,
-      }))
-    );
-  };
-
-  useEffect(() => {
-    build();
-    window.addEventListener("review-log-updated", build);
-    return () =>
-      window.removeEventListener(
-        "review-log-updated",
-        build
-      );
-  }, []);
+export default function ApprovalChart({ data }: Props) {
+  if (!data || data.length === 0) return null;
 
   return (
     <div className={styles.wrap}>
       <h3>Thống kê duyệt theo ngày</h3>
 
-      {data.map((d) => (
+      {data.map(d => (
         <div key={d.date} className={styles.barRow}>
           <span>{d.date}</span>
 

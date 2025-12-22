@@ -1,0 +1,42 @@
+.sidebar {
+  width: 240px;
+  padding: 26px 20px;
+  background: rgba(30,41,59,.6);
+  border-right: 1px solid rgba(250,204,21,.18);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .2em;
+  color: #fde047;
+  margin-bottom: 26px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #e5e7eb;
+  font-weight: 600;
+  transition: all .18s ease;
+}
+
+.item:hover {
+  background: rgba(250,204,21,.12);
+  color: #fde047;
+}
+
+.active {
+  background: rgba(250,204,21,.22);
+  color: #fde047;
+}

@@ -1,47 +1,31 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import AdminSidebar from "@/components/admin/AdminSidebar";
 import styles from "@/styles/admin/layout.module.css";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const { user } = useAuth();
+  const router = useRouter();
 
-  const nav = [
-    { href: "/admin", label: "Dashboard" },
-    { href: "/admin/works", label: "Duyệt tác phẩm" },
-    { href: "/admin/users", label: "Người dùng" },
-    { href: "/admin/stats", label: "Thống kê" },
-    { href: "/admin/logs", label: "Log duyệt" },
-  ];
+  useEffect(() => {
+    if (!user || (user.role !== "admin")) {
+      router.replace("/");
+    }
+  }, [user]);
 
   return (
-    <div className={styles.wrapper}>
-      <aside className={styles.sidebar}>
-        <h2 className={styles.title}>ADMIN</h2>
-
-        <nav className={styles.nav}>
-          {nav.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={
-                pathname === n.href
-                  ? styles.active
-                  : styles.link
-              }
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      <main className={styles.content}>{children}</main>
+    <div className={styles.layout}>
+      <AdminSidebar />
+      <div className={styles.main}>
+        <div className={styles.content}>{children}</div>
+      </div>
     </div>
   );
 }

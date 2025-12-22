@@ -21,36 +21,50 @@ export default function AuthorPage() {
   const filtered = useMemo(() => {
     return works.filter(w =>
       w.title.toLowerCase().includes(filterTitle.toLowerCase()) &&
-      w.fileHash.toLowerCase().includes(filterHash.toLowerCase())
+      (w.hash || "")
+        .toLowerCase()
+        .includes(filterHash.toLowerCase())
     );
   }, [works, filterTitle, filterHash]);
 
-  if (!author) return <p style={{ padding: 40 }}>Không tìm thấy tác giả</p>;
+  if (!author) {
+    return <p style={{ padding: 40 }}>Không tìm thấy tác giả</p>;
+  }
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div className={styles.avatar}>{(author.stageName || author.name || "?").charAt(0).toUpperCase()}</div>
+        <div className={styles.avatar}>
+          {(author.stageName || author.name || "?")
+            .charAt(0)
+            .toUpperCase()}
+        </div>
+
         <div>
           <h1 className={styles.name}>{author.stageName}</h1>
           <p className={styles.meta}>
-            Tên thật: {author.name}<br/>
-            Ngày sinh: {author.birthDate}<br/>
-            Quốc tịch: {author.nationality}<br/>
+            Tên thật: {author.name}<br />
+            Ngày sinh: {author.birthDate}<br />
+            Quốc tịch: {author.nationality}<br />
             {countWorksByAuthor(author.id)} tác phẩm
           </p>
         </div>
       </div>
 
       <div className={styles.filters}>
-        <input className={styles.input}
+        <input
+          className={styles.input}
           placeholder="Lọc theo tên tác phẩm"
           value={filterTitle}
-          onChange={e => setFilterTitle(e.target.value)} />
-        <input className={styles.input}
-          placeholder="Lọc theo SHA256"
+          onChange={e => setFilterTitle(e.target.value)}
+        />
+
+        <input
+          className={styles.input}
+          placeholder="Lọc theo SHA-256"
           value={filterHash}
-          onChange={e => setFilterHash(e.target.value)} />
+          onChange={e => setFilterHash(e.target.value)}
+        />
       </div>
 
       {filtered.length === 0 && (
@@ -61,8 +75,13 @@ export default function AuthorPage() {
         {filtered.map(w => (
           <div key={w.id} className={styles.card}>
             <h3>{w.title}</h3>
-            <p className={styles.status}>Trạng thái: {w.status}</p>
-            <p className={styles.hash}>{w.fileHash}</p>
+            <p className={styles.status}>
+              Trạng thái: {w.status}
+            </p>
+
+            {w.hash && (
+              <p className={styles.hash}>{w.hash}</p>
+            )}
           </div>
         ))}
       </div>

@@ -3,16 +3,11 @@
 import { useEffect, useState } from "react";
 import styles from "@/styles/profile.module.css";
 import { useAuth } from "@/context/AuthContext";
-import {
-  connectSuiWallet,
-  signSuiMessage,
-  getSuiBalance,
-} from "@/lib/suiWallet";
+import { getSuiBalance } from "@/lib/suiWallet";
 
 export default function WalletPanel() {
-  const { user, setUser } = useAuth();
+  const { user, connectWallet, revokeWallet } = useAuth();
   const [balance, setBalance] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
 
   /* =========================
      AUTO LOAD BALANCE
@@ -22,15 +17,14 @@ export default function WalletPanel() {
     if (!user?.wallet?.address) return;
 
     let alive = true;
+    const address = user.wallet.address; // ✅ capture chắc chắn
 
     async function loadBalance() {
-      const b = await getSuiBalance(user.wallet!.address);
+      const b = await getSuiBalance(address);
       if (alive) setBalance(b);
     }
 
     loadBalance();
-
-    // 🔁 auto refresh mỗi 15s
     const interval = setInterval(loadBalance, 15000);
 
     return () => {
@@ -39,47 +33,7 @@ export default function WalletPanel() {
     };
   }, [user?.wallet?.address]);
 
-  /* =========================
-     CONNECT WALLET
-  ========================= */
-
-  async function connect() {
-    try {
-      setLoading(true);
-
-      const address = await connectSuiWallet();
-
-      const message = `Chainstorm verify wallet\n${user?.email}`;
-      const signature = await signSuiMessage(message);
-
-      const updated = {
-        ...user!,
-        wallet: {
-          address,
-          verified: true,
-          signature,
-        },
-        role: user!.role === "admin" ? "admin" : "author",
-      };
-
-      setUser(updated);
-      localStorage.setItem("auth_user", JSON.stringify(updated));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* =========================
-     REVOKE WALLET
-  ========================= */
-
-  function revoke() {
-    const updated = { ...user! };
-    delete updated.wallet;
-
-    setUser(updated);
-    localStorage.setItem("auth_user", JSON.stringify(updated));
-  }
+  if (!user) return null;
 
   /* =========================
      UI
@@ -89,22 +43,18 @@ export default function WalletPanel() {
     <div className={styles.walletCard}>
       <h2>Ví SUI</h2>
 
-      {!user?.wallet ? (
+      {!user.wallet ? (
         <button
           className={styles.connectBtn}
-          onClick={connect}
-          disabled={loading}
+          onClick={connectWallet}   // ✅ GỌI CONTEXT
         >
-          {loading ? "Đang kết nối..." : "Kết nối ví SUI"}
+          Kết nối ví SUI
         </button>
       ) : (
         <>
           <div className={styles.walletField}>
             <label>Địa chỉ ví</label>
-            <input
-              value={user.wallet.address}
-              disabled
-            />
+            <input value={user.wallet.address} disabled />
           </div>
 
           <div className={styles.balanceBox}>
@@ -114,7 +64,7 @@ export default function WalletPanel() {
 
           <button
             className={styles.revokeBtn}
-            onClick={revoke}
+            onClick={revokeWallet}  // ✅ GỌI CONTEXT
           >
             Gỡ ví
           </button>

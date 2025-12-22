@@ -25,6 +25,7 @@ export default function SettingsPanel() {
   if (!user) return null;
 
   function saveSocials() {
+    if (!user) return;
     saveProfile(user.id, profile);
   }
 

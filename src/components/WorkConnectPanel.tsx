@@ -15,7 +15,7 @@ export default function WalletConnectPanel() {
       {!user.wallet ? (
         <button
           className={styles.connect}
-          onClick={connectWallet}   // ✅ KHÔNG connect()
+          onClick={connectWallet}   // ✅ ĐÚNG chữ ký
         >
           Kết nối ví
         </button>

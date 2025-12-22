@@ -2,79 +2,76 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import styles from "@/styles/userMenu.module.css";
+
 import { useAuth } from "@/context/AuthContext";
 import { isAdminWallet } from "@/lib/adminWalletStore";
-import styles from "@/styles/userMenu.module.css";
 
 export default function UserMenu() {
   const { user, logout } = useAuth();
-  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
 
-  /* CLICK OUTSIDE */
+  /* =========================
+     CLICK OUTSIDE TO CLOSE
+  ========================= */
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        ref.current &&
-        !ref.current.contains(e.target as Node)
-      ) {
+    function onClick(e: MouseEvent) {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
 
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
+    document.addEventListener("mousedown", onClick);
     return () =>
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
+      document.removeEventListener("mousedown", onClick);
   }, []);
 
   if (!user) return null;
 
   const isAdmin = user.role === "admin";
+
+  // ✅ FIX QUAN TRỌNG:
+  // isAdminWallet chỉ nhận string (address), KHÔNG nhận WalletInfo
   const hasAdminWallet =
-    !!user.wallet && isAdminWallet(user.wallet);
+    !!user.wallet && isAdminWallet(user.wallet.address);
 
   return (
     <div className={styles.wrapper} ref={ref}>
-      {/* AVATAR */}
       <button
         className={styles.avatar}
-        onClick={() => setOpen(!open)}
-        aria-label="User menu"
+        onClick={() => setOpen(o => !o)}
       >
-        {user.email[0].toUpperCase()}
+        {user.email.charAt(0).toUpperCase()}
       </button>
 
-      {/* DROPDOWN */}
       {open && (
         <div className={styles.menu}>
-          <Link href="/profile">Profile</Link>
+          <div className={styles.userInfo}>
+            <strong>{user.email}</strong>
+            <span className={styles.role}>
+              {user.role === "admin"
+                ? "Admin"
+                : user.role === "author"
+                ? "Author"
+                : "User"}
+            </span>
+          </div>
 
-          {/* ADMIN LINK */}
-          {isAdmin && (
-            <Link href="/admin">Admin</Link>
-          )}
+          <hr />
 
-          {/* ADMIN ACTION STATE */}
-          {isAdmin && !hasAdminWallet && (
-            <div
-              className={styles.disabled}
-              title="Kết nối wallet admin để duyệt tác phẩm"
-            >
-              🔒 Chưa có quyền duyệt
-            </div>
+          <Link href="/profile">Hồ sơ</Link>
+
+          {isAdmin && hasAdminWallet && (
+            <Link href="/admin">Admin Dashboard</Link>
           )}
 
           <button
             className={styles.logout}
             onClick={logout}
           >
-            Logout
+            Đăng xuất
           </button>
         </div>
       )}

@@ -37,6 +37,7 @@ export type User = {
 
 type AuthContextType = {
   user: User | null;
+  refresh: () => void;
   loginWithGoogle: () => void;
   connectWallet: () => Promise<void>;
   revokeWallet: () => void;
@@ -47,6 +48,8 @@ const AuthContext = createContext<AuthContextType>(
   {} as AuthContextType
 );
 
+/* ================= PROVIDER ================= */
+
 export function AuthProvider({
   children,
 }: {
@@ -56,12 +59,14 @@ export function AuthProvider({
   const router = useRouter();
   const { showToast } = useToast();
 
-  /* ===== RESTORE USER ===== */
   useEffect(() => {
     setUser(loadUser());
   }, []);
 
-  /* ===== GOOGLE LOGIN ===== */
+  function refresh() {
+    setUser(loadUser());
+  }
+
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (token) => {
       const res = await fetch(
@@ -95,15 +100,12 @@ export function AuthProvider({
     },
   });
 
-  /* ===== CONNECT SUI WALLET ===== */
   async function connectWallet() {
     if (!user) return;
 
     const address = await connectSuiWallet();
     const message = `Chainstorm verify wallet\n${user.email}`;
     await signSuiMessage(message);
-
-    const upgraded = user.role === "user";
 
     const updated: User = {
       ...user,
@@ -122,16 +124,13 @@ export function AuthProvider({
     }
 
     showToast(
-      upgraded
-        ? "Nâng quyền tác giả thành công"
-        : "Kết nối ví thành công",
+      "Kết nối ví thành công",
       updated.role === "admin" ? "admin" : "author"
     );
 
     router.replace(consumeRedirect());
   }
 
-  /* ===== REVOKE WALLET ===== */
   function revokeWallet() {
     if (!user) return;
 
@@ -144,14 +143,13 @@ export function AuthProvider({
     setUser(updated);
     saveUser(updated);
 
-    showToast("Đã ngắt kết nối ví", "info");
+    showToast("Đã ngắt kết nối ví", "warning");
   }
 
-  /* ===== LOGOUT ===== */
   function logout() {
     setUser(null);
     clearUser();
-    showToast("Đã đăng xuất", "info");
+    showToast("Đã đăng xuất", "warning");
     router.replace("/");
   }
 
@@ -159,6 +157,7 @@ export function AuthProvider({
     <AuthContext.Provider
       value={{
         user,
+        refresh,
         loginWithGoogle,
         connectWallet,
         revokeWallet,
@@ -169,5 +168,7 @@ export function AuthProvider({
     </AuthContext.Provider>
   );
 }
+
+/* ================= HOOK ================= */
 
 export const useAuth = () => useContext(AuthContext);

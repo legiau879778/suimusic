@@ -1,54 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  getPendingWorks,
-  approveWork,
-  rejectWork,
-} from "@/lib/workStore";
+import styles from "@/styles/admin/reviewTable.module.css";
+import { Work, approveWork, rejectWork } from "@/lib/workStore";
+import { useAuth } from "@/context/AuthContext";
 
-export default function WorkReviewTable() {
-  const [works, setWorks] = useState<any[]>([]);
+type Props = {
+  works: Work[];
+  onOpenReview: (work: Work) => void;
+};
 
-  function load() {
-    setWorks(getPendingWorks());
-  }
+export default function WorkReviewTable({
+  works,
+  onOpenReview,
+}: Props) {
+  const { user } = useAuth();
 
-  useEffect(() => {
-    load();
-    window.addEventListener("review-log-updated", load);
-    return () =>
-      window.removeEventListener(
-        "review-log-updated",
-        load
-      );
-  }, []);
-
-  if (!works.length)
-    return <p>Không còn tác phẩm chờ duyệt</p>;
+  if (!user) return null;
 
   return (
-    <table>
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th>Tiêu đề</th>
+          <th>Tác giả</th>
+          <th>Trạng thái</th>
+          <th>Quorum</th>
+          <th>Hành động</th>
+        </tr>
+      </thead>
+
       <tbody>
-        {works.map((w) => (
+        {works.map(w => (
           <tr key={w.id}>
             <td>{w.title}</td>
+            <td>{w.authorId}</td>
+            <td>{w.status}</td>
             <td>
               {Object.values(w.approvalMap).reduce(
                 (a, b) => a + b,
                 0
-              )}{" "}
-              / {w.quorumWeight}
+              )}
+              {" / "}
+              {w.quorumWeight}
             </td>
-            <td>
+
+            <td className={styles.actions}>
+              {/* ===== APPROVE (mở modal) ===== */}
               <button
-                onClick={() => approveWork(w.id)}
+                onClick={() => onOpenReview(w)}
               >
-                Approve
+                Review
               </button>
+
+              {/* ===== QUICK REJECT ===== */}
               <button
+                className={styles.reject}
                 onClick={() =>
-                  rejectWork(w.id, "Rejected")
+                  rejectWork({
+                    workId: w.id,
+                    admin: {
+                      email: user.email,
+                      role: user.role,
+                    },
+                    reason: "Rejected",
+                  })
                 }
               >
                 Reject

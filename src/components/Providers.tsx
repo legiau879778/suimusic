@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode } from "react";
 
 /* ===================== */
 /* REACT QUERY */
@@ -27,11 +27,6 @@ import { ModalProvider } from "@/context/ModalContext";
 import { ToastProvider } from "@/context/ToastContext";
 
 /* ===================== */
-/* AUTH SEED */
-/* ===================== */
-import { seedAdmin } from "@/lib/authStore";
-
-/* ===================== */
 /* CONFIG */
 /* ===================== */
 const queryClient = new QueryClient();
@@ -45,10 +40,6 @@ export default function Providers({
 }: {
   children: ReactNode;
 }) {
-  useEffect(() => {
-    seedAdmin(); // ✅ admin tồn tại sẵn để test
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider

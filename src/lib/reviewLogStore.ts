@@ -1,32 +1,34 @@
+// src/lib/reviewLogStore.ts
+import type { UserRole } from "@/context/AuthContext";
+
 export type ReviewLog = {
   id: string;
   workId: string;
   workTitle: string;
-  adminEmail: string;
-  adminRole: string;
+
   action: "approved" | "rejected";
-  reason?: string;
+
+  adminEmail: string;
+  adminRole: UserRole;
+
   time: string;
 };
 
 const KEY = "chainstorm_review_logs";
 
-function load(): ReviewLog[] {
-  if (typeof window === "undefined") return [];
-  return JSON.parse(localStorage.getItem(KEY) || "[]");
-}
-
-function save(data: ReviewLog[]) {
-  localStorage.setItem(KEY, JSON.stringify(data));
-  window.dispatchEvent(new Event("review-log-updated"));
-}
-
 export function getReviewLogs(): ReviewLog[] {
-  return load();
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(KEY) || "[]");
+  } catch {
+    return [];
+  }
 }
 
 export function addReviewLog(log: ReviewLog) {
-  const logs = load();
+  if (typeof window === "undefined") return;
+
+  const logs = getReviewLogs();
   logs.unshift(log);
-  save(logs);
+  localStorage.setItem(KEY, JSON.stringify(logs));
 }

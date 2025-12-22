@@ -2,41 +2,25 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useModal } from "@/context/ModalContext";
-import { useState } from "react";
+import styles from "@/styles/loginModal.module.css";
 
 export default function LoginModal() {
-  const { login } = useAuth();
+  const { loginWithGoogle } = useAuth();
   const { closeLogin } = useModal();
-  const [email, setEmail] = useState("");
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,.6)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <div style={{ background: "#020617", padding: 30 }}>
-        <h3>Đăng nhập</h3>
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <br />
-        <button
-          onClick={() => {
-            login(email);
-            closeLogin();
-          }}
-        >
-          Login
-        </button>
-      </div>
+    <div className={styles.modal}>
+      <h2>Đăng nhập</h2>
+
+      <button
+        className={styles.google}
+        onClick={() => {
+          loginWithGoogle();
+          closeLogin();
+        }}
+      >
+        Đăng nhập bằng Google
+      </button>
     </div>
   );
 }

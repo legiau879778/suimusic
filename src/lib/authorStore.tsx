@@ -9,10 +9,13 @@ export type Author = {
   status: AuthorStatus;
 };
 
-const KEY = "authors";
+const KEY = "chainstorm_authors";
 
-/* ===== SAFE STORAGE ===== */
-function safeLoad(): Author[] {
+/* ===================== */
+/* SAFE STORAGE */
+/* ===================== */
+
+function load(): Author[] {
   if (typeof window === "undefined") return [];
   try {
     return JSON.parse(localStorage.getItem(KEY) || "[]");
@@ -21,18 +24,26 @@ function safeLoad(): Author[] {
   }
 }
 
-function safeSave(data: Author[]) {
+function save(data: Author[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem(KEY, JSON.stringify(data));
 }
 
-/* ===== EXPORTS ===== */
+/* ===================== */
+/* GETTERS */
+/* ===================== */
+
 export function getAuthors(): Author[] {
-  return safeLoad();
+  return load();
+}
+
+/** Alias – cho thống nhất với workStore */
+export function getAllAuthors(): Author[] {
+  return load();
 }
 
 export function getAuthorById(id: string): Author | null {
-  return safeLoad().find(a => a.id === id) || null;
+  return load().find(a => a.id === id) || null;
 }
 
 export function getApprovedAuthorById(id: string): Author | null {
@@ -40,16 +51,24 @@ export function getApprovedAuthorById(id: string): Author | null {
   return a && a.status === "approved" ? a : null;
 }
 
+export function getPendingAuthors(): Author[] {
+  return load().filter(a => a.status === "pending");
+}
+
+/* ===================== */
+/* MUTATIONS */
+/* ===================== */
+
 export function addAuthor(data: {
   name: string;
   stageName: string;
   birthDate: string;
   nationality: string;
 }) {
-  const authors = safeLoad();
+  const authors = load();
 
   authors.push({
-    id: "AUTH-" + Date.now(),
+    id: crypto.randomUUID(),
     name: data.name,
     stageName: data.stageName,
     birthDate: data.birthDate,
@@ -57,21 +76,37 @@ export function addAuthor(data: {
     status: "pending",
   });
 
-  safeSave(authors);
+  save(authors);
 }
 
 export function approveAuthor(id: string) {
-  safeSave(
-    safeLoad().map(a =>
-      a.id === id ? { ...a, status: "approved" } : a
+  const authors = load();
+
+  save(
+    authors.map(a =>
+      a.id === id
+        ? { ...a, status: "approved" as const }
+        : a
     )
   );
 }
 
 export function rejectAuthor(id: string) {
-  safeSave(
-    safeLoad().map(a =>
-      a.id === id ? { ...a, status: "rejected" } : a
+  const authors = load();
+
+  save(
+    authors.map(a =>
+      a.id === id
+        ? { ...a, status: "rejected" as const }
+        : a
     )
   );
+}
+
+/* ===================== */
+/* STATS / HELPERS */
+/* ===================== */
+
+export function countApprovedAuthors(): number {
+  return load().filter(a => a.status === "approved").length;
 }
