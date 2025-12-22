@@ -1,72 +1,81 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { isAdminWallet } from "@/lib/adminWalletStore";
+import styles from "@/styles/userMenu.module.css";
 
 export default function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
+  /* CLICK OUTSIDE */
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+    return () =>
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
   }, []);
 
-  if (!user || !user.name) return null;
+  if (!user) return null;
+
+  const isAdmin = user.role === "admin";
+  const hasAdminWallet =
+    !!user.wallet && isAdminWallet(user.wallet);
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <div
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: "#facc15",
-          color: "#020617",
-          fontWeight: 800,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-        }}
+    <div className={styles.wrapper} ref={ref}>
+      {/* AVATAR */}
+      <button
+        className={styles.avatar}
+        onClick={() => setOpen(!open)}
+        aria-label="User menu"
       >
-        {user.name.charAt(0).toUpperCase()}
-      </div>
+        {user.email[0].toUpperCase()}
+      </button>
 
+      {/* DROPDOWN */}
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 46,
-            background: "#020617",
-            border: "1px solid rgba(148,163,184,.2)",
-            borderRadius: 14,
-            padding: 12,
-            minWidth: 160,
-          }}
-        >
-          <div
-            style={{ padding: 8, cursor: "pointer" }}
-            onClick={() => router.push("/")}
-          >
-            Hồ sơ
-          </div>
-          <div
-            style={{ padding: 8, cursor: "pointer" }}
+        <div className={styles.menu}>
+          <Link href="/profile">Profile</Link>
+
+          {/* ADMIN LINK */}
+          {isAdmin && (
+            <Link href="/admin">Admin</Link>
+          )}
+
+          {/* ADMIN ACTION STATE */}
+          {isAdmin && !hasAdminWallet && (
+            <div
+              className={styles.disabled}
+              title="Kết nối wallet admin để duyệt tác phẩm"
+            >
+              🔒 Chưa có quyền duyệt
+            </div>
+          )}
+
+          <button
+            className={styles.logout}
             onClick={logout}
           >
-            Đăng xuất
-          </div>
+            Logout
+          </button>
         </div>
       )}
     </div>

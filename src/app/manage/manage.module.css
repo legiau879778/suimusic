@@ -1,0 +1,160 @@
+.page {
+  min-height: calc(100vh - 72px);
+  padding: 60px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(250, 204, 21, 0.16), transparent 40%),
+    linear-gradient(180deg, #020617, #020617);
+}
+
+/* LOCKED */
+
+.locked {
+  max-width: 420px;
+  margin: 120px auto;
+  text-align: center;
+  padding: 40px;
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(250, 204, 21, 0.25);
+}
+
+.locked h2 {
+  margin-bottom: 10px;
+  color: #fde047;
+}
+
+/* HEADER */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 36px;
+  gap: 20px;
+}
+
+.title {
+  font-size: 32px;
+  margin: 0 0 6px;
+  color: #fde047;
+}
+
+.subtitle {
+  font-size: 15px;
+  opacity: 0.85;
+}
+
+.addBtn {
+  padding: 12px 20px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 600;
+  background: linear-gradient(135deg, #facc15, #fde047);
+  color: #020617;
+}
+
+/* EMPTY */
+
+.empty {
+  padding: 80px 0;
+  text-align: center;
+  opacity: 0.75;
+}
+
+/* GRID */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.card {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    rgba(30, 35, 70, 0.95),
+    rgba(15, 20, 45, 0.98)
+  );
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.45);
+}
+
+/* BADGE */
+
+.badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.verified {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.pending {
+  background: rgba(250, 204, 21, 0.15);
+  color: #fde047;
+}
+
+.rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* CARD CONTENT */
+
+.cardTitle {
+  font-size: 18px;
+  margin: 0 0 14px;
+}
+
+.meta {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.meta code {
+  font-family: monospace;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detailBtn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #fde047;
+  font-size: 13px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+  .page {
+    padding: 40px 24px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,97 @@
+.page {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+/* ===== SIDEBAR ===== */
+
+.sidebar {
+  background: rgba(2,6,23,.96);
+  border-right: 1px solid rgba(255,255,255,.08);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fde047;
+  margin-bottom: 32px;
+}
+
+/* NAV */
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.navItem {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: .75;
+}
+
+.navItem:hover {
+  background: rgba(250,204,21,.1);
+  opacity: 1;
+}
+
+.active {
+  background: rgba(250,204,21,.15);
+  color: #fde047;
+  opacity: 1;
+}
+
+/* ===== CONTENT ===== */
+
+.content {
+  padding: 32px 40px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 24px;
+}
+
+/* ===== STATS ===== */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+  gap: 16px;
+}
+
+.statCard {
+  background: rgba(15,23,42,.9);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+.statValue {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.statLabel {
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: .7;
+}
+
+.green { color: #22c55e; }
+.red { color: #ef4444; }
+.yellow { color: #fde047; }
+
+/* ===== SECTION ===== */
+
+.section {
+  margin-top: 40px;
+}

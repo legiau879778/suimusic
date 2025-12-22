@@ -1,67 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import styles from "./search.module.css";
+import { getPublicWorks } from "@/lib/workStore";
 import Link from "next/link";
-import { getAuthors, Author } from "@/lib/authorStore";
 
 export default function SearchPage() {
-  const [keyword, setKeyword] = useState("");
-  const [authors, setAuthors] = useState<Author[]>([]);
-
-  useEffect(() => {
-    // ✅ CHỈ LẤY TÁC GIẢ ĐÃ DUYỆT
-    const approvedAuthors = getAuthors().filter(
-      a => a.status === "approved"
-    );
-    setAuthors(approvedAuthors);
-  }, []);
+  const [q, setQ] = useState("");
+  const works = getPublicWorks();
 
   const filtered = useMemo(() => {
-    const k = keyword.toLowerCase().trim();
-
-    if (!k) return authors;
-
-    return authors.filter(a =>
-      (a.stageName && a.stageName.toLowerCase().includes(k)) ||
-      (a.name && a.name.toLowerCase().includes(k)) ||
-      (a.id && a.id.toLowerCase().includes(k)) ||
-      (a.nationality && a.nationality.toLowerCase().includes(k))
+    if (!q.trim()) return works;
+    const k = q.toLowerCase();
+    return works.filter(
+      w =>
+        w.title.toLowerCase().includes(k) ||
+        w.authorId.toLowerCase().includes(k)
     );
-  }, [keyword, authors]);
+  }, [q, works]);
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Tra cứu tác giả</h1>
+    <main className={styles.page}>
+      <h1>Tra cứu tác phẩm</h1>
 
       <input
-        placeholder="Tên tác giả / Mã tác giả / Quốc tịch"
-        value={keyword}
-        onChange={e => setKeyword(e.target.value)}
-        style={{ width: 360, marginBottom: 24 }}
+        className={styles.input}
+        placeholder="Tên tác phẩm / tác giả"
+        value={q}
+        onChange={e => setQ(e.target.value)}
       />
 
-      {filtered.length === 0 && (
-        <p>Không tìm thấy tác giả phù hợp</p>
-      )}
+      <div className={styles.grid}>
+        {filtered.map(w => (
+          <div key={w.id} className={styles.card}>
+            <span className={styles.badge}>Đã xác thực</span>
+            <h3>{w.title}</h3>
+            <p>{w.authorId}</p>
 
-      <div style={{ display: "grid", gap: 16 }}>
-        {filtered.map(a => (
-          <Link
-            key={a.id}
-            href={`/author/${a.id}`}
-            style={{
-              padding: 16,
-              border: "1px solid #334155",
-              borderRadius: 12,
-              display: "block",
-            }}
-          >
-            <b>{a.stageName || a.name}</b>
-            <div>Mã: {a.id}</div>
-            <div>Quốc tịch: {a.nationality}</div>
-          </Link>
+            <Link href={`/work/${w.id}`}>Xem chi tiết</Link>
+          </div>
         ))}
       </div>
-    </div>
+    </main>
   );
 }

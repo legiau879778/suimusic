@@ -1,0 +1,33 @@
+.wrap {
+  margin-top: 40px;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.bar {
+  display: flex;
+  height: 12px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(255,255,255,.1);
+}
+
+.verified {
+  background: #22c55e;
+  animation: grow .4s ease;
+}
+
+.rejected {
+  background: #ef4444;
+  animation: grow .4s ease;
+}
+
+@keyframes grow {
+  from { width: 0 }
+}

@@ -1,128 +1,254 @@
-// src/lib/workStore.ts
-export type TradeStatus = "pending" | "accepted" | "rejected";
+import { safeLoad, safeSave } from "./storage";
+import { getCurrentUser } from "./authStore";
+import { getActiveAdminWallet } from "./adminWalletStore";
+import { signApproveMessage } from "./signMessage";
+import { addReviewLog } from "./reviewLogStore";
 
-export type Trade = {
-  id: string;
-  buyer: string;
-  date: string;
-  status: TradeStatus;
+const STORAGE_KEY = "chainstorm_works";
+
+/* ================= TYPES ================= */
+
+export type ReviewItem = {
+  admin: string;
+  action: "approved" | "rejected";
+  time: string;
+  weight?: number;
+  reason?: string;
+  proof?: string;
+  signature?: string;
+  txHash?: string;
 };
-export type MarketStatus = "private" | "public" | "tradeable";
-export type WorkStatus = "pending" | "verified" | "rejected";
-
-const STORAGE_KEY = "works";
-
 
 export type Work = {
   id: string;
   title: string;
   authorId: string;
 
-  genre: string;
-  language: string;
-  completedDate: string;
+  status: "pending" | "verified" | "rejected";
+  marketStatus?: "private" | "public" | "tradeable";
 
-  marketStatus: MarketStatus; // ✅ camelCase
+  quorumWeight: number;
+  quorumLocked: boolean;
 
-  duration: number;
-  fileHash: string;
-  status: WorkStatus;
-  createdAt: number;
-  trades: Trade[];
+  approvalMap: Record<string, number>;
+  rejectionBy: string[];
+
+  reviews: ReviewItem[];
+
+  overriddenBy?: string;
+  overriddenAt?: string;
 };
 
-export const addWork = (data: {
+/* ================= INTERNAL ================= */
+
+function load(): Work[] {
+  return safeLoad<Work[]>(STORAGE_KEY);
+}
+
+function save(data: Work[]) {
+  safeSave(STORAGE_KEY, data);
+}
+
+/* ================= GETTERS ================= */
+
+export function getWorks(): Work[] {
+  return load();
+}
+
+export function getPendingWorks(): Work[] {
+  return load().filter((w) => w.status === "pending");
+}
+
+export function getPublicWorks(): Work[] {
+  return load().filter(
+    (w) =>
+      w.status === "verified" &&
+      (w.marketStatus === "public" ||
+        w.marketStatus === "tradeable")
+  );
+}
+
+/* ================= AUTHOR ================= */
+
+export function addWork(data: {
   title: string;
   authorId: string;
-  genre: string;
-  language: string;
-  completedDate: string;
-  marketStatus: MarketStatus; // ✅ camelCase
-  duration: number;
-  fileHash: string;
-}) => {
+  marketStatus?: "private" | "public" | "tradeable";
+}) {
   const works = load();
 
   works.push({
     id: crypto.randomUUID(),
     title: data.title,
     authorId: data.authorId,
-    genre: data.genre,
-    language: data.language,
-    completedDate: data.completedDate,
-    marketStatus: data.marketStatus,
-    duration: data.duration,
-    fileHash: data.fileHash,
+
     status: "pending",
-    createdAt: Date.now(),
-    trades: [],
+    marketStatus: data.marketStatus || "private",
+
+    quorumWeight: 1,
+    quorumLocked: false,
+
+    approvalMap: {},
+    rejectionBy: [],
+    reviews: [],
   });
 
   save(works);
-};
+}
 
+/* ================= QUORUM ================= */
 
-/* ================= STORAGE ================= */
-
-const load = (): Work[] => {
-  if (typeof window === "undefined") return [];
-  return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-};
-
-const save = (data: Work[]) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-};
-
-/* ================= CRUD ================= */
-
-export const getWorks = (): Work[] => load();
-
-
-export const verifyWork = (
+export function updateQuorumWeight(
   workId: string,
-  status: "verified" | "rejected"
-) => {
-  const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w) return;
+  newWeight: number
+) {
+  const admin = getCurrentUser();
+  if (!admin || admin.role !== "super_admin") return;
 
-  w.status = status;
+  const works = load();
+  const w = works.find((x) => x.id === workId);
+  if (!w || w.status !== "pending") return;
+
+  if (w.quorumLocked) return;
+  if (newWeight < 1) return;
+
+  w.quorumWeight = newWeight;
   save(works);
-};
+}
 
-/* ================= TRADE ================= */
+/* ================= APPROVE ================= */
 
-export const addTrade = (workId: string, buyer: string) => {
+export async function approveWork(
+  workId: string,
+  adminWeight = 1,
+  proof?: string,
+  txHash?: string
+) {
+  const admin = getCurrentUser();
+  if (!admin || admin.role !== "admin") return;
+
   const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w) return;
+  const w = works.find((x) => x.id === workId);
+  if (!w || w.status !== "pending") return;
 
-  w.trades.push({
+  if (w.approvalMap[admin.email]) return;
+
+  const wallet = getActiveAdminWallet(admin.email);
+  if (!wallet) return;
+
+  const { signature } =
+    await signApproveMessage(wallet.address, workId);
+
+  w.quorumLocked = true;
+  w.approvalMap[admin.email] = adminWeight;
+
+  const total = Object.values(w.approvalMap).reduce(
+    (a, b) => a + b,
+    0
+  );
+
+  if (total >= w.quorumWeight) {
+    w.status = "verified";
+  }
+
+  w.reviews.push({
+    admin: admin.email,
+    action: "approved",
+    time: new Date().toISOString(),
+    weight: adminWeight,
+    proof,
+    signature,
+    txHash,
+  });
+
+  addReviewLog({
     id: crypto.randomUUID(),
-    buyer,
-    date: new Date().toISOString(),
-    status: "pending",
+    workId,
+    action: "approved",
+    admin: admin.email,
+    time: new Date().toISOString(),
   });
 
   save(works);
-};
+  window.dispatchEvent(new Event("review-log-updated"));
+}
 
-export const updateTradeStatus = (
-  workId: string,
-  tradeId: string,
-  status: TradeStatus
-) => {
+/* ================= REJECT ================= */
+
+export function rejectWork(workId: string, reason: string) {
+  const admin = getCurrentUser();
+  if (!admin || !["admin", "super_admin"].includes(admin.role))
+    return;
+
   const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w) return;
+  const w = works.find((x) => x.id === workId);
+  if (!w || w.status !== "pending") return;
 
-  const t = w.trades.find(x => x.id === tradeId);
-  if (!t) return;
+  w.quorumLocked = true;
+  w.status = "rejected";
+  w.rejectionBy.push(admin.email);
 
-  t.status = status;
+  w.reviews.push({
+    admin: admin.email,
+    action: "rejected",
+    time: new Date().toISOString(),
+    reason,
+  });
+
+  addReviewLog({
+    id: crypto.randomUUID(),
+    workId,
+    action: "rejected",
+    admin: admin.email,
+    time: new Date().toISOString(),
+  });
+
   save(works);
-};
+  window.dispatchEvent(new Event("review-log-updated"));
+}
 
-export const countWorksByAuthor = (authorId: string) =>
-  load().filter(w => w.authorId === authorId).length;
+/* ================= SUPER ADMIN ================= */
+
+export function superAdminOverride(
+  workId: string,
+  action: "approve" | "reject",
+  reason?: string
+) {
+  const admin = getCurrentUser();
+  if (!admin || admin.role !== "super_admin") return;
+
+  const works = load();
+  const w = works.find((x) => x.id === workId);
+  if (!w || w.status !== "pending") return;
+
+  w.status = action === "approve" ? "verified" : "rejected";
+  w.quorumLocked = true;
+  w.overriddenBy = admin.email;
+  w.overriddenAt = new Date().toISOString();
+
+  w.reviews.push({
+    admin: admin.email,
+    action: action === "approve" ? "approved" : "rejected",
+    time: new Date().toISOString(),
+    reason,
+  });
+
+  save(works);
+  window.dispatchEvent(new Event("review-log-updated"));
+}
+
+/* ================= COMPATIBILITY ALIASES ================= */
+
+/**
+ * Alias số nhiều – dùng cho chart / stats
+ */
+export function getAllWorks(): Work[] {
+  return getWorks();
+}
+
+/**
+ * Alias legacy – code cũ
+ */
+export function getAllWork(): Work[] {
+  return getWorks();
+}

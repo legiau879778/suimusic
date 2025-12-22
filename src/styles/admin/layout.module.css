@@ -1,0 +1,45 @@
+.wrapper {
+  display: flex;
+  min-height: calc(100vh - 72px);
+}
+
+.sidebar {
+  width: 240px;
+  background: #020617;
+  border-right: 1px solid #1e293b;
+  padding: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 24px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.link {
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #cbd5f5;
+}
+
+.link:hover {
+  background: rgba(250, 204, 21, 0.12);
+}
+
+.active {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(250, 204, 21, 0.2);
+  color: #fde047;
+}
+
+.content {
+  flex: 1;
+  padding: 24px;
+}

@@ -1,64 +1,165 @@
 "use client";
 
-import { useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { getWorks, Work } from "@/lib/workStore";
-import styles from "@/styles/manage.module.css";
+import styles from "@/app/trade/trade.module.css";
+import { getWorks } from "@/lib/workStore";
+import { useEffect, useState } from "react";
 
-const statusText = (s: Work["status"]) => {
-  switch (s) {
-    case "pending":
-      return "⏳ Chờ duyệt";
-    case "verified":
-      return "✅ Đã xác thực";
-    case "rejected":
-      return "❌ Bị từ chối";
-  }
+type TradeState = "idle" | "pending" | "success";
+
+type Work = {
+  id: string;
+  title: string;
+  authorId: string;
+  status: "pending" | "verified" | "rejected";
+  buyers?: string[];
 };
 
-export default function ManagePage() {
+export default function TradePage() {
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [works, setWorks] = useState<Work[]>([]);
+  const [selected, setSelected] = useState<Work | null>(null);
+  const [txState, setTxState] = useState<TradeState>("idle");
 
-  // ✅ HOOK LUÔN Ở TRÊN
-  const works = useMemo(() => {
-    if (!user) return [];
-    return getWorks().filter(w => w.authorId === user.id);
-  }, [user]);
+  useEffect(() => {
+    // mock loading
+    setTimeout(() => {
+      const verified = getWorks().filter(
+        (w: Work) => w.status === "verified"
+      );
+      setWorks(verified);
+      setLoading(false);
+    }, 600);
+  }, []);
 
-  // ✅ RETURN SAU
   if (!user) {
-    return <p className={styles.empty}>Vui lòng đăng nhập</p>;
+    return (
+      <main className={styles.page}>
+        <div className={styles.locked}>
+          <h2>Bạn cần đăng nhập</h2>
+          <p>Đăng nhập để thực hiện giao dịch bản quyền.</p>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <div className={styles.page}>
-      <h1 className={styles.title}>Tác phẩm đã đăng ký</h1>
+    <main className={styles.page}>
+      {/* HEADER */}
+      <section className={styles.header}>
+        <h1 className={styles.title}>Giao dịch bản quyền</h1>
+        <p className={styles.subtitle}>
+          Mua bản quyền các tác phẩm đã được xác thực.
+        </p>
+      </section>
 
-      {works.length === 0 && (
-        <p className={styles.empty}>Chưa có tác phẩm nào</p>
+      {/* GRID */}
+      {loading ? (
+        <div className={styles.grid}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={styles.skeleton} />
+          ))}
+        </div>
+      ) : works.length === 0 ? (
+        <div className={styles.empty}>
+          <p>Chưa có tác phẩm nào sẵn sàng giao dịch.</p>
+        </div>
+      ) : (
+        <section className={styles.grid}>
+          {works.map((w) => {
+            const bought = w.buyers?.includes(user.id);
+
+            return (
+              <div key={w.id} className={styles.card}>
+                <span className={styles.badge}>Verified</span>
+
+                <h3 className={styles.cardTitle}>{w.title}</h3>
+
+                <p className={styles.meta}>
+                  Tác giả: <strong>{w.authorId}</strong>
+                </p>
+
+                <div className={styles.price}>0.1 ETH</div>
+
+                <button
+                  className={`${styles.buyBtn} ${
+                    bought ? styles.disabled : ""
+                  }`}
+                  disabled={bought}
+                  onClick={() => setSelected(w)}
+                >
+                  {bought ? "Đã mua" : "Mua bản quyền"}
+                </button>
+              </div>
+            );
+          })}
+        </section>
       )}
 
-      <div className={styles.list}>
-        {works.map(w => (
-          <div key={w.id} className={styles.card}>
-            <div className={styles.header}>
-              <h3>{w.title}</h3>
-              <span className={`${styles.status} ${styles[w.status]}`}>
-                {statusText(w.status)}
-              </span>
-            </div>
+      {/* MODAL CONFIRM */}
+      {selected && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <h3>Xác nhận giao dịch</h3>
 
-            <div className={styles.meta}>
-              <span>⏱ {Math.floor(w.duration / 60)} phút</span>
-              <span>🔐 {w.fileHash.slice(0, 12)}…</span>
-            </div>
+            <p>
+              Bạn đang mua bản quyền tác phẩm:
+              <br />
+              <strong>{selected.title}</strong>
+            </p>
 
-            <div className={styles.trade}>
-              📜 Giao dịch bản quyền: <b>{w.trades.length}</b>
+            {txState === "pending" && (
+              <div className={styles.txPending}>
+                ⏳ Giao dịch đang xử lý…
+              </div>
+            )}
+
+            {txState === "success" && (
+              <div className={styles.txSuccess}>
+                ✅ Giao dịch thành công
+              </div>
+            )}
+
+            <div className={styles.modalActions}>
+              {txState === "idle" && (
+                <>
+                  <button
+                    className={styles.confirm}
+                    onClick={() => {
+                      setTxState("pending");
+                      setTimeout(() => {
+                        setTxState("success");
+                      }, 1200);
+                    }}
+                  >
+                    Xác nhận
+                  </button>
+
+                  <button
+                    className={styles.cancel}
+                    onClick={() => setSelected(null)}
+                  >
+                    Hủy
+                  </button>
+                </>
+              )}
+
+              {txState === "success" && (
+                <button
+                  className={styles.confirm}
+                  onClick={() => {
+                    setSelected(null);
+                    setTxState("idle");
+                  }}
+                >
+                  Đóng
+                </button>
+              )}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+      )}
+    </main>
   );
 }

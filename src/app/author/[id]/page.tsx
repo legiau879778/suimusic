@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { getAuthorById } from "@/lib/authorStore";
 import { getWorks, countWorksByAuthor, Work } from "@/lib/workStore";
-import styles from "@/styles/author.module.css";
+import styles from "@/app/author/[id]/author.module.css";
 
 export default function AuthorPage() {
   const { id } = useParams<{ id: string }>();

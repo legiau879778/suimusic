@@ -1,0 +1,53 @@
+.page {
+  padding: 32px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.filters {
+  margin: 16px 0;
+  display: flex;
+  gap: 10px;
+}
+
+.filters button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  font-size: 14px;
+}
+
+.active {
+  background: rgba(250,204,21,.2);
+  color: #fde047;
+}
+
+.table {
+  width: 100%;
+  margin-top: 16px;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.wallet {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.approved {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.rejected {
+  color: #ef4444;
+  font-weight: 600;
+}

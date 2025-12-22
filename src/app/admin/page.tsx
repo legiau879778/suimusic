@@ -1,74 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  getWorks,
-  verifyWork,
-  Work,
-} from "@/lib/workStore";
-
-import styles from "@/styles/admin.module.css";
+import { useMemo, useState } from "react";
+import StatCard from "@/components/admin/StatCard";
+import ApprovalLineChart from "@/components/admin/ApprovalLineChart";
+import DrillModal from "@/components/admin/DrillModal";
+import { getAdminStats } from "@/lib/adminStats";
+import styles from "@/styles/admin/dashboard.module.css";
 
 export default function AdminPage() {
-  const [works, setWorks] = useState<Work[]>([]);
-
-  const reload = () => {
-    setWorks(getWorks());
-  };
-
-  useEffect(() => {
-    reload();
-  }, []);
+  const stats = useMemo(() => getAdminStats(), []);
+  const [drill, setDrill] = useState<null | {
+    title: string;
+    items: string[];
+  }>(null);
 
   return (
-    <div className={styles.page}>
-      <h1 className={styles.title}>Admin – Duyệt tác phẩm</h1>
+    <main className={styles.dashboard}>
+      <h1 className={styles.title}>Dashboard</h1>
 
-      <div className={styles.panel}>
-        {works.length === 0 && (
-          <p className={styles.empty}>Chưa có tác phẩm</p>
-        )}
+      <div className={styles.grid}>
+        <StatCard
+          label="Tác phẩm đã duyệt"
+          value={stats.verified}
+          variant="verified"
+          onClick={() =>
+            setDrill({
+              title: "Tác phẩm đã duyệt",
+              items: stats.verifiedList,
+            })
+          }
+        />
 
-        {works.map(w => (
-          <div key={w.id} className={styles.card}>
-            <div>
-              <b>{w.title}</b>
-              <p>Author ID: {w.authorId}</p>
-              <p>Hash: {w.fileHash}</p>
-              <p>
-                Trạng thái:{" "}
-                <span className={styles[w.status]}>
-                  {w.status}
-                </span>
-              </p>
-            </div>
+        <StatCard
+          label="Chờ duyệt"
+          value={stats.pending}
+          variant="pending"
+        />
 
-            {w.status === "pending" && (
-              <div className={styles.actions}>
-                <button
-                  className={styles.approve}
-                  onClick={() => {
-                    verifyWork(w.id, "verified");
-                    reload();
-                  }}
-                >
-                  Duyệt
-                </button>
+        <StatCard
+          label="Bị từ chối"
+          value={stats.rejected}
+          variant="rejected"
+        />
 
-                <button
-                  className={styles.reject}
-                  onClick={() => {
-                    verifyWork(w.id, "rejected");
-                    reload();
-                  }}
-                >
-                  Từ chối
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+        <StatCard
+          label="Admin"
+          value={stats.admins}
+          variant="admin"
+        />
+
+        <StatCard
+          label="Người dùng"
+          value={stats.users}
+          variant="user"
+        />
       </div>
-    </div>
+
+      <ApprovalLineChart data={stats.approvalByDay} />
+
+      {drill && (
+        <DrillModal
+          title={drill.title}
+          items={drill.items}
+          onClose={() => setDrill(null)}
+        />
+      )}
+    </main>
   );
 }

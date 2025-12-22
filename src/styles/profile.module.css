@@ -1,0 +1,435 @@
+/* =====================================================
+   PAGE
+===================================================== */
+
+.profilePage {
+  min-height: calc(100vh - 72px);
+  padding: 40px 56px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(250,204,21,.12), transparent 40%),
+    linear-gradient(180deg, #020617, #020617);
+  color: #fff;
+}
+
+/* =====================================================
+   GRID — 3 COLUMNS
+===================================================== */
+
+.profileLayout {
+  display: grid;
+  grid-template-columns:
+    260px
+    minmax(560px, 1.7fr)
+    360px;
+  gap: 32px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.contentArea {
+  background: rgba(30,41,59,.55);
+  border-radius: 28px;
+  padding: 30px;
+  border: 1px solid rgba(250,204,21,.18);
+  min-height: 520px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animate khi đổi tab */
+.animatedPanel {
+  animation: tabFade .28s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes tabFade {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* =====================================================
+   COLUMN 1 — SIDEBAR
+===================================================== */
+
+.sidebar {
+  background: rgba(30,41,59,.55);
+  border-radius: 28px;
+  padding: 26px;
+  border: 1px solid rgba(250,204,21,.18);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.avatarBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: linear-gradient(135deg,#fde047,#facc15);
+  color: #020617;
+  font-size: 34px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.userId {
+  font-size: 13px;
+  opacity: .7;
+  text-align: center;
+}
+
+/* ---------- SIDEBAR NAV ---------- */
+
+.sideNav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sideNav button {
+  height: 46px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  font-weight: 600;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.sideNav button:hover {
+  background: rgba(250,204,21,.12);
+  color: #fde047;
+}
+
+.sideNav .active {
+  background: rgba(250,204,21,.22);
+  color: #fde047;
+}
+
+
+.walletArea {
+  background: rgba(30,41,59,.55);
+  border-radius: 28px;
+  padding: 26px;
+  border: 1px solid rgba(250,204,21,.18);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+
+/* =====================================================
+   INFO CARD
+===================================================== */
+
+.infoCard {
+  background: rgba(30,41,59,.55);
+  border-radius: 28px;
+  padding: 30px;
+  border: 1px solid rgba(250,204,21,.18);
+}
+
+.infoCard h2 {
+  font-size: 20px;
+  margin-bottom: 22px;
+}
+
+/* ---------- FORM GRID ---------- */
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px 20px;
+}
+
+.formField,
+.formFieldFull {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formFieldFull {
+  grid-column: span 2;
+}
+
+.formField label,
+.formFieldFull label {
+  font-size: 13px;
+  opacity: .85;
+}
+
+.formField input,
+.formFieldFull input {
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(2,6,23,.75);
+  border: 1px solid rgba(148,163,184,.25);
+  color: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+  transition: all .15s ease;
+}
+
+.formField input:focus,
+.formFieldFull input:focus {
+  outline: none;
+  border-color: #fde047;
+  box-shadow: 0 0 0 1px rgba(250,204,21,.35);
+}
+
+input:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+/* =====================================================
+   WALLET CARD
+===================================================== */
+
+.walletCard {
+  background: rgba(30,41,59,.55);
+  border-radius: 28px;
+  padding: 30px;
+  border: 1px solid rgba(250,204,21,.18);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.walletCard h2 {
+  font-size: 20px;
+}
+
+/* ---------- WALLET FIELD ---------- */
+
+.walletField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.walletField label {
+  font-size: 13px;
+  opacity: .85;
+}
+
+.walletField input {
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(2,6,23,.75);
+  border: 1px solid rgba(148,163,184,.25);
+  color: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+/* ---------- CONNECT BUTTON ---------- */
+
+.connectBtn {
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg,#fde047,#facc15);
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  color: #020617;
+}
+
+/* ---------- BALANCE ---------- */
+
+.balanceBox {
+  margin-top: 10px;
+  padding: 18px;
+  border-radius: 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(250,204,21,.18),
+    rgba(250,204,21,.08)
+  );
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.balanceBox span {
+  opacity: .85;
+}
+
+.balanceBox strong {
+  font-size: 22px;
+  color: #fde047;
+}
+
+/* ---------- REVOKE ---------- */
+
+.revokeBtn {
+  margin-top: auto;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(239,68,68,.18);
+  border: none;
+  color: #ef4444;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 1200px) {
+  .profileLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .slideWrapper {
+    grid-column: 1;
+  }
+
+  .slideTrack {
+    grid-template-columns: 1fr;
+    transform: none !important;
+  }
+}
+
+.contentArea {
+  position: relative;
+  min-height: 520px;
+}
+
+.animatedPanel {
+  animation: slideFade .28s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes slideFade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================
+   SETTINGS
+========================= */
+
+.settingSection {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(250,204,21,.18);
+}
+
+.settingSection h3 {
+  font-size: 15px;
+  margin-bottom: 14px;
+  color: #fde047;
+}
+
+/* SOCIAL GRID */
+
+.socialGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 18px;
+}
+
+.socialField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.socialField label {
+  font-size: 13px;
+  opacity: .85;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.socialField i {
+  color: #fde047;
+}
+
+.socialField input {
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(2,6,23,.75);
+  border: 1px solid rgba(148,163,184,.25);
+  color: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.socialField input:focus {
+  outline: none;
+  border-color: #fde047;
+  box-shadow: 0 0 0 1px rgba(250,204,21,.35);
+}
+
+/* BUTTONS */
+
+.primaryBtn {
+  margin-top: 18px;
+  height: 44px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg,#fde047,#facc15);
+  color: #020617;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.05);
+}
+
+.dangerBtn {
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(239,68,68,.18);
+  color: #ef4444;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pendingDelete {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(239,68,68,.12);
+}
+
+.pendingDelete button {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: #fde047;
+  font-weight: 600;
+  cursor: pointer;
+}

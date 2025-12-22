@@ -1,192 +1,267 @@
 "use client";
 
-// UPDATED: public search, protected private routes
-
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import styles from "@/styles/header.module.css";
 import { useAuth } from "@/context/AuthContext";
-import UserMenu from "./UserMenu";
-
-const PRIVATE_ROUTES = ["/manage", "/trade", "/register-work"];
+import { useModal } from "@/context/ModalContext";
+import { saveRedirect } from "@/lib/redirect";
 
 export default function Header() {
-  const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const { user, logout } = useAuth();
+  const { openLogin, openPermission } =
+    useModal();
 
-  const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [dragX, setDragX] = useState(0);
+  const [menuOpen, setMenuOpen] =
+    useState(false);
+  const [userMenuOpen, setUserMenuOpen] =
+    useState(false);
+  const [animateAvatar, setAnimateAvatar] =
+    useState(false);
+  const [lastScroll, setLastScroll] =
+    useState(0);
 
-  const lastScroll = useRef(0);
-  const startX = useRef(0);
+  const isAuthor =
+    user?.role === "author" ||
+    user?.role === "admin";
 
-  /* SCROLL BEHAVIOR */
+  /* ================= AUTO HIDE HEADER ================= */
+
   useEffect(() => {
     const onScroll = () => {
-      const current = window.scrollY;
-      setScrolled(current > 20);
-
-      if (current > lastScroll.current && current > 120) {
+      const y = window.scrollY;
+      if (y > lastScroll && y > 80)
         setHidden(true);
-      } else {
-        setHidden(false);
-      }
-
-      lastScroll.current = current;
+      else setHidden(false);
+      setLastScroll(y);
     };
+    window.addEventListener("scroll", onScroll);
+    return () =>
+      window.removeEventListener(
+        "scroll",
+        onScroll
+      );
+  }, [lastScroll]);
 
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  /* ================= AVATAR LOGIN ANIMATION ================= */
 
-  /* ROUTE GUARD */
-  const go = (href: string) => {
-    setMenuOpen(false);
-
-    const isPrivate = PRIVATE_ROUTES.some((r) =>
-      href.startsWith(r)
-    );
-
-    if (isPrivate && !user) {
-      router.push("/login");
-    } else {
-      router.push(href);
+  useEffect(() => {
+    if (user) {
+      setAnimateAvatar(true);
+      const t = setTimeout(
+        () => setAnimateAvatar(false),
+        900
+      );
+      return () => clearTimeout(t);
     }
-  };
+  }, [user?.id]);
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+  /* ================= NAV HELPERS ================= */
 
-  /* SWIPE */
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-  };
+  const navLink = (href: string, label: string) => (
+    <Link
+      href={href}
+      className={`${styles.link} ${
+        pathname === href ? styles.active : ""
+      }`}
+    >
+      {label}
+    </Link>
+  );
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    const delta = e.touches[0].clientX - startX.current;
-    if (delta > 0) setDragX(delta);
-  };
+  const navProtected = (
+    href: string,
+    label: string
+  ) => (
+    <div className={styles.navItemWrap}>
+      <button
+        className={styles.link}
+        onClick={() => {
+          if (!user) {
+            saveRedirect();
+            openLogin();
+            return;
+          }
+          if (!isAuthor) {
+            saveRedirect();
+            openPermission();
+            return;
+          }
+          router.push(href);
+        }}
+      >
+        {label}
+      </button>
 
-  const onTouchEnd = () => {
-    if (dragX > 80) setMenuOpen(false);
-    setDragX(0);
-  };
+      {!isAuthor && (
+        <div
+          className={styles.lockWrap}
+          onClick={(e) => {
+            e.stopPropagation();
+            saveRedirect();
+            !user
+              ? openLogin()
+              : openPermission();
+          }}
+        >
+          <LockIcon />
+          <div className={styles.tooltip}>
+            Yêu cầu quyền tác giả
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  /* ================= RENDER ================= */
 
   return (
     <>
       <header
-        className={[
-          styles.header,
-          scrolled ? styles.scrolled : "",
-          hidden ? styles.hidden : "",
-        ].join(" ")}
+        className={`${styles.header} ${
+          hidden ? styles.hidden : ""
+        }`}
       >
-        <div className={styles.inner}>
-          {/* LOGO */}
-          <Link href="/" className={styles.logo}>
-            <Image
-              src="/images/logo.png"
-              alt="Chainstorm"
-              width={32}
-              height={32}
-              priority
-            />
-            <span>CHAINSTORM</span>
-          </Link>
+        <Link href="/" className={styles.logo}>
+          <Image
+            src="/images/logo.png"
+            alt="Chainstorm"
+            width={36}
+            height={36}
+          />
+          <span className={styles.logoText}>
+            Chainstorm
+          </span>
+        </Link>
 
-          {/* DESKTOP NAV */}
-          <nav className={styles.nav}>
-            <Link href="/" className={isActive("/") ? styles.active : ""}>
-              Trang chủ
-            </Link>
+        <nav className={styles.nav}>
+          {navLink("/", "Trang chủ")}
+          {navLink("/search", "Tra cứu")}
+          {navProtected("/manage", "Quản lý tác phẩm")}
+          {navProtected(
+            "/register-work",
+            "Đăng ký"
+          )}
+          {navProtected("/trade", "Giao dịch tác phẩm")}
+          {user?.role === "admin" &&
+            navLink("/admin", "Admin")}
+        </nav>
 
-            {/* PUBLIC */}
-            <Link
-              href="/search"
-              className={isActive("/search") ? styles.active : ""}
-            >
-              Tra cứu
-            </Link>
-
-            {/* PRIVATE */}
-            <button onClick={() => go("/manage")}>Quản lý</button>
-            <button onClick={() => go("/trade")}>Giao dịch</button>
-          </nav>
-
-          {/* RIGHT */}
-          <div className={styles.right}>
-            {user ? (
-              <UserMenu />
-            ) : (
-              <button
-                className={styles.login}
-                onClick={() => router.push("/login")}
-              >
-                Đăng nhập
-              </button>
-            )}
-
+        <div className={styles.actions}>
+          {!user ? (
             <button
-              className={styles.menuToggle}
-              onClick={() => setMenuOpen(true)}
+              className={styles.loginBtn}
+              onClick={() => {
+                saveRedirect();
+                openLogin();
+              }}
             >
-              ☰
+              Đăng nhập
             </button>
-          </div>
+          ) : (
+            <div className={styles.avatarWrap}>
+              <button
+                className={`${styles.avatar} ${
+                  styles[user.role]
+                } ${
+                  animateAvatar
+                    ? styles.avatarPop
+                    : ""
+                }`}
+                onClick={() =>
+                  setUserMenuOpen(!userMenuOpen)
+                }
+              >
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt="avatar"
+                    referrerPolicy="no-referrer"
+                    className={styles.avatarImg}
+                  />
+                ) : (
+                  user.email[0].toUpperCase()
+                )}
+              </button>
+
+              {/* TOOLTIP EMAIL */}
+              <div className={styles.avatarTooltip}>
+                {user.email}
+              </div>
+
+              {userMenuOpen && (
+                <div
+                  className={`${styles.dropdown} ${styles.open}`}
+                >
+                  <Link href="/profile">
+                    Hồ sơ
+                  </Link>
+                  <button onClick={logout}>
+                    Đăng xuất
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            className={styles.menuToggle}
+            onClick={() =>
+              setMenuOpen(!menuOpen)
+            }
+          >
+            ☰
+          </button>
         </div>
       </header>
 
-      {/* OVERLAY */}
-      {menuOpen && (
-        <div
-          className={styles.overlay}
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-
       {/* MOBILE MENU */}
-      <aside
+      <div
         className={`${styles.mobileMenu} ${
           menuOpen ? styles.open : ""
         }`}
-        style={{ transform: `translateX(${menuOpen ? dragX : 100}%)` }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
       >
-        <button
-          className={styles.close}
-          onClick={() => setMenuOpen(false)}
-        >
-          ✕
-        </button>
-
-        {/* PUBLIC */}
-        <Link href="/" onClick={() => setMenuOpen(false)}>
-          Trang chủ
-        </Link>
-        <Link href="/search" onClick={() => setMenuOpen(false)}>
-          Tra cứu
-        </Link>
-
-        {/* PRIVATE */}
-        <button onClick={() => go("/manage")}>Quản lý</button>
-        <button onClick={() => go("/trade")}>Giao dịch</button>
-
-        {!user && (
-          <button
-            className={styles.mobileLogin}
-            onClick={() => router.push("/login")}
-          >
-            Đăng nhập
-          </button>
+        {navLink("/", "Trang chủ")}
+        {navLink("/search", "Tra cứu")}
+        {navProtected("/manage", "Quản lý tác phẩm")}
+        {navProtected(
+          "/register-work",
+          "Đăng ký"
         )}
-      </aside>
+        {navProtected("/trade", "Giao dịch tác phẩm")}
+      </div>
     </>
+  );
+}
+
+/* ================= ICON ================= */
+
+function LockIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4" y="11" width="16" height="9" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
   );
 }

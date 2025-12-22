@@ -1,0 +1,40 @@
+.voteBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vote {
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.vote strong {
+  display: block;
+}
+
+.vote em {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.approve {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.reject {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.quorumInput {
+  width: 60px;
+  padding: 4px;
+  border-radius: 6px;
+  background: #020617;
+  border: 1px solid #334155;
+  color: #fde047;
+}
