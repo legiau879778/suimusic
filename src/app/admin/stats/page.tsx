@@ -1,21 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
-import { getWorks } from "@/lib/workStore";
-import { buildAdminStats } from "@/lib/adminStats";
-import ApprovalChart from "@/components/admin/ApprovalLineChart";
+import ApprovalChart from "@/components/admin/charts/ApprovalChart";
 
-export default function AdminStats() {
-  const works = useMemo(() => getWorks(), []);
-
-  const { approvalByDay } = useMemo(
-    () => buildAdminStats(works),
-    [works]
-  );
-
+export default function StatsPage() {
   return (
-    <section>
-      <ApprovalChart data={approvalByDay} />
-    </section>
+    <>
+      <h1>Thống kê duyệt</h1>
+      <ApprovalChart />
+    </>
   );
 }

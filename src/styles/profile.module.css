@@ -433,3 +433,245 @@ input:disabled {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* =========================
+   MEMBERSHIP TAB
+========================= */
+
+.membershipHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 36px;
+}
+
+.membershipHeader h1 {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.membershipHeader h1 span {
+  color: #fde047;
+}
+
+.web3Status {
+  background: rgba(30,41,59,.7);
+  border-radius: 18px;
+  padding: 18px 22px;
+  border: 1px solid rgba(250,204,21,.25);
+  min-width: 260px;
+}
+
+.web3Status h4 {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #fde047;
+}
+
+.web3Status ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+}
+
+.web3Status li {
+  margin-bottom: 6px;
+}
+
+.ok {
+  color: #22c55e;
+}
+
+/* GRID */
+
+.membershipGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+}
+
+/* CARD */
+
+.membershipCard {
+  background: rgba(30,41,59,.65);
+  border-radius: 22px;
+  padding: 26px 22px;
+  border: 1px solid rgba(250,204,21,.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: transform .2s ease;
+}
+
+.membershipCard:hover {
+  transform: translateY(-4px);
+}
+
+.cardIcon {
+  font-size: 38px;
+  margin-bottom: 14px;
+}
+
+.membershipCard h3 {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.membershipCard p {
+  font-size: 13px;
+  opacity: .8;
+  margin-bottom: 18px;
+}
+
+.confirmBtn {
+  margin-top: auto;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg,#fde047,#facc15);
+  border: none;
+  font-weight: 700;
+  color: #020617;
+  cursor: pointer;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1200px) {
+  .membershipGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .membershipHeader {
+    flex-direction: column;
+  }
+}
+
+/* ẨN CỘT WALLET */
+.noWallet {
+  grid-template-columns:
+    260px
+    minmax(560px, 1fr);
+}
+
+/* MEMBERSHIP HEADER */
+.membershipHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 36px;
+}
+
+.membershipHeader h1 span {
+  color: #fde047;
+}
+
+/* STATUS */
+.web3Status {
+  background: rgba(30,41,59,.7);
+  border-radius: 18px;
+  padding: 18px 22px;
+  border: 1px solid rgba(250,204,21,.25);
+  min-width: 260px;
+}
+
+.web3Status h4 {
+  color: #fde047;
+  margin-bottom: 10px;
+}
+
+.web3Status ul {
+  list-style: none;
+  padding: 0;
+  font-size: 13px;
+}
+
+.ok {
+  color: #22c55e;
+}
+
+.warn {
+  color: #facc15;
+}
+
+/* MEMBERSHIP */
+.membershipGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+}
+
+.membershipCard {
+  background: rgba(30,41,59,.6);
+  border-radius: 22px;
+  padding: 24px;
+  border: 1px solid rgba(250,204,21,.18);
+  text-align: center;
+}
+
+.confirmBtn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.walletHint {
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.walletHint a {
+  display: inline-block;
+  margin-top: 4px;
+  color: #fde047;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.walletHint a:hover {
+  text-decoration: underline;
+}
+
+.walletHint {
+  margin-top: 12px;
+  font-size: 13px;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.walletHintWarn {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(250,204,21,.12);
+  color: #fde047;
+  text-align: center;
+  font-size: 13px;
+}
+
+.walletHint a {
+  display: block;
+  margin-top: 6px;
+  color: #fde047;
+  font-weight: 600;
+}
+
+.walletHintWarn {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(239,68,68,.15);
+  color: #ef4444;
+  text-align: center;
+  font-size: 13px;
+}
+
+.walletHint {
+  margin-top: 12px;
+  font-size: 13px;
+  text-align: center;
+  opacity: .9;
+}

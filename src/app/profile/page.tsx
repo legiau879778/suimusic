@@ -10,11 +10,7 @@ import TradeHistoryPanel from "@/components/profile/tabs/HistoryTab";
 import SettingsPanel from "@/components/profile/tabs/SettingsTab";
 import WalletPanel from "@/components/profile/WalletPanel";
 
-type Tab =
-  | "membership"
-  | "info"
-  | "history"
-  | "settings";
+type Tab = "membership" | "info" | "history" | "settings";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -24,34 +20,27 @@ export default function ProfilePage() {
 
   return (
     <main className={styles.profilePage}>
-      <div className={styles.profileLayout}>
-
-        {/* =================================================
-           COLUMN 1 — SIDEBAR
-        ================================================= */}
+      <div
+        className={`${styles.profileLayout} ${
+          tab !== "info" ? styles.noWallet : ""
+        }`}
+      >
+        {/* SIDEBAR */}
         <aside className={styles.sidebar}>
           <div className={styles.avatarBox}>
             <div className={styles.avatar}>
               {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt="avatar"
-                  className={styles.avatarImg}
-                />
+                <img src={user.avatar} className={styles.avatarImg} />
               ) : (
                 user.email[0].toUpperCase()
               )}
             </div>
 
-            <span className={styles.userId}>
-              {user.email}
-            </span>
+            <span className={styles.userId}>{user.email}</span>
 
             {user.role !== "user" && (
               <span className={styles.roleBadge}>
-                {user.role === "admin"
-                  ? "Admin"
-                  : "Author"}
+                {user.role === "admin" ? "Admin" : "Author"}
               </span>
             )}
           </div>
@@ -63,21 +52,18 @@ export default function ProfilePage() {
             >
               Membership
             </button>
-
             <button
               className={tab === "info" ? styles.active : ""}
               onClick={() => setTab("info")}
             >
               Thông tin cá nhân
             </button>
-
             <button
               className={tab === "history" ? styles.active : ""}
               onClick={() => setTab("history")}
             >
               Lịch sử giao dịch
             </button>
-
             <button
               className={tab === "settings" ? styles.active : ""}
               onClick={() => setTab("settings")}
@@ -87,9 +73,7 @@ export default function ProfilePage() {
           </nav>
         </aside>
 
-        {/* =================================================
-           COLUMN 2 — MAIN CONTENT
-        ================================================= */}
+        {/* MAIN CONTENT */}
         <section className={styles.contentArea}>
           <div className={styles.animatedPanel} key={tab}>
             {tab === "membership" && <MembershipPanel />}
@@ -99,13 +83,12 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* =================================================
-           COLUMN 3 — WALLET / STATUS (SUI)
-        ================================================= */}
-        <aside className={styles.walletArea}>
-          <WalletPanel />
-        </aside>
-
+        {/* WALLET – CHỈ INFO */}
+        {tab === "info" && (
+          <aside className={styles.walletArea}>
+            <WalletPanel />
+          </aside>
+        )}
       </div>
     </main>
   );

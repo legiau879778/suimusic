@@ -3,11 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { addWork } from "@/lib/workStore";
+import {
+  addWork,
+  type MarketStatus as WorkMarketStatus,
+} from "@/lib/workStore";
 import styles from "@/app/register-work/registWork.module.css";
 
+/* ================= TYPES ================= */
+
+// UI chỉ dùng cho form
 type Step = 1 | 2 | 3;
-type MarketStatus = "private" | "public" | "pending";
+type MarketStatusUI = "private" | "public" | "pending";
+
+/* ================= COMPONENT ================= */
 
 export default function RegisterWorkPage() {
   const { user } = useAuth();
@@ -26,7 +34,7 @@ export default function RegisterWorkPage() {
   const [duration, setDuration] = useState<number | null>(null);
 
   const [marketStatus, setMarketStatus] =
-    useState<MarketStatus>("private");
+    useState<MarketStatusUI>("private");
 
   /* ===== STEP 3 MOCK ===== */
   const [ipfsCid, setIpfsCid] = useState<string | null>(null);
@@ -39,7 +47,11 @@ export default function RegisterWorkPage() {
 
   if (!user) return null;
 
-  /* ===== HELPERS ===== */
+  // 🔥 SNAPSHOT non-null cho TypeScript
+  const authorId: string = user.id;
+
+  /* ================= HELPERS ================= */
+
   function generateHash() {
     setHash(crypto.randomUUID().replace(/-/g, ""));
   }
@@ -56,108 +68,176 @@ export default function RegisterWorkPage() {
     };
   }
 
-  /* ===== VALIDATION ===== */
-  const step1Valid =
-    title &&
-    genre &&
-    language &&
-    completedAt &&
-    fileName &&
-    hash;
+  /* ================= VALIDATION ================= */
 
-  /* ===== STEP 3 MOCK ===== */
+  const step1Valid =
+    !!(
+      title &&
+      genre &&
+      language &&
+      completedAt &&
+      fileName &&
+      hash
+    );
+
+  /* ================= MOCK ACTIONS ================= */
+
   async function uploadIPFS() {
     await new Promise((r) => setTimeout(r, 1200));
-    setIpfsCid("ipfs://bafy" + Math.random().toString(36).slice(2));
+    setIpfsCid(
+      "ipfs://bafy" +
+        Math.random().toString(36).slice(2)
+    );
   }
 
   async function registerOnChain() {
     await new Promise((r) => setTimeout(r, 1200));
-    setTxHash("0x" + Math.random().toString(16).slice(2));
+    setTxHash(
+      "0x" + Math.random().toString(16).slice(2)
+    );
   }
 
+  /* ================= MAP UI → DOMAIN ================= */
+
+  function mapMarketStatus(
+    ui: MarketStatusUI
+  ): WorkMarketStatus {
+    switch (ui) {
+      case "public":
+        return "public";
+      case "private":
+        return "private";
+      case "pending":
+      default:
+        // pending chỉ là UI, chưa public
+        return "private";
+    }
+  }
+
+  /* ================= FINAL SUBMIT ================= */
+
   function finish() {
+    const finalMarketStatus =
+      mapMarketStatus(marketStatus);
+
     addWork({
       title,
-      authorId: user.id,
+      authorId,
       hash,
-      marketStatus,
+      marketStatus: finalMarketStatus,
     });
+
     router.push("/manage");
   }
+
+  /* ================= UI ================= */
 
   return (
     <main className={styles.page}>
       <div className={styles.container}>
         {/* ===== HEADER ===== */}
         <div className={styles.header}>
-          <h1 className={styles.title}>Đăng ký tác phẩm</h1>
+          <h1 className={styles.title}>
+            Đăng ký tác phẩm
+          </h1>
           <p className={styles.subtitle}>
             Đăng ký bảo vệ bản quyền tác phẩm số
           </p>
         </div>
 
         <div
-          className={`${styles.form} ${styles[`glowStep${step}`]}`}
+          className={`${styles.form} ${
+            styles[`glowStep${step}`]
+          }`}
         >
           {/* ===== PROGRESS ===== */}
           <div className={styles.progress}>
             <div
               className={styles.progressBar}
-              style={{ width: `${step * 33.33}%` }}
+              style={{
+                width: `${step * 33.33}%`,
+              }}
             />
           </div>
 
-          {/* ===== STEP CONTAINER ===== */}
           <div className={styles.stepContainer}>
             {/* ================= STEP 1 ================= */}
             <section
               className={`${styles.stepPane} ${
-                step === 1 ? styles.active : styles.hidden
+                step === 1
+                  ? styles.active
+                  : styles.hidden
               }`}
             >
               <div className={styles.grid}>
                 <div className={styles.field}>
-                  <label className={styles.label}>Tên tác phẩm</label>
+                  <label className={styles.label}>
+                    Tên tác phẩm
+                  </label>
                   <input
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) =>
+                      setTitle(e.target.value)
+                    }
                   />
                 </div>
 
                 <div className={styles.field}>
-                  <label className={styles.label}>Thể loại</label>
+                  <label className={styles.label}>
+                    Thể loại
+                  </label>
                   <input
                     value={genre}
-                    onChange={(e) => setGenre(e.target.value)}
+                    onChange={(e) =>
+                      setGenre(e.target.value)
+                    }
                   />
                 </div>
 
                 <div className={styles.field}>
-                  <label className={styles.label}>Ngôn ngữ</label>
+                  <label className={styles.label}>
+                    Ngôn ngữ
+                  </label>
                   <select
                     className={styles.select}
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                    onChange={(e) =>
+                      setLanguage(e.target.value)
+                    }
                   >
-                    <option value="vi">Tiếng Việt</option>
-                    <option value="en">English</option>
-                    <option value="jp">日本語</option>
+                    <option value="vi">
+                      Tiếng Việt
+                    </option>
+                    <option value="en">
+                      English
+                    </option>
+                    <option value="jp">
+                      日本語
+                    </option>
                   </select>
                 </div>
 
                 <div className={styles.field}>
-                  <label className={styles.label}>Ngày sáng tác</label>
+                  <label className={styles.label}>
+                    Ngày sáng tác
+                  </label>
                   <input
                     type="date"
                     value={completedAt}
-                    onChange={(e) => setCompletedAt(e.target.value)}
+                    onChange={(e) =>
+                      setCompletedAt(
+                        e.target.value
+                      )
+                    }
                   />
                 </div>
               </div>
 
               <div className={styles.uploadBox}>
-                <span>{fileName || "Chưa chọn file"}</span>
+                <span>
+                  {fileName ||
+                    "Chưa chọn file"}
+                </span>
 
                 <label className={styles.button}>
                   Chọn file tác phẩm
@@ -165,7 +245,8 @@ export default function RegisterWorkPage() {
                     type="file"
                     accept="audio/*,video/*"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
+                      const file =
+                        e.target.files?.[0];
                       if (!file) return;
                       setFileName(file.name);
                       generateHash();
@@ -175,8 +256,12 @@ export default function RegisterWorkPage() {
                 </label>
 
                 {duration && (
-                  <div className={styles.duration}>
-                    ⏱ {Math.floor(duration / 60)}:
+                  <div
+                    className={styles.duration}
+                  >
+                    ⏱{" "}
+                    {Math.floor(duration / 60)}
+                    :
                     {Math.floor(duration % 60)
                       .toString()
                       .padStart(2, "0")}
@@ -189,30 +274,59 @@ export default function RegisterWorkPage() {
                   Trạng thái thị trường
                 </label>
 
-                <div className={styles.radioGroup}>
-                  <label className={styles.radio}>
+                <div
+                  className={styles.radioGroup}
+                >
+                  <label
+                    className={styles.radio}
+                  >
                     <input
                       type="radio"
-                      checked={marketStatus === "private"}
-                      onChange={() => setMarketStatus("private")}
+                      checked={
+                        marketStatus ===
+                        "private"
+                      }
+                      onChange={() =>
+                        setMarketStatus(
+                          "private"
+                        )
+                      }
                     />
                     Chưa công bố
                   </label>
 
-                  <label className={styles.radio}>
+                  <label
+                    className={styles.radio}
+                  >
                     <input
                       type="radio"
-                      checked={marketStatus === "public"}
-                      onChange={() => setMarketStatus("public")}
+                      checked={
+                        marketStatus ===
+                        "public"
+                      }
+                      onChange={() =>
+                        setMarketStatus(
+                          "public"
+                        )
+                      }
                     />
                     Đã có trên thị trường
                   </label>
 
-                  <label className={styles.radio}>
+                  <label
+                    className={styles.radio}
+                  >
                     <input
                       type="radio"
-                      checked={marketStatus === "pending"}
-                      onChange={() => setMarketStatus("pending")}
+                      checked={
+                        marketStatus ===
+                        "pending"
+                      }
+                      onChange={() =>
+                        setMarketStatus(
+                          "pending"
+                        )
+                      }
                     />
                     Chuẩn bị phát hành
                   </label>
@@ -234,72 +348,54 @@ export default function RegisterWorkPage() {
             {/* ================= STEP 2 ================= */}
             <section
               className={`${styles.stepPane} ${
-                step === 2 ? styles.active : styles.hidden
+                step === 2
+                  ? styles.active
+                  : styles.hidden
               }`}
             >
               <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>Người đăng ký</h3>
+                <h3
+                  className={
+                    styles.sectionTitle
+                  }
+                >
+                  Người đăng ký
+                </h3>
 
-                <div className={styles.registrant}>
-                  <div className={styles.avatar}>
-                    {user.id[0].toUpperCase()}
+                <div
+                  className={styles.registrant}
+                >
+                  <div
+                    className={styles.avatar}
+                  >
+                    {authorId[0].toUpperCase()}
                   </div>
 
-                  <div className={styles.registrantInfo}>
-                    <strong>{user.name || "Author"}</strong>
-                    <span>ID: {user.id}</span>
-                    <span className={styles.badge}>
+                  <div
+                    className={
+                      styles.registrantInfo
+                    }
+                  >
+                    <strong>
+                      {user.email}
+                    </strong>
+                    <span>ID: {authorId}</span>
+                    <span
+                      className={styles.badge}
+                    >
                       Verified Author
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>
-                  Thông tin tác phẩm
-                </h3>
-
-                <div className={styles.confirmBox}>
-                  <div className={styles.confirmItem}>
-                    <span>Tên</span>
-                    <strong>{title}</strong>
-                  </div>
-
-                  <div className={styles.confirmItem}>
-                    <span>Ngôn ngữ</span>
-                    <strong>{language.toUpperCase()}</strong>
-                  </div>
-
-                  <div className={styles.confirmItem}>
-                    <span>Ngày sáng tác</span>
-                    <strong>{completedAt}</strong>
-                  </div>
-
-                  <div className={styles.confirmItem}>
-                    <span>Thời lượng</span>
-                    <strong>
-                      {duration
-                        ? `${Math.floor(duration / 60)}:${Math.floor(
-                            duration % 60
-                          )
-                            .toString()
-                            .padStart(2, "0")}`
-                        : "—"}
-                    </strong>
-                  </div>
-
-                  <div className={styles.confirmItem}>
-                    <span>Trạng thái</span>
-                    <span className={styles.metaTag}>
-                      {marketStatus}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               <div className={styles.actions}>
-                <button className={styles.back} onClick={() => setStep(1)}>Quay lại</button>
+                <button
+                  className={styles.back}
+                  onClick={() => setStep(1)}
+                >
+                  Quay lại
+                </button>
                 <button
                   className={styles.submit}
                   onClick={() => setStep(3)}
@@ -312,23 +408,37 @@ export default function RegisterWorkPage() {
             {/* ================= STEP 3 ================= */}
             <section
               className={`${styles.stepPane} ${
-                step === 3 ? styles.active : styles.hidden
+                step === 3
+                  ? styles.active
+                  : styles.hidden
               }`}
             >
               <div className={styles.confirmBox}>
                 <div>
                   <strong>IPFS CID</strong>
-                  <div>{ipfsCid || "Chưa upload"}</div>
+                  <div>
+                    {ipfsCid || "Chưa upload"}
+                  </div>
                 </div>
 
                 <div style={{ marginTop: 12 }}>
-                  <strong>Transaction Hash</strong>
-                  <div>{txHash || "Chưa ghi on-chain"}</div>
+                  <strong>
+                    Transaction Hash
+                  </strong>
+                  <div>
+                    {txHash ||
+                      "Chưa ghi on-chain"}
+                  </div>
                 </div>
               </div>
 
               <div className={styles.actions}>
-                <button className={styles.back} onClick={() => setStep(2)}>Quay lại</button>
+                <button
+                  className={styles.back}
+                  onClick={() => setStep(2)}
+                >
+                  Quay lại
+                </button>
 
                 {!ipfsCid ? (
                   <button

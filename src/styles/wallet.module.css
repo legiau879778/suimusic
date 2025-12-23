@@ -57,3 +57,26 @@ h3 {
   padding: 8px;
   border-radius: 12px;
 }
+
+.walletHint {
+  margin-top: 12px;
+  font-size: 13px;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.walletHint p {
+  margin-bottom: 6px;
+}
+
+.walletHint a {
+  display: block;
+  margin-top: 6px;
+  color: #fde047;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.walletHint a:hover {
+  text-decoration: underline;
+}

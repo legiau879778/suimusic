@@ -1,20 +1,15 @@
-import StatCard from "@/components/admin/StatCard";
-import styles from "@/styles/admin/adminDashboard.module.css";
-import { buildAdminStats} from "@/lib/adminStats";
+"use client"
 
-export default function AdminDashboard() {
-  const stats = buildAdminStats();
+import DashboardStats from "@/components/admin/DashboardStats";
 
+export default function AdminPage() {
   return (
-    <>
-      <h1 className={styles.heading}>Dashboard</h1>
+    <div>
+      <h1 style={{ fontSize: 28, marginBottom: 24 }}>
+        Dashboard quản trị
+      </h1>
 
-      <div className={styles.grid}>
-        <StatCard title="Tác phẩm đã duyệt" value={stats.verified} />
-        <StatCard title="Chờ duyệt" value={stats.pending} />
-        <StatCard title="Bị từ chối" value={stats.rejected} />
-        <StatCard title="Giao dịch" value={stats.trades} />
-      </div>
-    </>
+      <DashboardStats />
+    </div>
   );
 }

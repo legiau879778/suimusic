@@ -2,11 +2,14 @@ export type AuthorStatus = "pending" | "approved" | "rejected";
 
 export type Author = {
   id: string;
-  name: string;        // tên thật
-  stageName: string;   // nghệ danh
-  birthDate: string;   // YYYY-MM-DD
+  name: string;
+  stageName: string;
+  birthDate: string;
   nationality: string;
   status: AuthorStatus;
+
+  walletAddress?: string;   // 🔗 gắn ví
+  membershipNftId?: string; // 🪙 NFT
 };
 
 const KEY = "chainstorm_authors";
@@ -37,7 +40,6 @@ export function getAuthors(): Author[] {
   return load();
 }
 
-/** Alias – cho thống nhất với workStore */
 export function getAllAuthors(): Author[] {
   return load();
 }
@@ -79,32 +81,64 @@ export function addAuthor(data: {
   save(authors);
 }
 
+/**
+ * ✅ Admin duyệt author (logic domain)
+ * Ký ví + log làm ở layer cao hơn
+ */
 export function approveAuthor(id: string) {
-  const authors = load();
-
   save(
-    authors.map(a =>
+    load().map(a =>
       a.id === id
-        ? { ...a, status: "approved" as const }
+        ? { ...a, status: "approved" }
         : a
     )
   );
 }
 
 export function rejectAuthor(id: string) {
-  const authors = load();
-
   save(
-    authors.map(a =>
+    load().map(a =>
       a.id === id
-        ? { ...a, status: "rejected" as const }
+        ? { ...a, status: "rejected" }
+        : a
+    )
+  );
+}
+
+/**
+ * 🔗 Gắn ví cho author (sau khi author login + connect ví)
+ */
+export function bindAuthorWallet(
+  authorId: string,
+  walletAddress: string
+) {
+  save(
+    load().map(a =>
+      a.id === authorId
+        ? { ...a, walletAddress }
+        : a
+    )
+  );
+}
+
+/**
+ * 🪙 Mint membership NFT (mock / on-chain sau)
+ */
+export function setAuthorMembershipNFT(
+  authorId: string,
+  nftId: string
+) {
+  save(
+    load().map(a =>
+      a.id === authorId
+        ? { ...a, membershipNftId: nftId }
         : a
     )
   );
 }
 
 /* ===================== */
-/* STATS / HELPERS */
+/* STATS */
 /* ===================== */
 
 export function countApprovedAuthors(): number {

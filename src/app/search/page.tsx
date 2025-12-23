@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import styles from "./search.module.css";
-import { getPublicWorks } from "@/lib/workStore";
+import { getWorks } from "@/lib/workStore";
 import Link from "next/link";
 
 export default function SearchPage() {
   const [q, setQ] = useState("");
-  const works = getPublicWorks();
+  const works = getWorks();
 
   const filtered = useMemo(() => {
     if (!q.trim()) return works;

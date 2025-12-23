@@ -6,57 +6,85 @@ export type ApprovalByDay = {
   rejected: number;
 };
 
-export function buildAdminStats(works: Work[]) {
-  const verified = works.filter(w => w.status === "verified");
-  const rejected = works.filter(w => w.status === "rejected");
+export function buildAdminStats(
+  works: Work[] = [] // ✅ FIX 1: default param
+) {
+  /* =====================
+     SAFE GUARD
+  ===================== */
+  const safeWorks = Array.isArray(works) ? works : [];
+
+  const verified = safeWorks.filter(
+    (w) => w.status === "verified"
+  );
+
+  const rejected = safeWorks.filter(
+    (w) => w.status === "rejected"
+  );
 
   const approvalByDay: Record<
     string,
     { verified: number; rejected: number }
   > = {};
 
-  /* ===== VERIFIED ===== */
-  verified.forEach(w => {
+  /* =====================
+     VERIFIED
+  ===================== */
+  verified.forEach((w) => {
     if (!w.verifiedAt) return;
 
-    const d = new Date(w.verifiedAt)
-      .toISOString()
-      .slice(0, 10);
+    const date = toDateKey(w.verifiedAt);
 
-    approvalByDay[d] ||= {
+    approvalByDay[date] ??= {
       verified: 0,
       rejected: 0,
     };
 
-    approvalByDay[d].verified++;
+    approvalByDay[date].verified += 1;
   });
 
-  /* ===== REJECTED ===== */
-  rejected.forEach(w => {
+  /* =====================
+     REJECTED
+  ===================== */
+  rejected.forEach((w) => {
     if (!w.rejectedAt) return;
 
-    const d = new Date(w.rejectedAt)
-      .toISOString()
-      .slice(0, 10);
+    const date = toDateKey(w.rejectedAt);
 
-    approvalByDay[d] ||= {
+    approvalByDay[date] ??= {
       verified: 0,
       rejected: 0,
     };
 
-    approvalByDay[d].rejected++;
+    approvalByDay[date].rejected += 1;
   });
 
+  /* =====================
+     SORT + MAP
+  ===================== */
   const approvalStats: ApprovalByDay[] =
-    Object.entries(approvalByDay).map(
-      ([date, v]) => ({
+    Object.entries(approvalByDay)
+      .sort(([a], [b]) => a.localeCompare(b)) // ✅ FIX 3: sort theo ngày
+      .map(([date, v]) => ({
         date,
         verified: v.verified,
         rejected: v.rejected,
-      })
-    );
+      }));
 
   return {
+    total: safeWorks.length,
+    verified: verified.length,
+    rejected: rejected.length,
+    pending: safeWorks.filter(
+      (w) => w.status === "pending"
+    ).length,
     approvalByDay: approvalStats,
   };
+}
+
+/* =====================
+   UTIL
+===================== */
+function toDateKey(date: string | number | Date) {
+  return new Date(date).toISOString().slice(0, 10);
 }

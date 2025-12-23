@@ -1,35 +1,30 @@
-"use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import styles from "@/styles/admin/adminSidebar.module.css";
-
-const MENU = [
-  { href: "/admin", label: "Dashboard", icon: "fa-chart-pie" },
-  { href: "/admin/works", label: "Duyệt tác phẩm", icon: "fa-file-signature" },
-  { href: "/admin/logs", label: "Lịch sử duyệt", icon: "fa-clock-rotate-left" },
-  { href: "/admin/users", label: "Người dùng", icon: "fa-users" },
-  { href: "/admin/stats", label: "Thống kê", icon: "fa-chart-line" },
-];
+import styles from "@/styles/admin/sidebar.module.css";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
 
+  const nav = [
+    { href: "/admin", label: "Dashboard" },
+    { href: "/admin/review", label: "Duyệt tác phẩm" },
+    { href: "/admin/logs", label: "Lịch sử duyệt" },
+    { href: "/admin/users", label: "Người dùng" },
+    { href: "/admin/stats", label: "Thống kê" },
+  ];
+
   return (
     <aside className={styles.sidebar}>
-      <h2 className={styles.title}>ADMIN</h2>
-
-      <nav className={styles.nav}>
-        {MENU.map((m) => (
+      <nav className={styles.menu}>
+        {nav.map(i => (
           <Link
-            key={m.href}
-            href={m.href}
-            className={`${styles.item} ${
-              pathname === m.href ? styles.active : ""
+            key={i.href}
+            href={i.href}
+            className={`${styles.menuLink} ${
+              pathname === i.href ? styles.active : ""
             }`}
           >
-            <i className={`fa-solid ${m.icon}`} />
-            <span>{m.label}</span>
+            {i.label}
           </Link>
         ))}
       </nav>

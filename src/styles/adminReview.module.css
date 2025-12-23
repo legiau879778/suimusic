@@ -1,0 +1,109 @@
+.page {
+  padding: 32px;
+  color: #fff;
+}
+
+h1 {
+  margin-bottom: 24px;
+}
+
+/* ===== TABLE ===== */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(30,41,59,.4);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+th, td {
+  padding: 14px 16px;
+  text-align: left;
+}
+
+th {
+  background: rgba(250,204,21,.12);
+}
+
+tr:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.reviewBtn {
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: #fde047;
+  color: #020617;
+  font-weight: 600;
+}
+
+/* ===== STATUS ===== */
+
+.pending { color: #facc15; }
+.verified { color: #22c55e; }
+.rejected { color: #ef4444; }
+
+/* ===== PANEL ===== */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel {
+  width: 520px;
+  background: #020617;
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid rgba(250,204,21,.2);
+}
+
+.meta {
+  font-size: 14px;
+  opacity: .9;
+  margin-bottom: 16px;
+}
+
+.quorum {
+  margin-bottom: 16px;
+}
+
+input, textarea {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #020617;
+  border: 1px solid rgba(255,255,255,.2);
+  color: #fff;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.approve {
+  background: #22c55e;
+}
+
+.reject {
+  background: #ef4444;
+}
+
+.actions button {
+  flex: 1;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  color: #020617;
+  font-weight: 600;
+  cursor: pointer;
+}

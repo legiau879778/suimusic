@@ -1,13 +1,6 @@
-/* ======================================================
-   WORK STORE – SSR SAFE
-   ❌ KHÔNG import authStore
-   ❌ KHÔNG dùng useAuth / window trực tiếp
-   ====================================================== */
-
 import { safeLoad, safeSave } from "./storage";
 import { addReviewLog } from "./reviewLogStore";
-import { signApproveMessage } from "./signMessage";
-import { getActiveAdminWallet } from "./adminWalletStore";
+import { signApproveAuthorMessage } from "./signApproveAuthorMessage";
 import type { UserRole } from "@/context/AuthContext";
 
 const STORAGE_KEY = "chainstorm_works";
@@ -25,8 +18,15 @@ export type ReviewItem = {
   txHash?: string;
 };
 
-export type WorkStatus = "pending" | "verified" | "rejected";
-export type MarketStatus = "private" | "public" | "tradeable";
+export type WorkStatus =
+  | "pending"
+  | "verified"
+  | "rejected";
+
+export type MarketStatus =
+  | "private"
+  | "public"
+  | "tradeable";
 
 export type Work = {
   id: string;
@@ -40,7 +40,7 @@ export type Work = {
   quorumWeight: number;
   quorumLocked: boolean;
 
-  approvalMap: Record<string, number>;
+  approvalMap: Record<string, number>; // key = admin wallet address
   rejectionBy: string[];
   reviews: ReviewItem[];
 
@@ -65,20 +65,15 @@ export function getWorks(): Work[] {
 }
 
 export function getPendingWorks(): Work[] {
-  return load().filter(w => w.status === "pending");
-}
-
-export function getPublicWorks(): Work[] {
   return load().filter(
-    w =>
-      w.status === "verified" &&
-      (w.marketStatus === "public" ||
-        w.marketStatus === "tradeable")
+    (w) => w.status === "pending"
   );
 }
 
-export function countWorksByAuthor(authorId: string): number {
-  return load().filter(w => w.authorId === authorId).length;
+export function getWorksByAuthor(authorId: string): Work[] {
+  return load().filter(
+    (w) => w.authorId === authorId
+  );
 }
 
 /* ================= AUTHOR ================= */
@@ -98,7 +93,8 @@ export function addWork(data: {
     hash: data.hash,
 
     status: "pending",
-    marketStatus: data.marketStatus || "private",
+    marketStatus:
+      data.marketStatus || "private",
 
     quorumWeight: 1,
     quorumLocked: false,
@@ -118,15 +114,23 @@ export function updateQuorumWeight(
   newWeight: number
 ) {
   const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w || w.status !== "pending") return;
-  if (w.quorumLocked || newWeight < 1) return;
+  const w = works.find(
+    (x) => x.id === workId
+  );
+  if (
+    !w ||
+    w.status !== "pending" ||
+    w.quorumLocked
+  )
+    return;
+
+  if (newWeight < 1) return;
 
   w.quorumWeight = newWeight;
   save(works);
 }
 
-/* ================= APPROVE ================= */
+/* ================= APPROVE (SUI) ================= */
 
 export async function approveWork(params: {
   workId: string;
@@ -144,28 +148,38 @@ export async function approveWork(params: {
   } = params;
 
   const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w || w.status !== "pending") return;
-
-  if (w.approvalMap[admin.email]) return;
-
-  const wallet = getActiveAdminWallet(admin.email);
-  if (!wallet) return;
-
-  const { signature } =
-    await signApproveMessage(wallet.address, workId);
-
-  w.quorumLocked = true;
-  w.approvalMap[admin.email] = adminWeight;
-
-  const total = Object.values(w.approvalMap).reduce(
-    (a, b) => a + b,
-    0
+  const w = works.find(
+    (x) => x.id === workId
   );
+  if (!w || w.status !== "pending")
+    return;
 
-  if (total >= w.quorumWeight) {
+  w.approvalMap ||= {};
+  w.reviews ||= [];
+  w.rejectionBy ||= [];
+
+  // 🔐 Admin ký bằng ví SUI
+  const {
+    signature,
+    adminWallet,
+  } = await signApproveAuthorMessage(workId);
+
+  // ❌ đã approve bằng ví này
+  if (w.approvalMap[adminWallet])
+    return;
+
+  w.approvalMap[adminWallet] =
+    adminWeight;
+
+  const totalWeight = Object.values(
+    w.approvalMap
+  ).reduce((a, b) => a + b, 0);
+
+  if (totalWeight >= w.quorumWeight) {
     w.status = "verified";
-    w.verifiedAt = new Date().toISOString();
+    w.verifiedAt =
+      new Date().toISOString();
+    w.quorumLocked = true;
   }
 
   w.reviews.push({
@@ -191,7 +205,9 @@ export async function approveWork(params: {
   save(works);
 
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("review-log-updated"));
+    window.dispatchEvent(
+      new Event("review-log-updated")
+    );
   }
 }
 
@@ -202,17 +218,24 @@ export function rejectWork(params: {
   admin: { email: string; role: UserRole };
   reason: string;
 }) {
-  const { workId, admin, reason } = params;
+  const { workId, admin, reason } =
+    params;
 
   const works = load();
-  const w = works.find(x => x.id === workId);
-  if (!w || w.status !== "pending") return;
+  const w = works.find(
+    (x) => x.id === workId
+  );
+  if (!w || w.status !== "pending")
+    return;
 
   w.quorumLocked = true;
   w.status = "rejected";
-  w.rejectedAt = new Date().toISOString();
+  w.rejectedAt =
+    new Date().toISOString();
+  w.rejectionBy ||= [];
   w.rejectionBy.push(admin.email);
 
+  w.reviews ||= [];
   w.reviews.push({
     admin: admin.email,
     action: "rejected",
@@ -233,6 +256,18 @@ export function rejectWork(params: {
   save(works);
 
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("review-log-updated"));
+    window.dispatchEvent(
+      new Event("review-log-updated")
+    );
   }
+}
+
+/* ================= COUNT ================= */
+
+export function countWorksByAuthor(
+  authorId: string
+): number {
+  return load().filter(
+    (w) => w.authorId === authorId
+  ).length;
 }

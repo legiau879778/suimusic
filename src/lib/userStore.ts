@@ -1,32 +1,45 @@
-// src/lib/userStore.ts
-
-export type UserRecord = {
+export type User = {
   id: string;
   email: string;
   role: "user" | "author" | "admin";
+  wallet?: string;
+  createdAt: number;
 };
 
 const KEY = "chainstorm_users";
 
-function safeLoad(): UserRecord[] {
+/* ================= SAFE STORAGE ================= */
+
+function load(): User[] {
   if (typeof window === "undefined") return [];
-  return JSON.parse(localStorage.getItem(KEY) || "[]");
+  try {
+    return JSON.parse(
+      localStorage.getItem(KEY) || "[]"
+    );
+  } catch {
+    return [];
+  }
 }
 
-function safeSave(data: UserRecord[]) {
+function save(users: User[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(data));
+  localStorage.setItem(KEY, JSON.stringify(users));
 }
 
-export function getUsers(): UserRecord[] {
-  return safeLoad();
+/* ================= API ================= */
+
+export function getUsers(): User[] {
+  return load();
 }
 
-export function setRole(id: string, role: UserRecord["role"]) {
-  const users = safeLoad();
-  const u = users.find(x => x.id === id);
+export function updateUserRole(
+  id: string,
+  role: User["role"]
+) {
+  const users = load();
+  const u = users.find((x) => x.id === id);
   if (!u) return;
 
   u.role = role;
-  safeSave(users);
+  save(users);
 }

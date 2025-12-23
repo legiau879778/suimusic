@@ -1,0 +1,43 @@
+.page {
+  padding: 40px;
+  color: #fff;
+}
+
+.title {
+  font-size: 22px;
+  margin-bottom: 24px;
+}
+
+.empty {
+  opacity: 0.7;
+}
+
+.table {
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.header,
+.row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr;
+  padding: 14px 18px;
+}
+
+.header {
+  background: rgba(250, 204, 21, 0.15);
+  font-weight: 700;
+}
+
+.row {
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.role {
+  text-transform: capitalize;
+}
+
+.wallet {
+  font-family: monospace;
+}

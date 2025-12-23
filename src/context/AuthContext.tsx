@@ -10,11 +10,15 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
 
 import { loadUser, saveUser, clearUser } from "@/lib/authStorage";
-import { connectSuiWallet, signSuiMessage } from "@/lib/suiWallet";
 import { consumeRedirect } from "@/lib/redirect";
 import { ADMIN_EMAILS } from "@/lib/adminConfig";
-import { addAdminWallet } from "@/lib/adminWalletStore";
 import { useToast } from "@/context/ToastContext";
+
+import {
+  connectSuiWallet,
+  signSuiMessage,
+} from "@/lib/suiWallet";
+
 
 /* ================= TYPES ================= */
 
@@ -25,12 +29,23 @@ export type WalletInfo = {
   verified: boolean;
 };
 
+export type MembershipType =
+  | "artist"
+  | "creator"
+  | "business"
+  | "ai"
+  | null;
+
 export type User = {
   id: string;
   email: string;
   avatar?: string;
   role: UserRole;
+
   wallet?: WalletInfo;
+
+  membership?: MembershipType;
+  membershipNftId?: string;
 };
 
 /* ================= CONTEXT ================= */
@@ -104,8 +119,23 @@ export function AuthProvider({
     if (!user) return;
 
     const address = await connectSuiWallet();
-    const message = `Chainstorm verify wallet\n${user.email}`;
-    await signSuiMessage(message);
+
+    if (!address) {
+      showToast(
+        "Không kết nối được ví. Hãy mở Suiet Wallet và đảm bảo popup không bị chặn.",
+        "warning"
+      );
+      return;
+    }
+
+    const ok = await signSuiMessage(
+      `Chainstorm verify wallet\n${user.email}`
+    );
+
+    if (!ok) {
+      showToast("Xác thực chữ ký thất bại", "warning");
+      return;
+    }
 
     const updated: User = {
       ...user,
@@ -119,17 +149,12 @@ export function AuthProvider({
     setUser(updated);
     saveUser(updated);
 
-    if (updated.role === "admin") {
-      addAdminWallet(updated.email, address, 1);
-    }
-
-    showToast(
-      "Kết nối ví thành công",
-      updated.role === "admin" ? "admin" : "author"
-    );
-
-    router.replace(consumeRedirect());
+    showToast("Kết nối ví SUI thành công", "success");
   }
+
+
+
+
 
   function revokeWallet() {
     if (!user) return;
