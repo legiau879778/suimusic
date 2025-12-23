@@ -4,6 +4,13 @@ import { useState } from "react";
 import type { Work } from "@/lib/workStore";
 import styles from "@/styles/admin/reviewPanel.module.css";
 
+/**
+ * 🔐 RULE QUORUM (ANY2 / CÁCH 1)
+ * Không lưu trong Work
+ * Có thể đổi 2, 3, 5... sau
+ */
+const REQUIRED_QUORUM = 1;
+
 export default function ReviewPanel({
   work,
   onClose,
@@ -13,6 +20,12 @@ export default function ReviewPanel({
 }) {
   const [txHash, setTxHash] = useState("");
   const [reason, setReason] = useState("");
+
+  const approvedCount =
+    Object.keys(work.approvalMap).length;
+
+  const reachedQuorum =
+    approvedCount >= REQUIRED_QUORUM;
 
   return (
     <div className={styles.overlay}>
@@ -24,6 +37,7 @@ export default function ReviewPanel({
           <div>
             <b>Author ID:</b> {work.authorId}
           </div>
+
           {work.hash && (
             <div>
               <b>Hash:</b> {work.hash}
@@ -34,11 +48,11 @@ export default function ReviewPanel({
         {/* ===== QUORUM ===== */}
         <div className={styles.quorum}>
           <h4>
-            Quorum ({Object.keys(work.approvalMap).length}/
-            {work.quorumWeight})
+            Quorum ({approvedCount}/
+            {REQUIRED_QUORUM})
           </h4>
 
-          {Object.keys(work.approvalMap).length === 0 && (
+          {approvedCount === 0 && (
             <div className={styles.empty}>
               Chưa có admin duyệt
             </div>
@@ -46,13 +60,22 @@ export default function ReviewPanel({
 
           {Object.entries(work.approvalMap).map(
             ([wallet, weight]) => (
-              <div key={wallet} className={styles.approval}>
+              <div
+                key={wallet}
+                className={styles.approval}
+              >
                 ✔ {wallet.slice(0, 6)}…
                 <span className={styles.weight}>
                   +{weight}
                 </span>
               </div>
             )
+          )}
+
+          {reachedQuorum && (
+            <div className={styles.success}>
+              ✅ Đã đạt quorum duyệt
+            </div>
           )}
         </div>
 
@@ -61,24 +84,41 @@ export default function ReviewPanel({
           className={styles.input}
           placeholder="Tx hash / Proof (optional)"
           value={txHash}
-          onChange={(e) => setTxHash(e.target.value)}
+          onChange={(e) =>
+            setTxHash(e.target.value)
+          }
         />
 
         <textarea
           className={styles.textarea}
           placeholder="Lý do từ chối (nếu Reject)"
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) =>
+            setReason(e.target.value)
+          }
         />
 
         {/* ===== ACTIONS ===== */}
         <div className={styles.actions}>
-          <button className={styles.approve}>
+          <button
+            className={styles.approve}
+            disabled={!reachedQuorum}
+            title={
+              reachedQuorum
+                ? ""
+                : "Chưa đủ quorum"
+            }
+          >
             Approve
           </button>
-          <button className={styles.reject}>
+
+          <button
+            className={styles.reject}
+            disabled={!reason.trim()}
+          >
             Reject
           </button>
+
           <button
             className={styles.close}
             onClick={onClose}

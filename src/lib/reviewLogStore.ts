@@ -1,34 +1,59 @@
-// src/lib/reviewLogStore.ts
-import type { UserRole } from "@/context/AuthContext";
+import { safeLoad, safeSave } from "./storage";
+
+/* ================= STORAGE ================= */
+
+const STORAGE_KEY = "chainstorm_review_logs";
+
+/* ================= TYPES ================= */
+
+export type ReviewAction =
+  | "approved"
+  | "rejected"
+  | "deleted"
+  | "restored";
 
 export type ReviewLog = {
   id: string;
   workId: string;
   workTitle: string;
 
-  action: "approved" | "rejected";
+  action: ReviewAction;
 
-  adminEmail: string;
-  adminRole: UserRole;
+  /** admin nếu có */
+  adminEmail?: string;
+  adminRole: string;
 
   time: string;
+
+  reason?: string;
 };
 
-const KEY = "chainstorm_review_logs";
+/* ================= INTERNAL ================= */
 
-export function getReviewLogs(): ReviewLog[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
-  } catch {
-    return [];
-  }
+function load(): ReviewLog[] {
+  return safeLoad<ReviewLog[]>(STORAGE_KEY) || [];
 }
 
-export function addReviewLog(log: ReviewLog) {
-  if (typeof window === "undefined") return;
+function save(data: ReviewLog[]) {
+  safeSave(STORAGE_KEY, data);
+}
 
-  const logs = getReviewLogs();
+/* ================= GETTERS ================= */
+
+export function getReviewLogs(): ReviewLog[] {
+  return load();
+}
+
+export function getReviewLogsByWork(
+  workId: string
+): ReviewLog[] {
+  return load().filter(l => l.workId === workId);
+}
+
+/* ================= MUTATION ================= */
+
+export function addReviewLog(log: ReviewLog) {
+  const logs = load();
   logs.unshift(log);
-  localStorage.setItem(KEY, JSON.stringify(logs));
+  save(logs);
 }

@@ -29,14 +29,14 @@ export type Work = {
   verifiedAt?: string;
   rejectedAt?: string;
 
-  /** 🔥 soft delete */
+  /** soft delete */
   deletedAt?: string | null;
 };
 
 /* ================= INTERNAL ================= */
 
 function load(): Work[] {
-  return safeLoad<Work[]>(STORAGE_KEY) ?? [];
+  return safeLoad<Work[]>(STORAGE_KEY) || [];
 }
 
 function save(data: Work[]) {
@@ -45,34 +45,32 @@ function save(data: Work[]) {
 }
 
 function dispatch() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("works_updated"));
-  }
+  window.dispatchEvent(new Event("works_updated"));
 }
 
 /* ================= GETTERS ================= */
 
-export function getWorks(): Work[] {
+export function getWorks() {
   return load();
 }
 
-export function getActiveWorks(): Work[] {
+export function getActiveWorks() {
   return load().filter(w => !w.deletedAt);
 }
 
-export function getTrashWorks(): Work[] {
-  return load().filter(w => Boolean(w.deletedAt));
+export function getTrashWorks() {
+  return load().filter(w => w.deletedAt);
 }
 
-export function getVerifiedWorks(): Work[] {
+export function getPendingWorks() {
   return load().filter(
-    w => w.status === "verified" && !w.deletedAt
+    w => w.status === "pending" && !w.deletedAt
   );
 }
 
-export function getPendingWorks(): Work[] {
+export function getVerifiedWorks() {
   return load().filter(
-    w => w.status === "pending" && !w.deletedAt
+    w => w.status === "verified" && !w.deletedAt
   );
 }
 
@@ -95,7 +93,7 @@ export function addWork(data: {
     language: data.language,
   });
 
-  const work: Work = {
+  works.push({
     id: crypto.randomUUID(),
     title: data.title,
     authorId: data.authorId,
@@ -109,9 +107,8 @@ export function addWork(data: {
     approvalMap: {},
     rejectionBy: [],
     deletedAt: null,
-  };
+  });
 
-  works.push(work);
   save(works);
 }
 
@@ -124,7 +121,6 @@ export function softDeleteWork(params: {
   const { workId, actor } = params;
   const works = load();
   const w = works.find(x => x.id === workId);
-
   if (!w) return { error: "NOT_FOUND" as const };
 
   if (
@@ -133,8 +129,6 @@ export function softDeleteWork(params: {
   ) {
     return { error: "FORBIDDEN" as const };
   }
-
-  if (w.deletedAt) return { ok: true }; // đã xóa rồi
 
   w.deletedAt = new Date().toISOString();
 
@@ -164,7 +158,6 @@ export function restoreWork(params: {
   const { workId, actor } = params;
   const works = load();
   const w = works.find(x => x.id === workId);
-
   if (!w || !w.deletedAt)
     return { error: "INVALID_WORK" as const };
 
@@ -203,7 +196,6 @@ export async function approveWork(params: {
   const { workId, admin } = params;
   const works = load();
   const w = works.find(x => x.id === workId);
-
   if (!w || w.status !== "pending")
     return { error: "INVALID_WORK" as const };
 
@@ -239,7 +231,6 @@ export async function rejectWork(params: {
   const { workId, admin, reason } = params;
   const works = load();
   const w = works.find(x => x.id === workId);
-
   if (!w || w.status !== "pending")
     return { error: "INVALID_WORK" as const };
 
@@ -271,26 +262,4 @@ export function countWorksByAuthor(authorId: string) {
       w.status === "verified" &&
       !w.deletedAt
   ).length;
-}
-
-/* ================= AUTO CLEAN TRASH ================= */
-
-const TRASH_TTL_MS =
-  30 * 24 * 60 * 60 * 1000;
-
-export function autoCleanTrash() {
-  const works = load();
-  const now = Date.now();
-
-  const cleaned = works.filter(w => {
-    if (!w.deletedAt) return true;
-    return (
-      now - new Date(w.deletedAt).getTime() <
-      TRASH_TTL_MS
-    );
-  });
-
-  if (cleaned.length !== works.length) {
-    save(cleaned);
-  }
 }

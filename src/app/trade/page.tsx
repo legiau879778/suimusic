@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import styles from "@/app/trade/trade.module.css";
-import { getWorks } from "@/lib/workStore";
+import { getPendingWorks } from "@/lib/workStore";
 import { useEffect, useState } from "react";
 
 type TradeState = "idle" | "pending" | "success";
@@ -25,7 +25,7 @@ export default function TradePage() {
   useEffect(() => {
     // mock loading
     setTimeout(() => {
-      const verified = getWorks().filter(
+      const verified = getPendingWorks().filter(
         (w: Work) => w.status === "verified"
       );
       setWorks(verified);

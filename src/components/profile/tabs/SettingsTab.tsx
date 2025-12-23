@@ -1,160 +1,177 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import styles from "@/styles/profile.module.css";
 import { useAuth } from "@/context/AuthContext";
-import { loadProfile, saveProfile } from "@/lib/profileStore";
+import { useEffect, useState } from "react";
 import {
-  requestDelete,
-  cancelDelete,
-  getDeleteStatus,
-} from "@/lib/accountStore";
+  loadProfile,
+  saveProfile,
+  UserProfile,
+} from "@/lib/profileStore";
 
-export default function SettingsPanel() {
-  const { user, logout } = useAuth();
-  const [profile, setProfile] = useState<any>({});
-  const [pendingDelete, setPendingDelete] =
-    useState<any>(null);
+export default function SettingsTab() {
+  const { user } = useAuth();
+  const userId = user?.id || user?.email || "guest";
 
+  const [profile, setProfile] = useState<UserProfile>(
+    () => loadProfile(userId)
+  );
+
+  /* ===== AUTOSAVE ===== */
   useEffect(() => {
-    if (!user) return;
-    setProfile(loadProfile(user.id));
-    setPendingDelete(getDeleteStatus(user.id));
-  }, [user]);
+    const t = setTimeout(
+      () => saveProfile(userId, profile),
+      600
+    );
+    return () => clearTimeout(t);
+  }, [profile, userId]);
 
-  if (!user) return null;
+  const socials = profile.socials || {};
+  const options = profile.options || {};
 
-  function saveSocials() {
-    if (!user) return;
-    saveProfile(user.id, profile);
-  }
+  const setSocial = (k: string, v: string) =>
+    setProfile({
+      ...profile,
+      socials: { ...socials, [k]: v },
+    });
+
+  const toggleOption = (k: string) =>
+    setProfile({
+      ...profile,
+      options: {
+        ...options,
+        [k]: !options[k as keyof typeof options],
+      },
+    });
 
   return (
-    <div className={styles.card}>
-      <h2>Cài đặt</h2>
-
-      {/* ===== SOCIAL LINKS ===== */}
-      <section className={styles.settingSection}>
-        <h3>Mạng xã hội</h3>
+    <div className={styles.settingsWrap}>
+      {/* ===== SOCIAL ===== */}
+      <section className={styles.card}>
+        <h2>Mạng xã hội</h2>
 
         <div className={styles.socialGrid}>
-          <div className={styles.socialField}>
-            <label>
-              <i className="fa-brands fa-x-twitter" />
-              Twitter / X
-            </label>
-            <input
-              placeholder="https://x.com/username"
-              value={profile.socials?.twitter || ""}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  socials: {
-                    ...profile.socials,
-                    twitter: e.target.value,
-                  },
-                })
-              }
-            />
-          </div>
+          <SocialField
+            label="Twitter"
+            value={socials.twitter}
+            onChange={(v) => setSocial("twitter", v)}
+          />
+          <SocialField
+            label="Facebook"
+            value={socials.facebook}
+            onChange={(v) =>
+              setSocial("facebook", v)
+            }
+          />
+          <SocialField
+            label="Instagram"
+            value={socials.instagram}
+            onChange={(v) =>
+              setSocial("instagram", v)
+            }
+          />
+          <SocialField
+            label="Website"
+            value={socials.website}
+            onChange={(v) =>
+              setSocial("website", v)
+            }
+          />
+        </div>
+      </section>
 
-          <div className={styles.socialField}>
-            <label>
-              <i className="fa-brands fa-facebook" />
-              Facebook
-            </label>
-            <input
-              placeholder="https://facebook.com/username"
-              value={profile.socials?.facebook || ""}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  socials: {
-                    ...profile.socials,
-                    facebook: e.target.value,
-                  },
-                })
-              }
-            />
-          </div>
+      {/* ===== OPTIONS ===== */}
+      <section className={styles.card}>
+        <h2>Tùy chọn hồ sơ</h2>
 
-          <div className={styles.socialField}>
-            <label>
-              <i className="fa-brands fa-instagram" />
-              Instagram
-            </label>
-            <input
-              placeholder="https://instagram.com/username"
-              value={profile.socials?.instagram || ""}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  socials: {
-                    ...profile.socials,
-                    instagram: e.target.value,
-                  },
-                })
-              }
-            />
-          </div>
+        <div className={styles.optionList}>
+          <OptionRow
+            label="Hiển thị hồ sơ công khai"
+            desc="Cho phép người khác xem hồ sơ của bạn"
+            checked={!!options.publicProfile}
+            onToggle={() =>
+              toggleOption("publicProfile")
+            }
+          />
 
-          <div className={styles.socialField}>
-            <label>
-              <i className="fa-solid fa-globe" />
-              Website
-            </label>
-            <input
-              placeholder="https://yourwebsite.com"
-              value={profile.socials?.website || ""}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  socials: {
-                    ...profile.socials,
-                    website: e.target.value,
-                  },
-                })
-              }
-            />
-          </div>
+          <OptionRow
+            label="Hiển thị mạng xã hội"
+            desc="Hiển thị link mạng xã hội trên hồ sơ"
+            checked={!!options.showSocials}
+            onToggle={() =>
+              toggleOption("showSocials")
+            }
+          />
+
+          <OptionRow
+            label="Cho phép liên hệ qua email"
+            desc="Người khác có thể liên hệ bạn qua email"
+            checked={!!options.allowEmailContact}
+            onToggle={() =>
+              toggleOption("allowEmailContact")
+            }
+          />
         </div>
 
-        <button
-          className={styles.primaryBtn}
-          onClick={saveSocials}
-        >
-          Lưu mạng xã hội
-        </button>
+        <div className={styles.autoSaveHint}>
+          ✔ Cài đặt được lưu tự động
+        </div>
       </section>
+    </div>
+  );
+}
 
-      {/* ===== DELETE ACCOUNT ===== */}
-      <section className={styles.settingSection}>
-        <h3>Nguy hiểm</h3>
+/* ===== SUB COMPONENTS ===== */
 
-        {!pendingDelete ? (
-          <button
-            className={styles.dangerBtn}
-            onClick={() => {
-              requestDelete(user.id);
-              setPendingDelete({ at: Date.now() });
-            }}
-          >
-            Xóa tài khoản
-          </button>
-        ) : (
-          <div className={styles.pendingDelete}>
-            <p>⚠️ Tài khoản sẽ bị xóa sau 24h.</p>
-            <button
-              onClick={() => {
-                cancelDelete(user.id);
-                setPendingDelete(null);
-              }}
-            >
-              Hủy xóa
-            </button>
-          </div>
-        )}
-      </section>
+function SocialField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value?: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className={styles.socialField}>
+      <label>{label}</label>
+      <input
+        value={value || ""}
+        placeholder={`Nhập link ${label}`}
+        onChange={(e) =>
+          onChange(e.target.value)
+        }
+      />
+    </div>
+  );
+}
+
+function OptionRow({
+  label,
+  desc,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  desc: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className={styles.optionRow}>
+      <div>
+        <strong>{label}</strong>
+        <p>{desc}</p>
+      </div>
+
+      <button
+        className={`${styles.toggle} ${
+          checked ? styles.on : ""
+        }`}
+        onClick={onToggle}
+      >
+        <span />
+      </button>
     </div>
   );
 }

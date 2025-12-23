@@ -331,3 +331,47 @@
   50% { transform: scale(1.06); }
   100% { transform: scale(1); }
 }
+
+/* ===== AVATAR BADGE ===== */
+
+.avatarWrap {
+  position: relative;
+}
+
+.membershipBadge {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: linear-gradient(135deg,#38bdf8,#0ea5e9);
+  color: #020617;
+  box-shadow: 0 4px 12px rgba(56,189,248,.45);
+}
+
+.membershipBadge.business {
+  background: linear-gradient(135deg,#facc15,#fde047);
+}
+
+.membershipBadge.artist {
+  background: linear-gradient(135deg,#22c55e,#16a34a);
+}
+
+/* ===== COUNTDOWN ===== */
+
+.membershipCountdown {
+  position: absolute;
+  top: 100%;
+  margin-top: 8px;
+  right: 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(2,6,23,.9);
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  pointer-events: none;
+}
+

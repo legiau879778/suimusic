@@ -1,32 +1,163 @@
 "use client";
 
-import type { ReviewLog } from "@/lib/reviewLogStore";
+import { useEffect, useState } from "react";
+import {
+  getPendingWorks,
+  approveWork,
+  rejectWork,
+  type Work,
+} from "@/lib/workStore";
+import { useAuth } from "@/context/AuthContext";
+import ReviewModal from "@/components/admin/logs/ReviewModal";
+import styles from "@/styles/admin/reviewTable.module.css";
 
-type Props = {
-  logs: ReviewLog[];
-};
+export default function ReviewTable() {
+  const { user } = useAuth();
 
-export default function ReviewTable({ logs }: Props) {
+  /* ===== STATE ===== */
+  const [works, setWorks] = useState<Work[]>([]);
+  const [selected, setSelected] =
+    useState<Work | null>(null);
+  const [processingId, setProcessingId] =
+    useState<string | null>(null);
+
+  /* ===== LOAD ===== */
+  useEffect(() => {
+    setWorks(getPendingWorks());
+  }, []);
+
+  /* ===== AUTH GUARD ===== */
+  if (!user) return null;
+
+  /* 🔒 SNAPSHOT ADMIN (QUAN TRỌNG) */
+  const admin = {
+    email: user.email,
+    role: user.role,
+  };
+
+  const walletConnected = !!user.wallet;
+
+  /* ===== ACTIONS ===== */
+  async function handleApprove(workId: string) {
+    if (!walletConnected || processingId) return;
+
+    setProcessingId(workId);
+
+    const res = await approveWork({
+      workId,
+      admin,
+    });
+
+    if (res?.error) {
+      alert("Không thể duyệt tác phẩm");
+      setProcessingId(null);
+      return;
+    }
+
+    setWorks(getPendingWorks());
+    setProcessingId(null);
+  }
+
+  async function handleReject(workId: string) {
+    if (!walletConnected || processingId) return;
+
+    setProcessingId(workId);
+
+    const res = await rejectWork({
+      workId,
+      admin,
+      reason: "Không đạt yêu cầu",
+    });
+
+    if (res?.error) {
+      alert("Không thể từ chối tác phẩm");
+      setProcessingId(null);
+      return;
+    }
+
+    setWorks(getPendingWorks());
+    setProcessingId(null);
+  }
+
+  /* ===== RENDER ===== */
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Thời gian</th>
-          <th>Tác phẩm</th>
-          <th>Hành động</th>
-          <th>Admin</th>
-        </tr>
-      </thead>
-      <tbody>
-        {logs.map(l => (
-          <tr key={l.id}>
-            <td>{new Date(l.time).toLocaleString()}</td>
-            <td>{l.workTitle}</td>
-            <td>{l.action}</td>
-            <td>{l.adminEmail}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <table className={styles.table}>
+        <tbody>
+          {works.map(w => (
+            <tr key={w.id} className={styles.row}>
+              <td className={styles.cell}>
+                <strong>{w.title}</strong>
+                <span className={styles.badge}>
+                  PENDING
+                </span>
+              </td>
+
+              <td className={styles.cell}>
+                <button
+                  className={styles.detail}
+                  disabled={!!processingId}
+                  onClick={() => setSelected(w)}
+                >
+                  Xem chi tiết
+                </button>
+              </td>
+
+              <td className={styles.cell}>
+                <div className={styles.actions}>
+                  <button
+                    className={styles.approve}
+                    disabled={
+                      !walletConnected ||
+                      processingId === w.id
+                    }
+                    onClick={() =>
+                      handleApprove(w.id)
+                    }
+                  >
+                    {processingId === w.id
+                      ? "Đang xử lý..."
+                      : "Approve"}
+                  </button>
+
+                  <button
+                    className={styles.reject}
+                    disabled={
+                      !walletConnected ||
+                      processingId === w.id
+                    }
+                    onClick={() =>
+                      handleReject(w.id)
+                    }
+                  >
+                    {processingId === w.id
+                      ? "Đang xử lý..."
+                      : "Reject"}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+
+          {works.length === 0 && (
+            <tr>
+              <td
+                colSpan={3}
+                className={styles.empty}
+              >
+                Không có tác phẩm chờ duyệt
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {selected && (
+        <ReviewModal
+          work={selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </>
   );
 }

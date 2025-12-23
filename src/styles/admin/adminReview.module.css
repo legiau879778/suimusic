@@ -3,7 +3,8 @@
   color: #fff;
 }
 
-h1 {
+/* ===== TITLE ===== */
+.page h1 {
   margin-bottom: 24px;
 }
 
@@ -17,16 +18,17 @@ h1 {
   overflow: hidden;
 }
 
-th, td {
+.table th,
+.table td {
   padding: 14px 16px;
   text-align: left;
 }
 
-th {
+.table th {
   background: rgba(250,204,21,.12);
 }
 
-tr:not(:last-child) {
+.table tr:not(:last-child) {
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
@@ -71,11 +73,8 @@ tr:not(:last-child) {
   margin-bottom: 16px;
 }
 
-.quorum {
-  margin-bottom: 16px;
-}
-
-input, textarea {
+.panel input,
+.panel textarea {
   width: 100%;
   margin-bottom: 12px;
   padding: 10px 14px;

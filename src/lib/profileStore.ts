@@ -7,17 +7,33 @@ export type SocialLinks = {
   website?: string;
 };
 
+export type ProfileOptions = {
+  publicProfile?: boolean;
+  showSocials?: boolean;
+  allowEmailContact?: boolean;
+};
+
 export type UserProfile = {
   name?: string;
+  phone?: string;
+  cccd?: string;
+  dob?: string;
+  email?: string;
   country?: string;
+  address?: string;
+
+  /** WALLET */
+  walletAddress?: string;
+
   socials?: SocialLinks;
+  options?: ProfileOptions;
 };
 
 export function loadProfile(userId: string): UserProfile {
   if (typeof window === "undefined") return {};
   try {
-    return (
-      JSON.parse(localStorage.getItem(`${KEY}_${userId}`) || "{}")
+    return JSON.parse(
+      localStorage.getItem(`${KEY}_${userId}`) || "{}"
     );
   } catch {
     return {};

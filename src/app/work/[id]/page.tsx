@@ -2,14 +2,22 @@
 
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
-import { getWorks, Work } from "@/lib/workStore";
+import { getWorkById, Work } from "@/lib/workStore";
+import { getReviewLogsByWork } from "@/lib/reviewLogStore";
 import styles from "@/styles/work.module.css";
 
 export default function WorkDetailPage() {
   const { id } = useParams<{ id: string }>();
 
   const work: Work | undefined = useMemo(() => {
-    return getWorks().find(w => w.id === id);
+    return getWorkById(id);
+  }, [id]);
+
+  const reviewLogs = useMemo(() => {
+    return getReviewLogsByWork(id).map(l => ({
+      ...l,
+      time: new Date(l.time).toLocaleString(),
+    }));
   }, [id]);
 
   if (!work) {
@@ -19,41 +27,6 @@ export default function WorkDetailPage() {
       </p>
     );
   }
-
-  /* ===================== */
-  /* REVIEW LOG (HIỂN THỊ) */
-  /* ===================== */
-  const reviewLogs = useMemo(() => {
-    if (work.reviews && work.reviews.length > 0) {
-      return work.reviews.map(r => ({
-        admin: r.admin,
-        action: r.action,
-        time: new Date(r.time).toLocaleString(),
-        reason: r.reason,
-      }));
-    }
-
-    // fallback nếu chưa có review log
-    if (work.status === "verified" || work.status === "rejected") {
-      return [
-        {
-          admin: "admin@chainstorm.io",
-          action:
-            work.status === "verified"
-              ? "approved"
-              : "rejected",
-          time: work.verifiedAt
-            ? new Date(work.verifiedAt).toLocaleString()
-            : work.rejectedAt
-            ? new Date(work.rejectedAt).toLocaleString()
-            : "—",
-          reason: undefined,
-        },
-      ];
-    }
-
-    return [];
-  }, [work]);
 
   return (
     <main className={styles.page}>
@@ -82,10 +55,10 @@ export default function WorkDetailPage() {
         )}
 
         <ul className={styles.timeline}>
-          {reviewLogs.map((log, i) => (
-            <li key={i} className={styles.logItem}>
+          {reviewLogs.map(log => (
+            <li key={log.id} className={styles.logItem}>
               <div>
-                <strong>{log.admin}</strong>{" "}
+                <strong>{log.adminEmail}</strong>{" "}
                 {log.action === "approved"
                   ? "đã duyệt"
                   : "đã từ chối"}
@@ -97,7 +70,8 @@ export default function WorkDetailPage() {
 
               {log.reason && (
                 <div className={styles.reason}>
-                  Lý do: {log.reason}
+                  <strong>Lý do:</strong>{" "}
+                  {log.reason}
                 </div>
               )}
             </li>

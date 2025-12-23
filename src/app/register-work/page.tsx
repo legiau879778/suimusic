@@ -3,17 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import {
-  addWork,
-  type MarketStatus as WorkMarketStatus,
-} from "@/lib/workStore";
-import styles from "@/app/register-work/registWork.module.css";
+import { addWork } from "@/lib/workStore";
+import styles from "./registWork.module.css";
 
 /* ================= TYPES ================= */
 
-// UI chỉ dùng cho form
 type Step = 1 | 2 | 3;
-type MarketStatusUI = "private" | "public" | "pending";
+type SellType = "none" | "sell" | "license";
+type Currency = "SUI" | "USDT";
 
 /* ================= COMPONENT ================= */
 
@@ -23,44 +20,79 @@ export default function RegisterWorkPage() {
 
   const [step, setStep] = useState<Step>(1);
 
-  /* ===== BASIC ===== */
+  /* ===== WORK INFO ===== */
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState("");
   const [language, setLanguage] = useState("vi");
   const [completedAt, setCompletedAt] = useState("");
 
+  /* ===== AUTHOR ===== */
+  const [authorName, setAuthorName] = useState("");
+  const [authorEmail, setAuthorEmail] = useState("");
+  const [authorCode, setAuthorCode] = useState("");
+  const [authorPhone, setAuthorPhone] = useState("");
+
+  /* ===== FILE ===== */
   const [fileName, setFileName] = useState("");
   const [hash, setHash] = useState("");
   const [duration, setDuration] = useState<number | null>(null);
 
-  const [marketStatus, setMarketStatus] =
-    useState<MarketStatusUI>("private");
+  /* ===== COMMERCIAL ===== */
+  const [sellType, setSellType] =
+    useState<SellType>("none");
+  const [price, setPrice] =
+    useState<number | "">("");
+  const [currency, setCurrency] =
+    useState<Currency>("SUI");
+  const [royalty, setRoyalty] =
+    useState<number | "">("");
 
   /* ===== STEP 3 MOCK ===== */
-  const [ipfsCid, setIpfsCid] = useState<string | null>(null);
-  const [txHash, setTxHash] = useState<string | null>(null);
+  const [ipfsCid, setIpfsCid] =
+    useState<string | null>(null);
+  const [txHash, setTxHash] =
+    useState<string | null>(null);
 
-  /* ===== AUTH ===== */
+  /* ================= AUTH ================= */
+
   useEffect(() => {
-    if (!user) router.replace("/login");
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    setAuthorName(user.name || "");
+    setAuthorEmail(user.email || "");
+
+    const year = new Date().getFullYear();
+    setAuthorCode(
+      `AUTH-${year}-${user.id
+        .slice(0, 6)
+        .toUpperCase()}`
+    );
+
+    setAuthorPhone((user as any)?.phone || "");
   }, [user, router]);
 
   if (!user) return null;
-
-  // 🔥 SNAPSHOT non-null cho TypeScript
-  const authorId: string = user.id;
+  const authorId = user.id;
 
   /* ================= HELPERS ================= */
 
   function generateHash() {
-    setHash(crypto.randomUUID().replace(/-/g, ""));
+    setHash(
+      crypto.randomUUID().replace(/-/g, "")
+    );
   }
 
   function readDuration(file: File) {
     const url = URL.createObjectURL(file);
     const media = document.createElement(
-      file.type.startsWith("audio") ? "audio" : "video"
+      file.type.startsWith("audio")
+        ? "audio"
+        : "video"
     );
+
     media.src = url;
     media.onloadedmetadata = () => {
       setDuration(media.duration);
@@ -68,65 +100,68 @@ export default function RegisterWorkPage() {
     };
   }
 
-  /* ================= VALIDATION ================= */
+  function formatDuration(sec: number) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+
+    return h > 0
+      ? `${h}:${m.toString().padStart(2, "0")}:${s
+          .toString()
+          .padStart(2, "0")}`
+      : `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  function copyAuthorCode() {
+    navigator.clipboard.writeText(authorCode);
+    alert("Đã copy mã tác giả");
+  }
 
   const step1Valid =
     !!(
       title &&
       genre &&
-      language &&
       completedAt &&
       fileName &&
-      hash
+      hash &&
+      authorName &&
+      authorEmail &&
+      (
+        sellType === "none" ||
+        (
+          price &&
+          Number(price) > 0 &&
+          (
+            sellType !== "license" ||
+            (
+              royalty !== "" &&
+              Number(royalty) >= 0 &&
+              Number(royalty) <= 30
+            )
+          )
+        )
+      )
     );
 
   /* ================= MOCK ACTIONS ================= */
 
   async function uploadIPFS() {
-    await new Promise((r) => setTimeout(r, 1200));
-    setIpfsCid(
-      "ipfs://bafy" +
-        Math.random().toString(36).slice(2)
-    );
+    await new Promise(r => setTimeout(r, 1000));
+    setIpfsCid("ipfs://mockCID");
   }
 
   async function registerOnChain() {
-    await new Promise((r) => setTimeout(r, 1200));
-    setTxHash(
-      "0x" + Math.random().toString(16).slice(2)
-    );
+    await new Promise(r => setTimeout(r, 1000));
+    setTxHash("0xMOCKTXHASH");
   }
-
-  /* ================= MAP UI → DOMAIN ================= */
-
-  function mapMarketStatus(
-    ui: MarketStatusUI
-  ): WorkMarketStatus {
-    switch (ui) {
-      case "public":
-        return "public";
-      case "private":
-        return "private";
-      case "pending":
-      default:
-        // pending chỉ là UI, chưa public
-        return "private";
-    }
-  }
-
-  /* ================= FINAL SUBMIT ================= */
 
   function finish() {
-    const finalMarketStatus =
-      mapMarketStatus(marketStatus);
-
     addWork({
       title,
       authorId,
       hash,
-      marketStatus: finalMarketStatus,
+      // duration,
     });
-
     router.push("/manage");
   }
 
@@ -135,13 +170,12 @@ export default function RegisterWorkPage() {
   return (
     <main className={styles.page}>
       <div className={styles.container}>
-        {/* ===== HEADER ===== */}
         <div className={styles.header}>
           <h1 className={styles.title}>
             Đăng ký tác phẩm
           </h1>
           <p className={styles.subtitle}>
-            Đăng ký bảo vệ bản quyền tác phẩm số
+            Bảo vệ & khai thác thương mại
           </p>
         </div>
 
@@ -150,7 +184,7 @@ export default function RegisterWorkPage() {
             styles[`glowStep${step}`]
           }`}
         >
-          {/* ===== PROGRESS ===== */}
+          {/* PROGRESS */}
           <div className={styles.progress}>
             <div
               className={styles.progressBar}
@@ -164,173 +198,280 @@ export default function RegisterWorkPage() {
             {/* ================= STEP 1 ================= */}
             <section
               className={`${styles.stepPane} ${
-                step === 1
-                  ? styles.active
-                  : styles.hidden
+                step === 1 ? styles.active : ""
               }`}
             >
-              <div className={styles.grid}>
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    Tên tác phẩm
-                  </label>
-                  <input
-                    value={title}
-                    onChange={(e) =>
-                      setTitle(e.target.value)
-                    }
-                  />
+              {/* WORK INFO */}
+              <div className={styles.subCard}>
+                <div className={styles.sectionTitle}>
+                  Thông tin tác phẩm
                 </div>
 
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    Thể loại
-                  </label>
-                  <input
-                    value={genre}
-                    onChange={(e) =>
-                      setGenre(e.target.value)
-                    }
-                  />
-                </div>
+                <div className={styles.grid}>
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Tên tác phẩm
+                    </label>
+                    <input
+                      value={title}
+                      onChange={e =>
+                        setTitle(e.target.value)
+                      }
+                    />
+                  </div>
 
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    Ngôn ngữ
-                  </label>
-                  <select
-                    className={styles.select}
-                    value={language}
-                    onChange={(e) =>
-                      setLanguage(e.target.value)
-                    }
-                  >
-                    <option value="vi">
-                      Tiếng Việt
-                    </option>
-                    <option value="en">
-                      English
-                    </option>
-                    <option value="jp">
-                      日本語
-                    </option>
-                  </select>
-                </div>
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Thể loại
+                    </label>
+                    <input
+                      value={genre}
+                      onChange={e =>
+                        setGenre(e.target.value)
+                      }
+                    />
+                  </div>
 
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    Ngày sáng tác
-                  </label>
-                  <input
-                    type="date"
-                    value={completedAt}
-                    onChange={(e) =>
-                      setCompletedAt(
-                        e.target.value
-                      )
-                    }
-                  />
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Ngôn ngữ
+                    </label>
+                    <select
+                      className={styles.select}
+                      value={language}
+                      onChange={e =>
+                        setLanguage(e.target.value)
+                      }
+                    >
+                      <option value="vi">
+                        Tiếng Việt
+                      </option>
+                      <option value="en">
+                        English
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Ngày sáng tác
+                    </label>
+                    <input
+                      type="date"
+                      value={completedAt}
+                      onChange={e =>
+                        setCompletedAt(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className={styles.uploadBox}>
-                <span>
-                  {fileName ||
-                    "Chưa chọn file"}
-                </span>
+              {/* AUTHOR */}
+              <div className={styles.subCard}>
+                <div className={styles.sectionTitle}>
+                  Tác giả
+                </div>
 
-                <label className={styles.button}>
-                  Chọn file tác phẩm
-                  <input
-                    type="file"
-                    accept="audio/*,video/*"
-                    onChange={(e) => {
-                      const file =
-                        e.target.files?.[0];
-                      if (!file) return;
-                      setFileName(file.name);
-                      generateHash();
-                      readDuration(file);
-                    }}
-                  />
-                </label>
+                <div className={styles.grid}>
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Mã tác giả
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input value={authorCode} disabled />
+                      <button
+                        type="button"
+                        className={styles.copyBtn}
+                        onClick={copyAuthorCode}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
 
-                {duration && (
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Số điện thoại
+                    </label>
+                    <input
+                      value={
+                        authorPhone || "Chưa cập nhật"
+                      }
+                      disabled
+                    />
+                  </div>
+
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Tên tác giả
+                    </label>
+                    <input
+                      value={authorName}
+                      onChange={e =>
+                        setAuthorName(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className={styles.field}>
+                    <label className={styles.label}>
+                      Email
+                    </label>
+                    <input
+                      value={authorEmail}
+                      onChange={e =>
+                        setAuthorEmail(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* FILE */}
+              <div className={styles.subCard}>
+                <div className={styles.uploadBox}>
+                  <div>
+                    {fileName || "Chưa chọn file"}
+                  </div>
+
+                  <label className={styles.button}>
+                    Chọn file
+                    <input
+                      type="file"
+                      accept="audio/*,video/*"
+                      onChange={e => {
+                        const f =
+                          e.target.files?.[0];
+                        if (!f) return;
+                        setFileName(f.name);
+                        generateHash();
+                        readDuration(f);
+                      }}
+                    />
+                  </label>
+
+                  {duration && (
+                    <div className={styles.duration}>
+                      ⏱ Thời lượng:{" "}
+                      {formatDuration(duration)}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* COMMERCIAL */}
+              <div className={styles.subCard}>
+                <div className={styles.sectionTitle}>
+                  Khai thác thương mại
+                </div>
+
+                <div className={styles.radioGroup}>
+                  {[
+                    ["none", "Không bán"],
+                    ["sell", "Bán đứt"],
+                    ["license", "Bán license / thuê"],
+                  ].map(([v, label]) => (
+                    <label
+                      key={v}
+                      className={styles.radio}
+                    >
+                      <input
+                        type="radio"
+                        checked={sellType === v}
+                        onChange={() => {
+                          setSellType(
+                            v as SellType
+                          );
+                          if (v === "none") {
+                            setPrice("");
+                            setRoyalty("");
+                          }
+                        }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {sellType !== "none" && (
                   <div
-                    className={styles.duration}
+                    className={`${styles.commercialBox} ${
+                      sellType === "license"
+                        ? styles.licenseActive
+                        : ""
+                    }`}
                   >
-                    ⏱{" "}
-                    {Math.floor(duration / 60)}
-                    :
-                    {Math.floor(duration % 60)
-                      .toString()
-                      .padStart(2, "0")}
+                    <div className={styles.commercialGrid}>
+                      <div className={styles.field}>
+                        <label className={styles.label}>
+                          Giá
+                        </label>
+                        <input
+                          type="number"
+                          value={price}
+                          onChange={e =>
+                            setPrice(
+                              e.target.value
+                                ? Number(e.target.value)
+                                : ""
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className={styles.field}>
+                        <label className={styles.label}>
+                          Đơn vị
+                        </label>
+                        <select
+                          className={styles.select}
+                          value={currency}
+                          onChange={e =>
+                            setCurrency(
+                              e.target
+                                .value as Currency
+                            )
+                          }
+                        >
+                          <option value="SUI">SUI</option>
+                          <option value="USDT">USDT</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {sellType === "license" && (
+                      <div className={styles.royaltyBox}>
+                        <div className={styles.royaltyHeader}>
+                          <label className={styles.label}>
+                            Royalty (%)
+                          </label>
+                          <div className={styles.royaltyInfo}>
+                            ?
+                          </div>
+                        </div>
+
+                        <input
+                          type="number"
+                          value={royalty}
+                          onChange={e =>
+                            setRoyalty(
+                              e.target.value
+                                ? Number(e.target.value)
+                                : ""
+                            )
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-
-              <div className={styles.field}>
-                <label className={styles.label}>
-                  Trạng thái thị trường
-                </label>
-
-                <div
-                  className={styles.radioGroup}
-                >
-                  <label
-                    className={styles.radio}
-                  >
-                    <input
-                      type="radio"
-                      checked={
-                        marketStatus ===
-                        "private"
-                      }
-                      onChange={() =>
-                        setMarketStatus(
-                          "private"
-                        )
-                      }
-                    />
-                    Chưa công bố
-                  </label>
-
-                  <label
-                    className={styles.radio}
-                  >
-                    <input
-                      type="radio"
-                      checked={
-                        marketStatus ===
-                        "public"
-                      }
-                      onChange={() =>
-                        setMarketStatus(
-                          "public"
-                        )
-                      }
-                    />
-                    Đã có trên thị trường
-                  </label>
-
-                  <label
-                    className={styles.radio}
-                  >
-                    <input
-                      type="radio"
-                      checked={
-                        marketStatus ===
-                        "pending"
-                      }
-                      onChange={() =>
-                        setMarketStatus(
-                          "pending"
-                        )
-                      }
-                    />
-                    Chuẩn bị phát hành
-                  </label>
-                </div>
               </div>
 
               <div className={styles.actions}>
@@ -348,45 +489,74 @@ export default function RegisterWorkPage() {
             {/* ================= STEP 2 ================= */}
             <section
               className={`${styles.stepPane} ${
-                step === 2
-                  ? styles.active
-                  : styles.hidden
+                step === 2 ? styles.active : ""
               }`}
             >
-              <div className={styles.section}>
-                <h3
-                  className={
-                    styles.sectionTitle
-                  }
-                >
-                  Người đăng ký
-                </h3>
+              <div className={styles.reviewCard}>
+                <h3>📄 Xác nhận thông tin</h3>
 
-                <div
-                  className={styles.registrant}
-                >
-                  <div
-                    className={styles.avatar}
-                  >
-                    {authorId[0].toUpperCase()}
-                  </div>
-
-                  <div
-                    className={
-                      styles.registrantInfo
-                    }
-                  >
-                    <strong>
-                      {user.email}
-                    </strong>
-                    <span>ID: {authorId}</span>
-                    <span
-                      className={styles.badge}
-                    >
-                      Verified Author
-                    </span>
-                  </div>
+                <div className={styles.reviewRow}>
+                  <span>Tác phẩm</span>
+                  <strong>{title}</strong>
                 </div>
+
+                <div className={styles.reviewRow}>
+                  <span>Tác giả</span>
+                  <strong>{authorName}</strong>
+                </div>
+
+                <div className={styles.reviewRow}>
+                  <span>Mã tác giả</span>
+                  <strong>{authorCode}</strong>
+                </div>
+
+                <div className={styles.reviewRow}>
+                  <span>Email</span>
+                  <strong>{authorEmail}</strong>
+                </div>
+
+                <div className={styles.reviewRow}>
+                  <span>Số điện thoại</span>
+                  <strong>
+                    {authorPhone || "Chưa cập nhật"}
+                  </strong>
+                </div>
+
+                {duration && (
+                  <div className={styles.reviewRow}>
+                    <span>Thời lượng</span>
+                    <strong>
+                      {formatDuration(duration)}
+                    </strong>
+                  </div>
+                )}
+
+                <div className={styles.reviewRow}>
+                  <span>Khai thác</span>
+                  <strong>
+                    {sellType === "none"
+                      ? "Không bán"
+                      : sellType === "sell"
+                      ? "Bán đứt"
+                      : "License / thuê"}
+                  </strong>
+                </div>
+
+                {sellType !== "none" && (
+                  <div className={styles.reviewRow}>
+                    <span>Giá</span>
+                    <strong>
+                      {price} {currency}
+                    </strong>
+                  </div>
+                )}
+
+                {sellType === "license" && (
+                  <div className={styles.reviewRow}>
+                    <span>Royalty</span>
+                    <strong>{royalty}%</strong>
+                  </div>
+                )}
               </div>
 
               <div className={styles.actions}>
@@ -408,27 +578,22 @@ export default function RegisterWorkPage() {
             {/* ================= STEP 3 ================= */}
             <section
               className={`${styles.stepPane} ${
-                step === 3
-                  ? styles.active
-                  : styles.hidden
+                step === 3 ? styles.active : ""
               }`}
             >
-              <div className={styles.confirmBox}>
-                <div>
-                  <strong>IPFS CID</strong>
-                  <div>
+              <div className={styles.reviewCard}>
+                <div className={styles.reviewRow}>
+                  <span>IPFS</span>
+                  <strong>
                     {ipfsCid || "Chưa upload"}
-                  </div>
+                  </strong>
                 </div>
 
-                <div style={{ marginTop: 12 }}>
+                <div className={styles.reviewRow}>
+                  <span>Transaction</span>
                   <strong>
-                    Transaction Hash
+                    {txHash || "Chưa ghi"}
                   </strong>
-                  <div>
-                    {txHash ||
-                      "Chưa ghi on-chain"}
-                  </div>
                 </div>
               </div>
 

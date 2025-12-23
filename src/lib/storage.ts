@@ -1,9 +1,11 @@
-export function safeLoad<T>(key: string): T {
-  if (typeof window === "undefined") return [] as T;
+export function safeLoad<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+
   try {
-    return JSON.parse(localStorage.getItem(key) || "[]");
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
   } catch {
-    return [] as T;
+    return null;
   }
 }
 

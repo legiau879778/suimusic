@@ -37,3 +37,39 @@
   background: rgba(239,68,68,.2);
   color: #ef4444;
 }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.row {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.cell {
+  padding: 14px 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.approve {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.reject {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}

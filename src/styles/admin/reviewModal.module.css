@@ -1,0 +1,36 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #020617;
+  border: 1px solid rgba(250,204,21,.25);
+  border-radius: 18px;
+  padding: 24px;
+  width: 420px;
+  color: #fff;
+}
+
+.meta {
+  margin: 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.close {
+  margin-top: 14px;
+  background: #fde047;
+  color: #020617;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
