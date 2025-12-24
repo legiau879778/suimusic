@@ -16,10 +16,8 @@ export default function ReviewTable() {
 
   /* ===== STATE ===== */
   const [works, setWorks] = useState<Work[]>([]);
-  const [selected, setSelected] =
-    useState<Work | null>(null);
-  const [processingId, setProcessingId] =
-    useState<string | null>(null);
+  const [selected, setSelected] = useState<Work | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   /* ===== LOAD ===== */
   useEffect(() => {
@@ -29,54 +27,52 @@ export default function ReviewTable() {
   /* ===== AUTH GUARD ===== */
   if (!user) return null;
 
-  /* 🔒 SNAPSHOT ADMIN (QUAN TRỌNG) */
-  const admin = {
-    email: user.email,
-    role: user.role,
-  };
-
   const walletConnected = !!user.wallet;
 
   /* ===== ACTIONS ===== */
   async function handleApprove(workId: string) {
+    if (!user) return;
     if (!walletConnected || processingId) return;
 
     setProcessingId(workId);
 
-    const res = await approveWork({
-      workId,
-      admin,
-    });
+    try {
+      await approveWork({
+        workId,
+        reviewerId: user.id,
+        reviewerRole: user.role, // ✅ approve cần role
+        weight: 1,
+      });
 
-    if (res?.error) {
+      setWorks(getPendingWorks());
+    } catch (e) {
+      console.error(e);
       alert("Không thể duyệt tác phẩm");
+    } finally {
       setProcessingId(null);
-      return;
     }
-
-    setWorks(getPendingWorks());
-    setProcessingId(null);
   }
 
   async function handleReject(workId: string) {
+    if (!user) return;
     if (!walletConnected || processingId) return;
 
     setProcessingId(workId);
 
-    const res = await rejectWork({
-      workId,
-      admin,
-      reason: "Không đạt yêu cầu",
-    });
+    try {
+      await rejectWork({
+        workId,
+        reviewerId: user.id,
+        reason: "Không đạt yêu cầu", // ✅ KHÔNG truyền reviewerRole
+      });
 
-    if (res?.error) {
+      setWorks(getPendingWorks());
+    } catch (e) {
+      console.error(e);
       alert("Không thể từ chối tác phẩm");
+    } finally {
       setProcessingId(null);
-      return;
     }
-
-    setWorks(getPendingWorks());
-    setProcessingId(null);
   }
 
   /* ===== RENDER ===== */
@@ -84,13 +80,11 @@ export default function ReviewTable() {
     <>
       <table className={styles.table}>
         <tbody>
-          {works.map(w => (
+          {works.map((w) => (
             <tr key={w.id} className={styles.row}>
               <td className={styles.cell}>
                 <strong>{w.title}</strong>
-                <span className={styles.badge}>
-                  PENDING
-                </span>
+                <span className={styles.badge}>PENDING</span>
               </td>
 
               <td className={styles.cell}>
@@ -108,12 +102,9 @@ export default function ReviewTable() {
                   <button
                     className={styles.approve}
                     disabled={
-                      !walletConnected ||
-                      processingId === w.id
+                      !walletConnected || processingId === w.id
                     }
-                    onClick={() =>
-                      handleApprove(w.id)
-                    }
+                    onClick={() => handleApprove(w.id)}
                   >
                     {processingId === w.id
                       ? "Đang xử lý..."
@@ -123,12 +114,9 @@ export default function ReviewTable() {
                   <button
                     className={styles.reject}
                     disabled={
-                      !walletConnected ||
-                      processingId === w.id
+                      !walletConnected || processingId === w.id
                     }
-                    onClick={() =>
-                      handleReject(w.id)
-                    }
+                    onClick={() => handleReject(w.id)}
                   >
                     {processingId === w.id
                       ? "Đang xử lý..."
@@ -141,10 +129,7 @@ export default function ReviewTable() {
 
           {works.length === 0 && (
             <tr>
-              <td
-                colSpan={3}
-                className={styles.empty}
-              >
+              <td colSpan={3} className={styles.empty}>
                 Không có tác phẩm chờ duyệt
               </td>
             </tr>

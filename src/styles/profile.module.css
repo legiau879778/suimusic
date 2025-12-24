@@ -190,6 +190,7 @@
   text-align: center;
   gap: 12px;
   transition: transform .25s ease, box-shadow .25s ease;
+  min-height: 220px;
 }
 
 .membershipCardNew:hover {
@@ -198,7 +199,6 @@
 }
 
 /* ICON */
-
 .cardIcon svg {
   width: 64px;
   height: 64px;
@@ -206,7 +206,6 @@
 }
 
 /* TEXT */
-
 .membershipCardNew h3 {
   font-size: 15px;
   font-weight: 700;
@@ -219,23 +218,22 @@
 }
 
 /* BUTTON */
-
 .confirmBtnWhite {
   margin-top: auto;
-  height: 36px;
+  height: 38px;
   padding: 0 22px;
   border-radius: 999px;
   background: #fff;
   border: none;
   color: #020617;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
   transition: all .2s ease;
 }
 
 .confirmBtnWhite:hover {
-  transform: scale(1.08);
+  transform: scale(1.06);
 }
 
 /* =====================================================
@@ -329,7 +327,7 @@
   display: grid;
   grid-template-columns: repeat(3,1fr);
   gap: 16px;
-  margin: 24px 0;
+  margin: 18px 0 12px;
 }
 
 .planCard {
@@ -428,13 +426,6 @@
     flex-direction: column;
     gap: 18px;
   }
-}
-
-.currentMembership small {
-  display: block;
-  margin-top: 6px;
-  font-size: 12px;
-  opacity: 0.85;
 }
 
 /* =====================================================
@@ -664,8 +655,7 @@
 .socialField input:focus {
   outline: none;
   border-color: #fde047;
-  box-shadow: 0 0 0 1px
-    rgba(250, 204, 21, 0.35);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35);
 }
 
 /* =========================
@@ -771,23 +761,6 @@
   transform: scale(1.05);
 }
 
-.walletRow {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.copyBtn {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: none;
-  background: rgba(250,204,21,.18);
-  color: #fde047;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 .disconnectBtn {
   margin-top: 16px;
   height: 42px;
@@ -797,4 +770,618 @@
   color: #ef4444;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* =====================================================
+   ====== MEMBERSHIP MODAL (ADD FULL STYLE) ======
+   Dùng cho MembershipModal.tsx bạn gửi
+===================================================== */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 24px;
+}
+
+.modalCard {
+  width: min(720px, 92vw);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.92));
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  box-shadow: 0 26px 70px rgba(0,0,0,.55);
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(148,163,184,.14);
+}
+
+.modalHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fde047;
+  letter-spacing: .2px;
+}
+
+.modalClose {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(250,204,21,.18);
+  background: rgba(255,255,255,.04);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.modalClose:hover {
+  background: rgba(250,204,21,.08);
+}
+
+.modalBody {
+  padding: 18px;
+}
+
+.modalHint {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,.16);
+  background: rgba(2, 6, 23, 0.35);
+  font-size: 13px;
+  opacity: .9;
+}
+
+.modalActions {
+  padding: 14px 18px 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(148,163,184,.12);
+}
+
+.primaryBtn {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg,#fde047,#facc15);
+  color: #020617;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.secondaryBtn {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(255,255,255,.03);
+  color: #e5e7eb;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled,
+.modalClose:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ===== plan pick button (Creator) ===== */
+.pickBtn {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(255,255,255,.04);
+  color: #e5e7eb;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+
+.pickBtn:hover {
+  transform: translateY(-3px);
+  background: rgba(56,189,248,.10);
+  border-color: rgba(56,189,248,.35);
+}
+
+.pickActive {
+  background: rgba(250,204,21,.12);
+  border-color: rgba(250,204,21,.55);
+  box-shadow: 0 0 0 1px rgba(250,204,21,.15);
+}
+
+.pickTitle {
+  font-size: 13px;
+  font-weight: 1000;
+  letter-spacing: .2px;
+}
+
+.pickSub {
+  font-size: 12px;
+  opacity: .75;
+  font-weight: 700;
+}
+
+/* =========================
+   PRICING (NEW)
+========================= */
+
+.priceBoxNew {
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px 14px;
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.35);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  text-align: left;
+}
+
+.priceMain {
+  font-size: 15px;
+  font-weight: 900;
+  color: #fde047;
+}
+
+.priceSub {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+  color: #e5e7eb;
+}
+
+.bulletList {
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.bulletList li {
+  font-size: 12.5px;
+  opacity: 0.9;
+  line-height: 1.35;
+  position: relative;
+  padding-left: 14px;
+}
+
+.bulletList li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: rgba(56, 189, 248, 0.9);
+}
+
+.cardHint {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(250, 204, 21, 0.10);
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  font-size: 12px;
+  opacity: 0.9;
+  text-align: left;
+  color: #fde047;
+}
+
+/* =========================
+   MODAL LARGE (NEW)
+========================= */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modalCardLarge {
+  width: min(720px, calc(100vw - 28px));
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(2,6,23,.98));
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+  overflow: hidden;
+}
+
+.modalHeaderLarge {
+  padding: 18px 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.modalHeaderLarge h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fde047;
+}
+
+.modalSubtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+.modalCloseBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255,255,255,.06);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.modalCloseBtn:hover {
+  background: rgba(250,204,21,.10);
+  border-color: rgba(250,204,21,.25);
+  color: #fde047;
+}
+
+.modalBodyLarge {
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.planGridLarge {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.planPickCard {
+  border-radius: 18px;
+  padding: 14px 14px;
+  border: 1px solid rgba(56,189,248,.18);
+  background: rgba(255,255,255,.05);
+  cursor: pointer;
+  text-align: left;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+
+.planPickCard:hover {
+  transform: translateY(-3px);
+  background: rgba(56,189,248,.10);
+  border-color: rgba(56,189,248,.30);
+}
+
+.planPickActive {
+  background: rgba(250,204,21,.10);
+  border-color: rgba(250,204,21,.35);
+}
+
+.planPickTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.planPickTop strong {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: #e5e7eb;
+}
+
+.planPrice {
+  font-size: 12px;
+  font-weight: 900;
+  color: #fde047;
+}
+
+.planPickDesc {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.85;
+  line-height: 1.35;
+}
+
+.paySummary {
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(2,6,23,.35);
+  border: 1px solid rgba(148,163,184,.14);
+}
+
+.payRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(148,163,184,.10);
+}
+
+.payRow:last-child {
+  border-bottom: none;
+}
+
+.payRow span {
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+
+.payRow strong {
+  font-size: 13px;
+  font-weight: 900;
+  color: #e5e7eb;
+}
+
+.payHint {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.75;
+  line-height: 1.35;
+}
+
+.modalActionsLarge {
+  padding: 14px 20px 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.secondaryBtnLarge {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.16);
+  background: rgba(255,255,255,.06);
+  color: #e5e7eb;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.secondaryBtnLarge:hover {
+  background: rgba(255,255,255,.10);
+}
+
+.primaryBtnLarge {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg,#fde047,#facc15);
+  color: #020617;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primaryBtnLarge:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  .planGridLarge {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================
+   MEMBERSHIP: PRICING UI
+========================= */
+
+.priceBox {
+  width: 100%;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(56,189,248,.22);
+  box-shadow: 0 10px 26px rgba(0,0,0,.25);
+  text-align: left;
+}
+
+.priceMain {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fde047;
+  letter-spacing: .2px;
+}
+
+.priceSub {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: .8;
+}
+
+.perkList {
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 0 0 0 16px;
+  text-align: left;
+  color: rgba(226,232,240,.92);
+  font-size: 13px;
+  line-height: 1.55;
+  opacity: .92;
+}
+
+.perkList li {
+  margin: 6px 0;
+}
+
+/* =========================
+   MEMBERSHIP MODAL: BIGGER + READABLE
+========================= */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,.72);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 140;
+}
+
+.modalCard {
+  width: min(720px, calc(100vw - 28px));
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(15,23,42,.96), rgba(2,6,23,.96));
+  border: 1px solid rgba(250,204,21,.22);
+  box-shadow: 0 22px 60px rgba(0,0,0,.55);
+  padding: 18px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 14px;
+  border-bottom: 1px solid rgba(148,163,184,.18);
+}
+
+.modalHeader h3 {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fde047;
+  letter-spacing: .2px;
+}
+
+.modalClose {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(2,6,23,.35);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.modalBody {
+  padding: 16px 10px 8px;
+}
+
+.modalSummary {
+  padding: 14px 14px;
+  border-radius: 16px;
+  background: rgba(56,189,248,.08);
+  border: 1px solid rgba(56,189,248,.18);
+}
+
+.modalMeta {
+  margin-top: 10px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  opacity: .92;
+}
+
+.modalHint {
+  margin-top: 14px;
+  font-size: 12px;
+  opacity: .82;
+  color: rgba(226,232,240,.9);
+}
+
+/* Plan selector */
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pickBtn {
+  text-align: left;
+  border-radius: 18px;
+  padding: 14px 14px;
+  border: 1px solid rgba(148,163,184,.2);
+  background: rgba(2,6,23,.35);
+  color: #e5e7eb;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.pickBtn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56,189,248,.35);
+  background: rgba(56,189,248,.08);
+}
+
+.pickActive {
+  border-color: rgba(250,204,21,.45);
+  background: rgba(250,204,21,.10);
+}
+
+.pickTitle {
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+
+.pickSub {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: .86;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 10px 6px;
+  border-top: 1px solid rgba(148,163,184,.18);
+}
+
+.secondaryBtn,
+.primaryBtn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid rgba(148,163,184,.22);
+}
+
+.secondaryBtn {
+  background: rgba(2,6,23,.25);
+  color: #e5e7eb;
+}
+
+.primaryBtn {
+  background: linear-gradient(135deg, #fde047, #facc15);
+  color: #020617;
+  border-color: rgba(250,204,21,.35);
+}
+
+@media (max-width: 860px) {
+  .planGrid {
+    grid-template-columns: 1fr;
+  }
 }

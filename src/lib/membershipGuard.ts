@@ -1,41 +1,22 @@
-type MembershipType = "artist" | "creator" | "business";
+// src/lib/membershipGuard.ts
+import type { Membership } from "@/lib/membershipStore";
+import { getMembershipEntitlements } from "@/lib/membershipStore";
 
-type Membership = {
-  type: MembershipType;
-  expireAt: number;
-};
-
-function getMembership(): Membership | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = localStorage.getItem("membership");
-  if (!raw) return null;
-
-  const m = JSON.parse(raw);
-  if (m.expireAt < Date.now()) return null;
-
-  return m;
-}
-
-/* =========================
-   QUYỀN TRUY CẬP MENU
-========================= */
-
+/**
+ * NOTE:
+ * - Header/Router đang dùng canAccessMenu("manage"|"register"|"trade")
+ * - Để tránh đổi kiến trúc, mình cho phép truyền membership vào (optional)
+ * - Nếu không truyền -> tự lấy từ window cached (nếu bạn muốn), nhưng hiện tại Header gọi theo membership state.
+ */
 export function canAccessMenu(
-  key: "manage" | "register" | "trade"
-) {
-  const m = getMembership();
-  if (!m) return false;
+  perm: "manage" | "register" | "trade",
+  membership?: Membership | null
+): boolean {
+  const ent = getMembershipEntitlements(membership ?? null);
 
-  switch (key) {
-    case "manage":
-    case "register":
-      return m.type === "artist";
+  if (perm === "manage") return ent.canManage;
+  if (perm === "register") return ent.canRegister;
+  if (perm === "trade") return ent.canTrade;
 
-    case "trade":
-      return m.type === "creator" || m.type === "business";
-
-    default:
-      return false;
-  }
+  return false;
 }
