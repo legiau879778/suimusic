@@ -11,7 +11,11 @@ import { ModalProvider } from "@/context/ModalContext";
 import { ToastProvider } from "@/context/ToastContext";
 
 import Header from "@/components/Header";
+<<<<<<< HEAD
 import Footer from "@/components/Footer"; 
+=======
+import Footer from "@/components/Footer"; // ✅ THÊM DÒNG NÀY
+>>>>>>> e1d6e1383e50df77f91295a5cf7e4b97a8024fa7
 import AppBootstrap from "@/components/AppBootstrap";
 
 const networks = {
@@ -34,7 +38,11 @@ export default function Providers({ children }: { children: ReactNode }) {
 
                 <Header />
                 {children}
+<<<<<<< HEAD
                 <Footer /> 
+=======
+                <Footer /> {/* ✅ THÊM DÒNG NÀY */}
+>>>>>>> e1d6e1383e50df77f91295a5cf7e4b97a8024fa7
               </ModalProvider>
             </AuthProvider>
           </ToastProvider>

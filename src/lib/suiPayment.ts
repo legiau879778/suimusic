@@ -1,32 +1,28 @@
 import { TransactionBlock } from "@mysten/sui.js/transactions";
 
 export async function payMembership({
-  wallet,
+  signer,
+  suiClient,
   amountSui,
+  receiver,
 }: {
-  wallet: any;
+  signer: any;
+  suiClient: any;
   amountSui: number;
+  receiver: string;
 }) {
   const tx = new TransactionBlock();
 
-  const [coin] = tx.splitCoins(tx.gas, [
-    tx.pure(amountSui * 1_000_000_000),
-  ]);
-
-  tx.transferObjects(
-    [coin],
-    tx.pure("0xYOUR_RECEIVER_WALLET_ADDRESS") // ví nhận tiền
+  const [coin] = tx.splitCoins(
+    tx.gas,
+    [tx.pure(amountSui * 1e9)]
   );
 
-  const result = await wallet.signAndExecuteTransactionBlock({
+  tx.transferObjects([coin], tx.pure(receiver));
+
+  const res = await signer.signAndExecuteTransactionBlock({
     transactionBlock: tx,
-    options: {
-      showEffects: true,
-    },
   });
 
-  return {
-    txHash: result.digest,
-    block: result.effects?.executedEpoch ?? 0,
-  };
+  return res;
 }

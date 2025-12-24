@@ -3,13 +3,23 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+HEAD
 import { useEffect, useState } from "react";
 import styles from '@/styles/header.module.css'
+import { useEffect, useMemo, useRef, useState } from "react";
+import styles from "@/styles/header.module.css";
+e1d6e1383e50df77f91295a5cf7e4b97a8024fa7
 import { useAuth } from "@/context/AuthContext";
 import { useModal } from "@/context/ModalContext";
 import { saveRedirect } from "@/lib/redirect";
-import { canAccessMenu } from "@/lib/membershipGuard";
-import { getActiveMembership } from "@/lib/membershipStore";
+
+/** ✅ membership entitlements */
+import {
+  Membership,
+  getActiveMembership,
+  getMembershipEntitlements,
+  getMembershipBadgeLabel,
+} from "@/lib/membershipStore";
 
 export default function Header() {
   const pathname = usePathname();
@@ -17,39 +27,73 @@ export default function Header() {
   const { user, logout } = useAuth();
   const { openLogin, openPermission } = useModal();
 
+  /* ================= HOOKS (PHẢI LUÔN CHẠY) ================= */
+
+  const [mounted, setMounted] = useState(false);
+
   const [hidden, setHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [animateAvatar, setAnimateAvatar] = useState(false);
   const [lastScroll, setLastScroll] = useState(0);
 
-  const [membership, setMembership] = useState(getActiveMembership());
+  const [membership, setMembership] = useState<Membership | null>(null);
   const [countdown, setCountdown] = useState("");
 
-  /* ===== HEADER AUTO HIDE ===== */
+  const userId = user?.id || user?.email || "";
+
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const mobileRef = useRef<HTMLDivElement | null>(null);
+
+  /* ================= EFFECTS ================= */
+
+  // mount flag (HYDRATION SAFE)
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ✅ load membership theo USER (đổi Gmail là đổi quyền ngay)
+  useEffect(() => {
+    if (!mounted) return;
+
+    if (!userId) {
+      setMembership(null);
+      setCountdown("");
+      return;
+    }
+
+    getActiveMembership(userId)
+      .then((m) => setMembership(m))
+      .catch(() => setMembership(null));
+  }, [mounted, userId]);
+
+  // header auto hide
+  useEffect(() => {
+    if (!mounted) return;
+
     const onScroll = () => {
       const y = window.scrollY;
       if (y > lastScroll && y > 80) setHidden(true);
       else setHidden(false);
       setLastScroll(y);
     };
+
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [lastScroll]);
+  }, [lastScroll, mounted]);
 
-  /* ===== AVATAR POP ===== */
+  // avatar animation
   useEffect(() => {
-    if (user) {
-      setAnimateAvatar(true);
-      const t = setTimeout(() => setAnimateAvatar(false), 900);
-      return () => clearTimeout(t);
-    }
-  }, [user?.id]);
+    if (!mounted || !user) return;
 
-  /* ===== MEMBERSHIP COUNTDOWN ===== */
+    setAnimateAvatar(true);
+    const t = setTimeout(() => setAnimateAvatar(false), 900);
+    return () => clearTimeout(t);
+  }, [user?.id, mounted]);
+
+  // membership countdown
   useEffect(() => {
-    if (!membership) return;
+    if (!mounted || !membership) return;
 
     const tick = () => {
       const diff = membership.expireAt - Date.now();
@@ -67,43 +111,99 @@ export default function Header() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [membership]);
+  }, [membership, mounted]);
+
+  // ✅ click outside để đóng dropdown + mobile menu
+  useEffect(() => {
+    if (!mounted) return;
+
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+
+      // đóng user dropdown nếu click ngoài vùng avatarWrap
+      if (userMenuOpen && wrapRef.current && !wrapRef.current.contains(t)) {
+        setUserMenuOpen(false);
+      }
+
+      // đóng mobile menu nếu click ngoài menu (và không click vào nút ☰)
+      if (menuOpen && mobileRef.current && !mobileRef.current.contains(t)) {
+        // nếu click vào chính nút toggle thì bỏ qua (nút nằm trong header)
+        const el = e.target as HTMLElement;
+        if (el?.closest?.(`.${styles.menuToggle}`)) return;
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [mounted, userMenuOpen, menuOpen]);
+
+  // ✅ đóng mobile menu khi đổi route
+  useEffect(() => {
+    if (!mounted) return;
+    setMenuOpen(false);
+    setUserMenuOpen(false);
+  }, [pathname, mounted]);
+
+  /* ================= ENTITLEMENTS ================= */
+
+  const ent = useMemo(() => {
+    // admin: mở tất cả
+    if (user?.role === "admin") {
+      return { canManage: true, canRegister: true, canTrade: true };
+    }
+    return getMembershipEntitlements(membership);
+  }, [membership, user?.role]);
+
+  /* ================= HELPERS ================= */
 
   const navLink = (href: string, label: string) => (
     <Link
       href={href}
       className={`${styles.link} ${pathname === href ? styles.active : ""}`}
+      onClick={() => {
+        // đóng dropdown/menu cho gọn UX
+        setUserMenuOpen(false);
+        setMenuOpen(false);
+      }}
     >
       {label}
     </Link>
   );
 
+  // ✅ BIND MENU: allowed lấy từ entitlements
   const navProtected = (
     href: string,
     label: string,
-    perm: "manage" | "register" | "trade"
+    allowed: boolean
   ) => (
     <div className={styles.navItemWrap}>
       <button
         className={styles.link}
         onClick={() => {
+          // chưa login -> login
           if (!user) {
             saveRedirect();
             openLogin();
             return;
           }
-          if (!canAccessMenu(perm)) {
+
+          // có login nhưng chưa đủ quyền -> permission
+          if (!allowed) {
             saveRedirect();
             openPermission();
             return;
           }
+
+          setMenuOpen(false);
+          setUserMenuOpen(false);
           router.push(href);
         }}
       >
         {label}
       </button>
 
-      {!canAccessMenu(perm) && (
+      {!allowed && (
         <div
           className={styles.lockWrap}
           onClick={(e) => {
@@ -119,11 +219,15 @@ export default function Header() {
     </div>
   );
 
+  /* ================= RENDER ================= */
+
+  // 👉 chỉ chặn render UI, KHÔNG chặn hooks
+  if (!mounted) return null;
+
   return (
     <>
       <header className={`${styles.header} ${hidden ? styles.hidden : ""}`}>
-        {/* ===== LOGO ONLY (BỎ CHỮ) ===== */}
-        <Link href="/" className={styles.logo}>
+        <Link href="/" className={styles.logo} onClick={() => setMenuOpen(false)}>
           <Image
             src="/images/logo.png"
             alt="Chainstorm"
@@ -136,9 +240,12 @@ export default function Header() {
         <nav className={styles.nav}>
           {navLink("/", "Trang chủ")}
           {navLink("/search", "Tra cứu")}
-          {navProtected("/manage", "Quản lý tác phẩm", "manage")}
-          {navProtected("/register-work", "Đăng ký", "register")}
-          {navProtected("/trade", "Giao dịch tác phẩm", "trade")}
+
+          {/* ✅ bind theo entitlements */}
+          {navProtected("/manage", "Quản lý tác phẩm", !!ent.canManage)}
+          {navProtected("/register-work", "Đăng ký tác phẩm", !!ent.canRegister)}
+          {navProtected("/marketplace", "Giao dịch tác phẩm", !!ent.canTrade)}
+
           {user?.role === "admin" && navLink("/admin", "Admin")}
         </nav>
 
@@ -154,12 +261,12 @@ export default function Header() {
               Đăng nhập
             </button>
           ) : (
-            <div className={styles.avatarWrap}>
+            <div className={styles.avatarWrap} ref={wrapRef}>
               <button
                 className={`${styles.avatar} ${styles[user.role]} ${
                   animateAvatar ? styles.avatarPop : ""
                 }`}
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                onClick={() => setUserMenuOpen((v) => !v)}
               >
                 {user.avatar ? (
                   <img
@@ -173,24 +280,19 @@ export default function Header() {
                 )}
               </button>
 
-              {/* ===== BADGE MEMBERSHIP ===== */}
               {membership && (
                 <span
                   className={`${styles.membershipBadge} ${
                     styles[membership.type]
                   }`}
+                  title={getMembershipBadgeLabel(membership)}
                 >
-                  {membership.type === "creator"
-                    ? membership.plan?.toUpperCase()
-                    : membership.type.toUpperCase()}
+                  {getMembershipBadgeLabel(membership)}
                 </span>
               )}
 
-              {/* ===== COUNTDOWN ===== */}
               {membership && countdown && (
-                <div className={styles.membershipCountdown}>
-                  Hết hạn sau {countdown}
-                </div>
+                <div className={styles.membershipCountdown}>Hết hạn sau {countdown}</div>
               )}
 
               <div className={styles.avatarTooltip}>{user.email}</div>
@@ -198,7 +300,14 @@ export default function Header() {
               {userMenuOpen && (
                 <div className={`${styles.dropdown} ${styles.open}`}>
                   <Link href="/profile">Hồ sơ</Link>
-                  <button onClick={logout}>Đăng xuất</button>
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                    }}
+                  >
+                    Đăng xuất
+                  </button>
                 </div>
               )}
             </div>
@@ -206,20 +315,25 @@ export default function Header() {
 
           <button
             className={styles.menuToggle}
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="menu"
           >
             ☰
           </button>
         </div>
       </header>
 
-      {/* MOBILE MENU */}
-      <div className={`${styles.mobileMenu} ${menuOpen ? styles.open : ""}`}>
+      <div
+        className={`${styles.mobileMenu} ${menuOpen ? styles.open : ""}`}
+        ref={mobileRef}
+      >
         {navLink("/", "Trang chủ")}
         {navLink("/search", "Tra cứu")}
-        {navProtected("/manage", "Quản lý tác phẩm", "manage")}
-        {navProtected("/register-work", "Đăng ký", "register")}
-        {navProtected("/trade", "Giao dịch tác phẩm", "trade")}
+
+        {/* ✅ bind theo entitlements */}
+        {navProtected("/manage", "Quản lý tác phẩm", !!ent.canManage)}
+        {navProtected("/register-work", "Đăng ký", !!ent.canRegister)}
+        {navProtected("/marketplace", "Giao dịch tác phẩm", !!ent.canTrade)}
       </div>
     </>
   );

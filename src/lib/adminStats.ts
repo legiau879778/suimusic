@@ -7,7 +7,7 @@ export type ApprovalByDay = {
 };
 
 export function buildAdminStats(
-  works: Work[] = [] // ✅ FIX 1: default param
+  works: Work[] = [] // ✅ default param
 ) {
   /* =====================
      SAFE GUARD
@@ -31,9 +31,13 @@ export function buildAdminStats(
      VERIFIED
   ===================== */
   verified.forEach((w) => {
-    if (!w.verifiedAt) return;
+    const date = w.verifiedAt
+      ? toDateKey(w.verifiedAt)
+      : w.reviewedAt
+      ? toDateKey(w.reviewedAt)
+      : null;
 
-    const date = toDateKey(w.verifiedAt);
+    if (!date) return;
 
     approvalByDay[date] ??= {
       verified: 0,
@@ -47,9 +51,9 @@ export function buildAdminStats(
      REJECTED
   ===================== */
   rejected.forEach((w) => {
-    if (!w.rejectedAt) return;
+    if (!w.reviewedAt) return;
 
-    const date = toDateKey(w.rejectedAt);
+    const date = toDateKey(w.reviewedAt);
 
     approvalByDay[date] ??= {
       verified: 0,
@@ -64,7 +68,7 @@ export function buildAdminStats(
   ===================== */
   const approvalStats: ApprovalByDay[] =
     Object.entries(approvalByDay)
-      .sort(([a], [b]) => a.localeCompare(b)) // ✅ FIX 3: sort theo ngày
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({
         date,
         verified: v.verified,

@@ -1,175 +1,235 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminGuard from "@/components/admin/AdminGuard";
+import styles from "@/styles/admin/adminReview.module.css";
+
+import { useAuth } from "@/context/AuthContext";
 import {
   getPendingWorks,
   approveWork,
   rejectWork,
+  setWorkQuorumWeight,
   type Work,
 } from "@/lib/workStore";
-import { useAuth } from "@/context/AuthContext";
-import styles from "@/styles/admin/adminReview.module.css";
 
 export default function AdminReviewPage() {
   const { user } = useAuth();
 
   const [works, setWorks] = useState<Work[]>([]);
-  const [selected, setSelected] =
-    useState<Work | null>(null);
-  const [reason, setReason] = useState("");
-  const [processing, setProcessing] =
-    useState(false);
+  const [qMap, setQMap] = useState<Record<string, string>>({}); // workId -> input quorum string
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = () => {
+    const list = getPendingWorks();
+    setWorks(list);
+
+    // init quorum input map (không overwrite nếu user đang gõ)
+    setQMap((prev) => {
+      const next = { ...prev };
+      for (const w of list) {
+        if (next[w.id] == null) next[w.id] = String(w.quorumWeight ?? 1);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
-    refresh();
+    load();
+
+    const onUpdate = () => load();
+    window.addEventListener("works_updated", onUpdate);
+    return () => window.removeEventListener("works_updated", onUpdate);
   }, []);
 
-  function refresh() {
-    setWorks(getPendingWorks());
-  }
+  const reviewerId = user?.email || user?.id || "admin";
+  const reviewerRole = user?.role || "admin";
 
-  if (!user) return null;
+  const totalPending = works.length;
+
+  const weightHint = useMemo(() => {
+    // phải khớp getReviewerWeightByRole() trong store
+    return reviewerRole === "admin" ? 2 : 1;
+  }, [reviewerRole]);
+
+  const calcTotalWeight = (w: Work) =>
+    Object.values(w.approvalMap || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+
+  const onApprove = async (w: Work) => {
+    if (!reviewerId) return;
+    setBusyId(w.id);
+    try {
+      approveWork({
+        workId: w.id,
+        reviewerId,
+        reviewerRole,
+        // không truyền weight => store tự suy ra theo role
+      });
+      // load() sẽ tự gọi qua works_updated (save() dispatch event), nhưng gọi luôn để UI mượt
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onReject = async (w: Work) => {
+    if (!reviewerId) return;
+    const reason = prompt("Lý do từ chối (tuỳ chọn):") ?? "";
+    setBusyId(w.id);
+    try {
+      rejectWork({
+        workId: w.id,
+        reviewerId,
+        reason,
+      });
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onSaveQuorum = async (w: Work) => {
+    const raw = qMap[w.id] ?? "";
+    const q = Math.max(1, Math.floor(Number(raw || 1)));
+    setBusyId(w.id);
+    try {
+      setWorkQuorumWeight({ workId: w.id, quorumWeight: q });
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <AdminGuard>
-      <main className={styles.page}>
-        <h1>Duyệt tác phẩm</h1>
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>Duyệt tác phẩm</h1>
+            <p className={styles.sub}>
+              Pending: <b>{totalPending}</b> • Weight của bạn: <b>{weightHint}</b>
+            </p>
+          </div>
+        </div>
 
-        {/* ===== TABLE ===== */}
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Tác phẩm</th>
-              <th>Tác giả</th>
-              <th>Trạng thái</th>
-              <th></th>
-            </tr>
-          </thead>
+        {works.length === 0 ? (
+          <div className={styles.empty}>
+            <div className={styles.emptyIcon}>✓</div>
+            <div className={styles.emptyTitle}>Không có tác phẩm chờ duyệt</div>
+            <div className={styles.emptySub}>Mọi tác phẩm pending đã được xử lý.</div>
+          </div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Tác phẩm</th>
+                  <th>Sell</th>
+                  <th>Quorum</th>
+                  <th>Approvals</th>
+                  <th>Hành động</th>
+                </tr>
+              </thead>
 
-          <tbody>
-            {works.map(w => (
-              <tr key={w.id}>
-                <td>
-                  <strong>{w.title}</strong>
-                </td>
+              <tbody>
+                {works.map((w) => {
+                  const totalWeight = calcTotalWeight(w);
+                  const quorum = w.quorumWeight ?? 1;
+                  const isBusy = busyId === w.id;
 
-                <td>{w.authorId}</td>
+                  return (
+                    <tr key={w.id}>
+                      <td className={styles.workCell}>
+                        <div className={styles.workTitle}>{w.title}</div>
+                        <div className={styles.workMeta}>
+                          <span className={styles.mono}>ID: {w.id.slice(0, 8)}…</span>
+                          {w.authorWallet && (
+                            <span className={styles.mono}>Owner: {w.authorWallet.slice(0, 8)}…</span>
+                          )}
+                        </div>
+                      </td>
 
-                <td className={styles.pending}>
-                  Pending
-                </td>
+                      <td>
+                        <span className={`${styles.badge} ${w.sellType === "exclusive" ? styles.exclusive : styles.license}`}>
+                          {w.sellType.toUpperCase()}
+                        </span>
+                      </td>
 
-                <td>
-                  <button
-                    className={styles.reviewBtn}
-                    disabled={
-                      !!selected || processing
-                    }
-                    onClick={() => setSelected(w)}
-                  >
-                    Review
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      <td className={styles.quorumCell}>
+                        <div className={styles.quorumRow}>
+                          <input
+                            className={styles.quorumInput}
+                            value={qMap[w.id] ?? String(quorum)}
+                            onChange={(e) =>
+                              setQMap((prev) => ({ ...prev, [w.id]: e.target.value }))
+                            }
+                            inputMode="numeric"
+                          />
+                          <button
+                            className={styles.smallBtn}
+                            onClick={() => onSaveQuorum(w)}
+                            disabled={isBusy}
+                            title="Lưu quorumWeight"
+                          >
+                            Lưu
+                          </button>
+                        </div>
+                        <div className={styles.quorumHint}>
+                          Verified khi <b>tổng weight</b> ≥ <b>{quorum}</b>
+                        </div>
+                      </td>
 
-            {works.length === 0 && (
-              <tr>
-                <td colSpan={4}>
-                  Không có tác phẩm chờ duyệt
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                      <td>
+                        <div className={styles.approvalBox}>
+                          <div className={styles.approvalTop}>
+                            <span className={styles.approvalNum}>
+                              {totalWeight}/{quorum}
+                            </span>
+                            <span
+                              className={`${styles.dot} ${
+                                totalWeight >= quorum ? styles.dotOk : styles.dotPending
+                              }`}
+                            />
+                          </div>
 
-        {/* ===== REVIEW PANEL ===== */}
-        {selected && (
-          <div className={styles.overlay}>
-            <div className={styles.panel}>
-              <h2>{selected.title}</h2>
+                          <div className={styles.approvalList}>
+                            {Object.keys(w.approvalMap || {}).length === 0 ? (
+                              <span className={styles.muted}>Chưa có</span>
+                            ) : (
+                              Object.entries(w.approvalMap).map(([k, v]) => (
+                                <span key={k} className={styles.approvalPill} title={k}>
+                                  {k.split("@")[0]}: {v}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </td>
 
-              <div className={styles.meta}>
-                <strong>Tác giả:</strong>{" "}
-                {selected.authorId}
-              </div>
-
-              <div className={styles.meta}>
-                <strong>Hash:</strong>{" "}
-                {selected.hash || "—"}
-              </div>
-
-              <textarea
-                placeholder="Nhập lý do từ chối (bắt buộc nếu reject)"
-                value={reason}
-                onChange={e =>
-                  setReason(e.target.value)
-                }
-                disabled={processing}
-              />
-
-              <div className={styles.actions}>
-                <button
-                  className={styles.approve}
-                  disabled={processing}
-                  onClick={async () => {
-                    if (processing) return;
-                    setProcessing(true);
-
-                    await approveWork({
-                      workId: selected.id,
-                      admin: {
-                        email: user.email!,
-                        role: user.role,
-                      },
-                    });
-
-                    setProcessing(false);
-                    setSelected(null);
-                    setReason("");
-                    refresh();
-                  }}
-                >
-                  {processing
-                    ? "Đang xử lý..."
-                    : "Approve"}
-                </button>
-
-                <button
-                  className={styles.reject}
-                  disabled={
-                    processing ||
-                    !reason.trim()
-                  }
-                  onClick={async () => {
-                    if (processing) return;
-                    setProcessing(true);
-
-                    await rejectWork({
-                      workId: selected.id,
-                      admin: {
-                        email: user.email!,
-                        role: user.role,
-                      },
-                      reason: reason.trim(),
-                    });
-
-                    setProcessing(false);
-                    setSelected(null);
-                    setReason("");
-                    refresh();
-                  }}
-                >
-                  {processing
-                    ? "Đang xử lý..."
-                    : "Reject"}
-                </button>
-              </div>
-            </div>
+                      <td className={styles.actionsCell}>
+                        <button
+                          className={styles.approveBtn}
+                          onClick={() => onApprove(w)}
+                          disabled={isBusy}
+                        >
+                          Duyệt (+{weightHint})
+                        </button>
+                        <button
+                          className={styles.rejectBtn}
+                          onClick={() => onReject(w)}
+                          disabled={isBusy}
+                        >
+                          Từ chối
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </main>
+      </div>
     </AdminGuard>
   );
 }

@@ -50,7 +50,7 @@
   font-weight: 600;
   color: #e5e7eb;
   opacity: 0.85;
-  transition: color .15s ease, opacity .15s ease;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
 .link:hover {
@@ -71,12 +71,12 @@
   left: 0;
   height: 2px;
   width: 0;
-  background: linear-gradient(90deg,#fde047,#facc15);
+  background: linear-gradient(90deg, #fde047, #facc15);
   border-radius: 2px;
   transform: translateX(0);
   transition:
-    transform .35s cubic-bezier(.4,0,.2,1),
-    width .35s cubic-bezier(.4,0,.2,1);
+    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
 
@@ -84,9 +84,9 @@
   content: "";
   position: absolute;
   inset: -4px;
-  background: rgba(250,204,21,.35);
+  background: rgba(250, 204, 21, 0.35);
   filter: blur(8px);
-  opacity: .6;
+  opacity: 0.6;
 }
 
 /* ================= LOCK ================= */
@@ -112,14 +112,16 @@
   bottom: -38px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15,23,42,.96);
+  background: rgba(15, 23, 42, 0.96);
   color: #fde047;
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(250,204,21,.25);
+  border: 1px solid rgba(250, 204, 21, 0.25);
   opacity: 0;
-  transition: .15s;
+  transition: 0.15s;
+  white-space: nowrap;
+  z-index: 150;
 }
 
 .lockWrap:hover .tooltip {
@@ -137,10 +139,18 @@
 .loginBtn {
   padding: 8px 18px;
   border-radius: 14px;
-  border: 1px solid rgba(250,204,21,.45);
+  border: 1px solid rgba(250, 204, 21, 0.45);
   background: transparent;
   color: #fde047;
   font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.loginBtn:hover {
+  background: rgba(250, 204, 21, 0.08);
+  border-color: rgba(250, 204, 21, 0.65);
+  transform: translateY(-1px);
 }
 
 /* ================= AVATAR ================= */
@@ -153,10 +163,16 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg,#facc15,#fde047);
+  background: linear-gradient(135deg, #facc15, #fde047);
   color: #020617;
   font-weight: 700;
   cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
 }
 
 /* ================= AVATAR IMAGE ================= */
@@ -171,15 +187,15 @@
 /* ================= AVATAR ROLE BORDER ================= */
 
 .avatar.user {
-  box-shadow: 0 0 0 2px rgba(250,204,21,.65);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.65);
 }
 
 .avatar.author {
-  box-shadow: 0 0 0 2px rgba(56,189,248,.8);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.8);
 }
 
 .avatar.admin {
-  box-shadow: 0 0 0 2px rgba(167,139,250,.9);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.9);
 }
 
 /* ================= AVATAR TOOLTIP ================= */
@@ -189,8 +205,8 @@
   top: 46px;
   right: 0;
 
-  background: rgba(15,23,42,.96);
-  border: 1px solid rgba(250,204,21,.25);
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(250, 204, 21, 0.25);
   color: #fde047;
   font-size: 12px;
   padding: 6px 10px;
@@ -199,9 +215,9 @@
   opacity: 0;
   transform: translateY(6px);
   pointer-events: none;
-  transition: all .18s ease;
+  transition: all 0.18s ease;
   white-space: nowrap;
-  z-index: 120;
+  z-index: 160;
 }
 
 .avatarWrap:hover .avatarTooltip {
@@ -212,13 +228,13 @@
 /* ================= AVATAR LOGIN ANIMATION ================= */
 
 .avatarPop {
-  animation: avatarPop .6s cubic-bezier(.34,1.56,.64,1);
+  animation: avatarPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes avatarPop {
   0% {
-    transform: scale(.85);
-    opacity: .4;
+    transform: scale(0.85);
+    opacity: 0.4;
   }
   60% {
     transform: scale(1.12);
@@ -229,7 +245,6 @@
   }
 }
 
-
 /* ================= DROPDOWN ================= */
 
 .dropdown {
@@ -237,17 +252,19 @@
   right: 0;
   top: 46px;
   min-width: 190px;
-  background: rgba(15,23,42,.92);
-  border: 1px solid rgba(250,204,21,.25);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(250, 204, 21, 0.25);
   border-radius: 14px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-10px) scale(.96);
-  transition: .2s;
+  transform: translateY(-10px) scale(0.96);
+  transition: 0.2s;
+  z-index: 170;
 }
 
 /* ================= DROPDOWN ITEM FIX ================= */
@@ -263,7 +280,7 @@
   font-size: 14px;
   cursor: pointer;
 
-  color: #e5e7eb;            /* ✅ FIX: hiện chữ */
+  color: #e5e7eb; /* hiện chữ */
   font-weight: 500;
 }
 
@@ -273,7 +290,7 @@
   color: #fde047;
 }
 
-/* 🔴 LOGOUT RIÊNG (đẹp & rõ) */
+/* 🔴 LOGOUT RIÊNG */
 .dropdown button:last-child {
   color: #f87171;
 }
@@ -283,7 +300,7 @@
   color: #fecaca;
 }
 
-
+/* ✅ open CHỈ dành cho dropdown */
 .open {
   opacity: 1;
   pointer-events: auto;
@@ -298,6 +315,7 @@
   color: #fde047;
   background: none;
   border: none;
+  cursor: pointer;
 }
 
 .mobileMenu {
@@ -306,37 +324,46 @@
   right: 0;
   width: 260px;
   height: calc(100vh - 72px);
-  background: rgba(2,6,23,.95);
+  background: rgba(2, 6, 23, 0.95);
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 18px;
+
   transform: translateX(100%);
-  transition: .35s;
+  transition: 0.35s;
+  z-index: 140;
 }
 
-.open {
+/* ✅ class riêng cho mobile menu open (KHÔNG đụng dropdown) */
+.mobileOpen {
   transform: translateX(0);
 }
 
 @media (max-width: 900px) {
-  .nav { display: none; }
-  .menuToggle { display: block; }
+  .nav {
+    display: none;
+  }
+  .menuToggle {
+    display: block;
+  }
 }
 
 /* ================= ANIMATION ================= */
 
 @keyframes lockPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.06); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* ===== AVATAR BADGE ===== */
-
-.avatarWrap {
-  position: relative;
-}
 
 .membershipBadge {
   position: absolute;
@@ -346,17 +373,17 @@
   border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
-  background: linear-gradient(135deg,#38bdf8,#0ea5e9);
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
   color: #020617;
-  box-shadow: 0 4px 12px rgba(56,189,248,.45);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.45);
 }
 
 .membershipBadge.business {
-  background: linear-gradient(135deg,#facc15,#fde047);
+  background: linear-gradient(135deg, #facc15, #fde047);
 }
 
 .membershipBadge.artist {
-  background: linear-gradient(135deg,#22c55e,#16a34a);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
 }
 
 /* ===== COUNTDOWN ===== */
@@ -368,10 +395,10 @@
   right: 0;
   padding: 6px 10px;
   border-radius: 12px;
-  background: rgba(2,6,23,.9);
+  background: rgba(2, 6, 23, 0.9);
   font-size: 11px;
   white-space: nowrap;
-  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+  z-index: 155;
 }
-
