@@ -5,7 +5,6 @@ import styles from "@/styles/profile.module.css";
 import MembershipModal from "@/components/profile/membership/MembershipModal";
 import { useAuth } from "@/context/AuthContext";
 
-
 // ✅ dùng account cho ổn định
 import { useCurrentAccount } from "@mysten/dapp-kit";
 
@@ -19,8 +18,8 @@ import {
 
 import { useToast } from "@/context/ToastContext";
 
-// ✅ thêm saveProfile (nếu file bạn đang có tên khác, đổi lại đúng tên hàm)
-import { saveProfile } from "@/lib/profileStore";
+// ✅ profileStore = source of truth cho ví đã liên kết
+import { loadProfile, saveProfile } from "@/lib/profileStore";
 
 // icons
 import {
@@ -30,6 +29,17 @@ import {
   AiIcon,
 } from "@/components/profile/membership/icons";
 
+/* ================= HELPERS ================= */
+
+async function copyText(v: string) {
+  try {
+    await navigator.clipboard.writeText(v);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default function MembershipTab() {
   /* ---------- WEB3 ---------- */
   const account = useCurrentAccount();
@@ -38,7 +48,7 @@ export default function MembershipTab() {
 
   /* ---------- APP ---------- */
   const { pushToast } = useToast();
-  const { user, refresh } = useAuth();
+  const { user, refresh, connectWallet, revokeWallet } = useAuth();
   const userId = user?.id ?? "";
 
   /* ---------- STATE ---------- */
@@ -48,11 +58,18 @@ export default function MembershipTab() {
 
   /* ===================== DERIVED ======================== */
 
-  /** ví extension === ví đã verify của user */
+  // ✅ ví đã liên kết (hồ sơ) = source of truth khi refresh
+  const linkedWallet = useMemo(() => {
+    if (!userId) return "";
+    const p = loadProfile(userId);
+    return (p.walletAddress || "").trim().toLowerCase();
+  }, [userId]);
+
+  // ✅ ví extension === ví đã liên kết (profileStore)
   const isWalletLinkedToUser = useMemo(() => {
-    if (!walletAddress || !user?.wallet?.address) return false;
-    return walletAddress.toLowerCase() === user.wallet.address.toLowerCase();
-  }, [walletAddress, user?.wallet?.address]);
+    if (!walletAddress || !linkedWallet) return false;
+    return walletAddress.toLowerCase() === linkedWallet;
+  }, [walletAddress, linkedWallet]);
 
   const ent = useMemo(
     () => getMembershipEntitlements(membership),
@@ -111,20 +128,19 @@ export default function MembershipTab() {
       return false;
     }
 
-    // ✅ Nếu user CHƯA link ví trong profile -> auto link
-    if (!user?.wallet?.address) {
+    // ✅ Nếu hồ sơ chưa có ví -> auto link
+    if (!linkedWallet) {
       try {
         await saveProfile(userId, { walletAddress });
-
         pushToast("success", "✅ Đã liên kết ví với tài khoản");
         return true;
-      } catch (e) {
+      } catch {
         pushToast("error", "Không thể liên kết ví (lỗi lưu profile)");
         return false;
       }
     }
 
-    // ✅ Nếu đã có ví trong user nhưng khác ví đang connect -> chặn
+    // ✅ Nếu đã link nhưng khác ví extension -> chặn
     if (!isWalletLinkedToUser) {
       pushToast("warning", "Ví đang kết nối không khớp ví đã liên kết");
       return false;
@@ -156,23 +172,98 @@ export default function MembershipTab() {
           </p>
         </div>
 
+        {/* ===== WEB3 STATUS (FULL) ===== */}
         <div className={styles.web3Status}>
           <h4>Trạng thái Web3</h4>
-          <ul>
-            <li>
-              Ví SUI:&nbsp;
-              <strong className={isConnected ? styles.ok : styles.warn}>
-                {isConnected ? "Đã kết nối" : "Chưa kết nối"}
-              </strong>
-            </li>
 
-            <li>
-              Ví liên kết user:&nbsp;
-              <strong className={isWalletLinkedToUser ? styles.ok : styles.warn}>
-                {isWalletLinkedToUser ? "Đã liên kết" : "Chưa liên kết"}
-              </strong>
-            </li>
+          {/* Extension wallet */}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6 }}>
+              Ví đang kết nối (extension)
+            </div>
 
+            {!walletAddress ? (
+              <div className={styles.walletConnectBox}>
+                <p>Bạn chưa kết nối ví SUI</p>
+                <button
+                  className={styles.connectBtn}
+                  onClick={async () => {
+                    try {
+                      await connectWallet();
+                    } catch {
+                      // connectWallet đã toast bên trong
+                    }
+                  }}
+                >
+                  Kết nối ví
+                </button>
+              </div>
+            ) : (
+              <div className={styles.walletRow}>
+                <input value={walletAddress} readOnly />
+                <button
+                  className={styles.copyBtn}
+                  onClick={async () => {
+                    const ok = await copyText(walletAddress);
+                    pushToast(ok ? "success" : "warning", ok ? "✓ Đã copy" : "Không copy được");
+                  }}
+                >
+                  COPY
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Linked wallet */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6 }}>
+              Ví đã liên kết (hồ sơ)
+            </div>
+
+            {linkedWallet ? (
+              <div className={styles.walletRow}>
+                <input value={linkedWallet} readOnly />
+                <button
+                  className={styles.copyBtn}
+                  onClick={async () => {
+                    const ok = await copyText(linkedWallet);
+                    pushToast(ok ? "success" : "warning", ok ? "✓ Đã copy" : "Không copy được");
+                  }}
+                >
+                  COPY
+                </button>
+              </div>
+            ) : (
+              <div className={styles.autoSaveHint} style={{ opacity: 0.9 }}>
+                Chưa liên kết ví với tài khoản.
+              </div>
+            )}
+          </div>
+
+          {/* Status row */}
+          <div
+            className={styles.balanceBox}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: 12,
+            }}
+          >
+            <span>Trạng thái</span>
+
+            {!walletAddress ? (
+              <strong className={styles.warn}>Chưa kết nối ví</strong>
+            ) : !linkedWallet ? (
+              <strong className={styles.warn}>Chưa liên kết hồ sơ</strong>
+            ) : isWalletLinkedToUser ? (
+              <strong className={styles.ok}>✅ Đã khớp</strong>
+            ) : (
+              <strong className={styles.warn}>⚠️ Lệch ví</strong>
+            )}
+          </div>
+
+          {/* Membership + entitlements */}
+          <ul style={{ marginTop: 10 }}>
             <li>
               Quyền hiện tại:&nbsp;
               <strong className={membership ? styles.ok : styles.warn}>
@@ -195,6 +286,53 @@ export default function MembershipTab() {
               </strong>
             </li>
           </ul>
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+            <button
+              className={styles.connectBtn}
+              disabled={!walletAddress || (linkedWallet && isWalletLinkedToUser)}
+              onClick={async () => {
+                if (!walletAddress) return;
+                await saveProfile(userId, { walletAddress });
+                pushToast("success", "✅ Đã đồng bộ ví vào hồ sơ");
+              }}
+              title={
+                !walletAddress
+                  ? "Hãy kết nối ví trước"
+                  : linkedWallet && isWalletLinkedToUser
+                  ? "Ví đã khớp"
+                  : "Lưu ví hiện tại vào hồ sơ"
+              }
+            >
+              {linkedWallet && isWalletLinkedToUser ? "Đã đồng bộ" : "Đồng bộ ví vào hồ sơ"}
+            </button>
+
+            {walletAddress && linkedWallet && !isWalletLinkedToUser && (
+              <button
+                className={styles.connectBtn}
+                onClick={async () => {
+                  await saveProfile(userId, { walletAddress });
+                  pushToast("success", "✅ Đã cập nhật ví hồ sơ theo ví hiện tại");
+                }}
+              >
+                Dùng ví hiện tại
+              </button>
+            )}
+
+            <button
+              className={styles.disconnectBtn}
+              onClick={() => revokeWallet()}
+              disabled={!user?.wallet?.address && !linkedWallet}
+              title="Gỡ ví khỏi tài khoản"
+            >
+              Ngắt kết nối
+            </button>
+          </div>
+
+          <div className={styles.autoSaveHint} style={{ marginTop: 8 }}>
+            Tip: Quyền mua membership dựa trên <b>ví đã liên kết (hồ sơ)</b> để tránh lệch khi refresh.
+          </div>
         </div>
       </div>
 

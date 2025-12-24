@@ -187,20 +187,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   /**
-   * ✅ Public refresh: re-read auth + sync membership->role
-   */
+ * ✅ Public refresh: re-read auth + sync wallet from profileStore + sync membership->role
+ */
   async function refresh() {
     const u = loadUser();
     if (!u) {
       setUser(null);
       return;
     }
+
+    // ✅ 1) sync walletAddress from profileStore -> auth user (if missing)
+    try {
+      const p = loadProfile(u.id);
+      const pAddr = (p.walletAddress || "").trim();
+
+      if (pAddr) {
+        // nếu chưa có wallet hoặc wallet khác, đồng bộ lại
+        const curr = (u.wallet?.address || "").trim();
+        if (!curr || curr.toLowerCase() !== pAddr.toLowerCase()) {
+          u.wallet = {
+            address: pAddr,
+            verified: u.wallet?.verified ?? false,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // ✅ 2) sync membership truth -> role
     try {
       const synced = await syncUserMembershipAndRole(u);
+
       setUser(synced);
       saveUser(synced);
     } catch {
       setUser(u);
+      saveUser(u);
     }
   }
 
