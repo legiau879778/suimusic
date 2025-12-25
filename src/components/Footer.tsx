@@ -99,7 +99,7 @@ export default function Footer() {
 
               {/* ✅ TikTok */}
               <a
-                href="https://www.tiktok.com/@suimusic" // đổi handle nếu cần
+                href="https://www.tiktok.com/@suimusicmbs" // đổi handle nếu cần
                 target="_blank"
                 rel="noreferrer"
                 className={styles.link}
