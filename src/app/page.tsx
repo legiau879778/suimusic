@@ -48,7 +48,7 @@ export default function HomePage() {
 
             <h1 className={styles.title}>
               Bảo vệ &amp; Giao dịch <br />
-              <span>Bản quyền số</span>
+              <span>Bản quyền âm nhạc số</span>
             </h1>
 
             <p className={styles.subtitle}>Bảo vệ âm nhạc của bạn bằng sức mạnh Blockchain.</p>

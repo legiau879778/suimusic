@@ -10,6 +10,7 @@ import {
   TwitterLogo,
   MusicNotes,
   ShieldCheck,
+  TiktokLogo, // ✅ NEW
 } from "@phosphor-icons/react";
 
 export default function Footer() {
@@ -83,6 +84,7 @@ export default function Footer() {
             <h4 className={styles.heading}>Social</h4>
 
             <div className={styles.links}>
+              {/* Twitter / X */}
               <a
                 href="https://x.com/SuiMusic_"
                 target="_blank"
@@ -93,6 +95,19 @@ export default function Footer() {
                   <TwitterLogo weight="fill" size={16} />
                 </span>
                 Twitter / X
+              </a>
+
+              {/* ✅ TikTok */}
+              <a
+                href="https://www.tiktok.com/@suimusic" // đổi handle nếu cần
+                target="_blank"
+                rel="noreferrer"
+                className={styles.link}
+              >
+                <span className={styles.linkIcon} aria-hidden="true">
+                  <TiktokLogo weight="fill" size={16} />
+                </span>
+                TikTok
               </a>
 
               <div className={styles.hint}>
@@ -111,7 +126,7 @@ export default function Footer() {
             <a className={styles.miniLink} href="#">
               Terms
             </a>
-            <a className={styles.miniLink} href="#" >
+            <a className={styles.miniLink} href="#">
               Privacy
             </a>
           </div>

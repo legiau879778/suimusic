@@ -22,3 +22,99 @@
   margin-top: 8px;
   color: #fde047;
 }
+
+/* ===== DASHBOARD STATS ===== */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.02)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px 18px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cardTitle {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.cardIcon {
+  opacity: 0.85;
+}
+
+.cardValue {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cardSubtitle {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* tones */
+.cardSuccess {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.cardDanger {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* skeleton */
+.skeleton {
+  pointer-events: none;
+}
+
+.skeletonLine {
+  height: 10px;
+  width: 60%;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.skeletonValue {
+  height: 32px;
+  width: 40%;
+  margin: 12px 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.skeletonLineSmall {
+  height: 8px;
+  width: 50%;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* responsive */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

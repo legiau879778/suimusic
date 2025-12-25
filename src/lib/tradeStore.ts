@@ -1,50 +1,114 @@
-export type TradeLog = {
+// src/lib/tradeStore.ts
+"use client";
+
+export type TradeStatus = "success" | "pending" | "failed";
+export type TradeType = "buy" | "sell" | "license";
+
+export type Trade = {
   id: string;
   userId: string;
-  workTitle: string;
-  price: string;
-  txHash?: string;
-  time: string;
+
+  type: TradeType;
+  title: string;
+
+  amountSui: number;
+  txHash: string;
+
+  status: TradeStatus;
+  createdAt: number;
+
+  // optional
+  workId?: string;
 };
 
 const KEY = "chainstorm_trades";
+export const TRADES_UPDATED_EVENT = "chainstorm_trades_updated";
 
-/* ================= STORAGE ================= */
+function keyByUser(userId: string) {
+  return `${KEY}:${userId}`;
+}
 
-function load(): TradeLog[] {
-  if (typeof window === "undefined") return [];
+function emit() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(TRADES_UPDATED_EVENT));
+}
+
+function safeParse(raw: string | null): Trade[] {
+  if (!raw) return [];
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr as Trade[];
   } catch {
     return [];
   }
 }
 
-function save(data: TradeLog[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(data));
+export function getUserTrades(userId: string): Trade[] {
+  if (typeof window === "undefined") return [];
+  if (!userId) return [];
+  return safeParse(localStorage.getItem(keyByUser(userId)));
 }
 
-/* ================= ADD ================= */
+export function setUserTrades(userId: string, trades: Trade[]) {
+  if (typeof window === "undefined") return;
+  if (!userId) return;
+  localStorage.setItem(keyByUser(userId), JSON.stringify(trades));
+  emit();
+}
 
-export function addTrade(log: Omit<TradeLog, "id" | "time">) {
-  const trades = load();
+export function addTrade(userId: string, trade: Omit<Trade, "userId">) {
+  if (typeof window === "undefined") return;
+  if (!userId) return;
 
-  trades.push({
-    id: crypto.randomUUID(),
-    time: new Date().toISOString(),
-    ...log,
+  const curr = getUserTrades(userId);
+  const next: Trade[] = [
+    { ...trade, userId },
+    ...curr,
+  ];
+
+  localStorage.setItem(keyByUser(userId), JSON.stringify(next));
+  emit();
+}
+
+export function updateTradeStatus(userId: string, txHash: string, status: TradeStatus) {
+  if (typeof window === "undefined") return;
+  if (!userId || !txHash) return;
+
+  const curr = getUserTrades(userId);
+  let changed = false;
+
+  const next = curr.map((t) => {
+    if (t.txHash !== txHash) return t;
+    if (t.status === status) return t;
+    changed = true;
+    return { ...t, status };
   });
 
-  save(trades);
+  if (changed) {
+    localStorage.setItem(keyByUser(userId), JSON.stringify(next));
+    emit();
+  }
 }
 
-/* ================= GET ================= */
+/**
+ * Realtime subscribe (same-tab event + cross-tab storage)
+ */
+export function subscribeTrades(userId: string, cb: () => void) {
+  if (typeof window === "undefined") return () => {};
 
-export function getTradesByUser(userId: string): TradeLog[] {
-  return load().filter((t) => t.userId === userId);
-}
+  const onEvent = () => cb();
 
-export function getAllTrades(): TradeLog[] {
-  return load();
+  const onStorage = (e: StorageEvent) => {
+    const k = e.key || "";
+    if (k === keyByUser(userId)) cb();
+  };
+
+  window.addEventListener(TRADES_UPDATED_EVENT, onEvent);
+  window.addEventListener("storage", onStorage);
+
+  return () => {
+    window.removeEventListener(TRADES_UPDATED_EVENT, onEvent);
+    window.removeEventListener("storage", onStorage);
+  };
 }

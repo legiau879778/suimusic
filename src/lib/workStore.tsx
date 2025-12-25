@@ -7,6 +7,7 @@ import type { UserRole } from "@/context/AuthContext";
 import { loadProfile } from "@/lib/profileStore";
 
 /* ================= STORAGE ================= */
+
 const STORAGE_KEY = "chainstorm_works";
 
 /**
@@ -99,6 +100,8 @@ function load(): Work[] {
 
 function save(data: Work[]) {
   safeSave(STORAGE_KEY, data);
+
+  // ✅ realtime notify (ManagePage / Admin Dashboard / etc.)
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("works_updated"));
   }
@@ -396,7 +399,7 @@ export function softDeleteWork(params: {
     adminRole: params.actor.role,
     adminEmail: params.actor.role === "admin" ? params.actor.id : undefined,
     time: new Date().toISOString(),
-  } as any);
+  });
 
   save(works);
 }
@@ -412,6 +415,17 @@ export function restoreWork(params: {
   if (params.actor.role !== "admin") throw new Error("FORBIDDEN");
 
   w.deletedAt = null;
+
+  addReviewLog({
+    id: uid(),
+    workId: w.id,
+    workTitle: w.title,
+    action: "restored",
+    adminRole: params.actor.role,
+    adminEmail: params.actor.id,
+    time: new Date().toISOString(),
+  });
+
   save(works);
 }
 
@@ -562,7 +576,11 @@ export function approveWork(params: {
       totalWeight: total,
       quorumWeight: w.quorumWeight,
     },
-  } as any);
+  });
+
+  // ✅ optional timestamps (useful for sorting/analytics)
+  w.reviewedAt = Date.now();
+  if (w.status === "verified") w.verifiedAt = Date.now();
 
   save(works);
 }
@@ -573,6 +591,7 @@ export function rejectWork(params: { workId: string; reviewerId: string; reason?
   if (!w) return;
 
   w.status = "rejected";
+  w.reviewedAt = Date.now();
 
   if (!w.rejectionBy) w.rejectionBy = [];
   if (!w.rejectionBy.includes(params.reviewerId)) w.rejectionBy.push(params.reviewerId);
@@ -585,8 +604,12 @@ export function rejectWork(params: { workId: string; reviewerId: string; reason?
     adminRole: "admin",
     adminEmail: params.reviewerId,
     time: new Date().toISOString(),
-    meta: { reviewerId: params.reviewerId, reason: params.reason || "" },
-  } as any);
+    reason: params.reason || "",
+    meta: {
+      reviewerId: params.reviewerId,
+      reason: params.reason || "",
+    },
+  });
 
   save(works);
 }
