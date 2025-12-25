@@ -11,7 +11,7 @@ export function roleFromMembership(
 
   if (membership === "artist" || membership === "business") return "author";
 
-  // creator: vẫn là user nhưng có entitlements trade (đừng set author)
+  // creator: vẫn là user nhưng có entitlements trade
   if (membership === "creator") return "user";
 
   // ai: tuỳ bạn, hiện coi như user

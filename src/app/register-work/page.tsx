@@ -7,7 +7,7 @@ import styles from "./register-work.module.css";
 
 import { useAuth } from "@/context/AuthContext";
 import { addWork, bindNFTToWork } from "@/lib/workStore";
-import { loadProfile, subscribeProfile } from "@/lib/profileStore";
+import { loadProfile, subscribeProfile, saveProfile } from "@/lib/profileStore";
 
 /* ===== SUI ===== */
 import {
@@ -29,8 +29,6 @@ type UploadResult = {
   size?: number;
   type?: string;
 };
-
-/* ================= Utils ================= */
 
 function isDDMMYYYY(v: string) {
   return /^\d{2}\/\d{2}\/\d{4}$/.test(v);
@@ -105,6 +103,10 @@ export default function RegisterWorkPage() {
   const [authorName, setAuthorName] = useState<string>("Unknown");
   const [authorPhone, setAuthorPhone] = useState<string>("");
 
+  // ✅ FIX: thêm email + avatar snapshot
+  const [authorEmail, setAuthorEmail] = useState<string>("");
+  const [authorAvatar, setAuthorAvatar] = useState<string>("");
+
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -114,21 +116,26 @@ export default function RegisterWorkPage() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const p = loadProfile(user.id);
-    setAuthorName(p?.name?.trim() ? p.name.trim() : user.id);
-    setAuthorPhone(p?.phone ?? "");
+    const apply = () => {
+      const p = loadProfile(user.id);
 
-    const unsub = subscribeProfile(user.id, (profile) => {
-      setAuthorName(profile?.name?.trim() ? profile.name!.trim() : user.id);
-      setAuthorPhone(profile?.phone ?? "");
-    });
+      const name = p?.name?.trim() ? p.name.trim() : user.id;
+      const phone = p?.phone ?? "";
 
+      const email = String(p?.email || user.email || "").trim();
+      const avatar = String((p as any)?.avatar || (user as any)?.avatar || "").trim();
+
+      setAuthorName(name);
+      setAuthorPhone(phone);
+      setAuthorEmail(email);
+      setAuthorAvatar(avatar);
+    };
+
+    apply();
+    const unsub = subscribeProfile(user.id, () => apply());
     return unsub;
-  }, [user?.id]);
+  }, [user?.id, user?.email, (user as any)?.avatar]);
 
-  /* =======================
-     ✅ computed
-  ======================= */
   const royaltyNum = useMemo(() => {
     const n = Number(royalty);
     if (!Number.isFinite(n)) return 0;
@@ -194,8 +201,6 @@ export default function RegisterWorkPage() {
   /* =======================
      ✅ IPFS helpers
   ======================= */
-
-  // ✅ FIX: upload file phải gọi /api/ipfs/upload (FormData), KHÔNG gọi upload-json
   async function uploadFileToIPFS(f: File): Promise<UploadResult> {
     setUploading(true);
     setUploadStage("upload_file");
@@ -277,6 +282,11 @@ export default function RegisterWorkPage() {
     return new Uint8Array(hash);
   }
 
+  // ✅ helper: file loại nào thì có thể dùng làm image fallback?
+  function isImageMime(mime?: string) {
+    return !!mime && mime.startsWith("image/");
+  }
+
   async function ensureIPFSReady(): Promise<{
     metadataCid: string;
     hashBytes32: Uint8Array;
@@ -315,7 +325,7 @@ export default function RegisterWorkPage() {
       setCoverUrl(r.url);
     }
 
-    // 3) metadata JSON
+    // 3) metadata JSON (✅ FIX: thêm top-level file.url + cover_image)
     const profile = loadProfile(user.id);
     const aName = profile?.name?.trim() ? profile.name.trim() : user.id;
 
@@ -327,9 +337,49 @@ export default function RegisterWorkPage() {
       throw new Error("Ngày sáng tác không hợp lệ. Định dạng đúng: dd/mm/yyyy");
     }
 
-    const metadata = {
-      name: title.trim(),
+    const safeTitle = title.trim();
+
+    // ✅ TOP-LEVEL fields mà Manage đang đọc:
+    // - animation_url
+    // - file.url
+    // - image
+    const topImage =
+      cUrl || (isImageMime(file.type) ? fUrl : ""); // nếu file không phải ảnh thì để cover, còn không có cover thì để rỗng
+
+    const metadata: any = {
+      name: safeTitle,
       description: "Chainstorm WorkNFT metadata",
+
+      // ✅ (1) Cover hiển thị cho card
+      ...(topImage ? { image: topImage } : {}),
+
+      // ✅ (2) Preview file (audio/video/pdf)
+      animation_url: fUrl,
+
+      // ✅ (3) QUAN TRỌNG: Manage của bạn đang check meta.file?.url
+      file: {
+        url: fUrl,
+        cid: fCid,
+        mime: file.type || "",
+        name: file.name,
+        size: file.size,
+      },
+
+      // ✅ optional: tách riêng cover nếu có
+      ...(cUrl
+        ? {
+            cover_image: cUrl,
+            cover: {
+              url: cUrl,
+              cid: cCid,
+              mime: cover?.type || "image/*",
+              name: cover?.name,
+              size: cover?.size,
+            },
+          }
+        : {}),
+
+      // ✅ attributes vẫn giữ như bạn đang dùng
       attributes: [
         { trait_type: "sellType", value: sellType },
         { trait_type: "sell_type_u8", value: sellTypeU8 },
@@ -344,6 +394,8 @@ export default function RegisterWorkPage() {
           ? [{ trait_type: "createdDate", value: createdDate.trim() }]
           : []),
       ],
+
+      // ✅ properties giữ lại để app nội bộ dùng
       properties: {
         app: "Chainstorm",
         network: activeNet,
@@ -359,12 +411,17 @@ export default function RegisterWorkPage() {
           module: MODULE,
           mintFn: MINT_FN,
         },
+
         author: {
           userId: user.id,
           name: aName,
+          email: String(profile?.email || user.email || "").trim(),
+          avatar: String((profile as any)?.avatar || (user as any)?.avatar || "").trim(),
           phone: profile?.phone ?? "",
           walletAddress,
         },
+
+        // ✅ vẫn giữ dạng cũ để code khác không gãy
         file: {
           cid: fCid,
           url: fUrl,
@@ -385,12 +442,6 @@ export default function RegisterWorkPage() {
           : {}),
         createdAt: new Date().toISOString(),
       },
-
-      // ✅ cover riêng ưu tiên
-      image: cUrl || fUrl,
-
-      // ✅ file gốc để preview audio/video/pdf
-      animation_url: fUrl,
     };
 
     const meta = await uploadJSONToIPFS(metadata);
@@ -457,10 +508,34 @@ export default function RegisterWorkPage() {
     try {
       const { metadataCid, hashBytes32 } = await ensureIPFSReady();
 
-      // 1) off-chain store
+      // ✅ đảm bảo profileStore có email/avatar (nếu Auth có mà profileStore chưa có)
+      try {
+        const current: any = loadProfile(user!.id);
+        const patch: any = {};
+
+        const e = String(current?.email || "").trim();
+        const a = String(current?.avatar || "").trim();
+
+        const authEmail = String(user?.email || "").trim();
+        const authAvatar = String((user as any)?.avatar || "").trim();
+
+        if (!e && authEmail) patch.email = authEmail;
+        if (!a && authAvatar) patch.avatar = authAvatar;
+
+        if (Object.keys(patch).length) saveProfile(user!.id, patch);
+      } catch {}
+
+      // 1) off-chain store (snapshot đầy đủ cho /author/[id] fallback)
       const workId = addWork({
         title: title.trim(),
         authorId: user!.id,
+
+        authorName: authorName || user!.id,
+        authorEmail: authorEmail || String(user?.email || ""),
+        authorAvatar: authorAvatar || String((user as any)?.avatar || ""),
+        authorPhone: authorPhone || "",
+        authorWallet: walletAddress || "",
+
         hash: metadataCid, // CID metadata
         category: category.trim() || undefined,
         language: language.trim() || undefined,
@@ -484,7 +559,6 @@ export default function RegisterWorkPage() {
 
       const result = await signAndExecuteTransaction({
         transaction: tx,
-        execute: { options: { showObjectChanges: true, showEffects: true } },
       });
 
       const digest = (result as any)?.digest as string | undefined;
@@ -530,7 +604,9 @@ export default function RegisterWorkPage() {
           createdObjectId = created?.objectId ?? null;
 
           if (!createdObjectId) {
-            const anyCreated = oc.find((c) => c?.type === "created" && c?.objectId);
+            const anyCreated = oc.find(
+              (c) => c?.type === "created" && c?.objectId
+            );
             createdObjectId = anyCreated?.objectId ?? null;
           }
         }
@@ -557,12 +633,17 @@ export default function RegisterWorkPage() {
         setErr(
           `PACKAGE_ID không tồn tại trên "${activeNet}". Kiểm tra Sui Wallet network + chainstormConfig.ts`
         );
-      } else if (msg.includes("Object does not exist") && msg.includes(REGISTRY_ID)) {
+      } else if (
+        msg.includes("Object does not exist") &&
+        msg.includes(REGISTRY_ID)
+      ) {
         setErr(
           `REGISTRY_ID không tồn tại trên "${activeNet}". Bạn đã init_registry chưa? (registry phải là Shared object)`
         );
       } else if (msg.includes("100") || msg.toLowerCase().includes("duplicate")) {
-        setErr("DUPLICATE_HASH (100): Hash bị trùng. Upload metadata mới hoặc đổi tác phẩm.");
+        setErr(
+          "DUPLICATE_HASH (100): Hash bị trùng. Upload metadata mới hoặc đổi tác phẩm."
+        );
       } else {
         setErr(msg);
       }
@@ -579,7 +660,9 @@ export default function RegisterWorkPage() {
         <div className={styles.shell}>
           <div className={styles.warn}>
             <b>Chưa đăng nhập.</b>
-            <div className={styles.warnText}>Vui lòng đăng nhập để đăng ký tác phẩm.</div>
+            <div className={styles.warnText}>
+              Vui lòng đăng nhập để đăng ký tác phẩm.
+            </div>
           </div>
         </div>
       </div>
@@ -594,7 +677,8 @@ export default function RegisterWorkPage() {
           <div>
             <h1 className={styles.title}>Đăng ký tác phẩm</h1>
             <p className={styles.subtitle}>
-              Network: <b className={styles.net}>{activeNet}</b> • Module: <b>{MODULE}</b>
+              Network: <b className={styles.net}>{activeNet}</b> • Module:{" "}
+              <b>{MODULE}</b>
             </p>
           </div>
 
@@ -603,7 +687,9 @@ export default function RegisterWorkPage() {
             <div className={styles.statusText}>
               <div className={styles.statusTop}>
                 <b>{authorName}</b>
-                {authorPhone ? <span className={styles.muted}> • {authorPhone}</span> : null}
+                {authorPhone ? (
+                  <span className={styles.muted}> • {authorPhone}</span>
+                ) : null}
               </div>
 
               <div className={styles.mono}>
@@ -640,7 +726,10 @@ export default function RegisterWorkPage() {
               {step === 3 && "Step 3 — Xác nhận & Mint"}
             </div>
             <div className={styles.progress}>
-              <div className={styles.progressBar} style={{ width: `${(step / 3) * 100}%` }} />
+              <div
+                className={styles.progressBar}
+                style={{ width: `${(step / 3) * 100}%` }}
+              />
             </div>
           </div>
 
@@ -754,7 +843,8 @@ export default function RegisterWorkPage() {
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Mint sẽ pin metadata → lấy CID metadata → SHA-256 (32 bytes) → chống trùng hash.
+                    Mint sẽ pin metadata → lấy CID metadata → SHA-256 (32 bytes) →
+                    chống trùng hash.
                   </div>
                 </div>
               </label>
@@ -821,7 +911,9 @@ export default function RegisterWorkPage() {
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống, hệ thống dùng file gốc làm ảnh.
+                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống và
+                    file là ảnh thì dùng file làm image; còn không thì có thể card
+                    sẽ không có cover.
                   </div>
                 </div>
               </label>
@@ -856,7 +948,8 @@ export default function RegisterWorkPage() {
               <div className={styles.reviewCard}>
                 <div className={styles.reviewTitle}>🛡️ Quy trình duyệt</div>
                 <div className={styles.reviewText}>
-                  Tác phẩm sẽ vào trạng thái <b>pending</b> → đủ quorum thì <b>verified</b>.
+                  Tác phẩm sẽ vào trạng thái <b>pending</b> → đủ quorum thì{" "}
+                  <b>verified</b>.
                 </div>
               </div>
             </div>
@@ -870,27 +963,50 @@ export default function RegisterWorkPage() {
               <Row label="Module" value={MODULE} />
               <Row label="Mint fn" value={MINT_FN} />
               <Row label="Tác giả" value={authorName} />
-              <Row label="Ví" value={walletAddress ? shortAddr(walletAddress) : "-"} mono />
+              <Row label="Email" value={authorEmail || (user?.email || "-")} />
+              <Row
+                label="Ví"
+                value={walletAddress ? shortAddr(walletAddress) : "-"}
+                mono
+              />
               <Row label="Tiêu đề" value={title || "-"} />
               <Row label="Thể loại" value={category || "-"} />
               <Row label="Ngôn ngữ" value={language || "-"} />
               <Row label="Ngày sáng tác" value={createdDate || "-"} />
               <Row label="SellType" value={`${sellType} (u8=${sellTypeU8})`} />
               <Row label="Royalty" value={`${royaltyNum}%`} />
-              <Row label="File CID" value={fileCid ? shortCid(fileCid) : "Chưa có"} mono />
-              <Row label="Cover CID" value={coverCid ? shortCid(coverCid) : "Chưa có"} mono />
-              <Row label="Metadata CID" value={metaCid ? shortCid(metaCid) : "Sẽ tạo khi Mint"} mono />
+              <Row
+                label="File CID"
+                value={fileCid ? shortCid(fileCid) : "Chưa có"}
+                mono
+              />
+              <Row
+                label="Cover CID"
+                value={coverCid ? shortCid(coverCid) : "Chưa có"}
+                mono
+              />
+              <Row
+                label="Metadata CID"
+                value={metaCid ? shortCid(metaCid) : "Sẽ tạo khi Mint"}
+                mono
+              />
 
               {metaUrl ? (
                 <div className={styles.metaLinkRow}>
-                  <a className={styles.link} href={metaUrl} target="_blank" rel="noreferrer">
+                  <a
+                    className={styles.link}
+                    href={metaUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Open metadata on gateway
                   </a>
                 </div>
               ) : null}
 
               <div className={styles.callout}>
-                Mint sẽ hash CID metadata (SHA-256) → <b>32 bytes</b> → Move để chống duplicate.
+                Mint sẽ hash CID metadata (SHA-256) → <b>32 bytes</b> → Move để chống
+                duplicate.
               </div>
             </div>
           )}
@@ -910,7 +1026,12 @@ export default function RegisterWorkPage() {
                 <button
                   className={styles.btnPrimary}
                   onClick={next}
-                  disabled={(step === 1 && !canGoStep1) || submitting || isPending || uploading}
+                  disabled={
+                    (step === 1 && !canGoStep1) ||
+                    submitting ||
+                    isPending ||
+                    uploading
+                  }
                 >
                   Tiếp theo
                 </button>
@@ -943,7 +1064,15 @@ export default function RegisterWorkPage() {
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div className={styles.row}>
       <div className={styles.rowLabel}>{label}</div>

@@ -1,24 +1,22 @@
-// src/lib/workStore.ts
+// src/lib/workStore.tsx
 import { safeLoad, safeSave } from "./storage";
 import { addReviewLog } from "./reviewLogStore";
 import type { UserRole } from "@/context/AuthContext";
 
-/* ✅ profile sync */
-import { loadProfile } from "./profileStore";
+/* ✅ profile sync (read-only) */
+import { loadProfile } from "@/lib/profileStore";
 
 /* ================= STORAGE ================= */
 const STORAGE_KEY = "chainstorm_works";
 
 /**
  * ✅ Profile update event name (fallback)
- * - Nếu profileStore bạn có event khác, đổi string này cho khớp.
+ * - Nếu profileStore bạn dispatch event khác, đổi string này cho khớp.
+ * - Hiện profileStore của bạn: PROFILE_UPDATED_EVENT = "chainstorm_profile_updated"
  */
 export const WORKSTORE_PROFILE_UPDATED_EVENT = "chainstorm_profile_updated";
 
 /* ================= TYPES ================= */
-
-export type WorkStatus = "pending" | "verified" | "rejected";
-export type SellType = "exclusive" | "license";
 
 /** 📜 License record (off-chain mirror) */
 export type WorkLicense = {
@@ -39,42 +37,32 @@ export type WorkSale = {
 export type Work = {
   id: string;
   title: string;
-
-  /** off-chain user id */
   authorId: string;
-
-  /** ✅ off-chain display name snapshot (sync from profileStore) */
-  authorName?: string;
-
-  /** ✅ optional: phone snapshot for UI */
-  authorPhone?: string;
-
-  /** on-chain owner (NFT owner) */
-  authorWallet?: string;
-
-  /** CID metadata (hoặc hash) */
   hash?: string;
+
+  authorName?: string;
+  authorEmail?: string;
+  authorAvatar?: string;
+  authorPhone?: string;
+  authorWallet?: string;
 
   category?: string;
   language?: string;
+  createdDate?: string;
 
-  /** NFT info */
+  // ✅ sellType is REQUIRED here -> must never be undefined
+  sellType: "exclusive" | "license" | string;
+  royalty?: number;
+  quorumWeight: number;
+
   nftObjectId?: string;
   nftPackageId?: string;
   txDigest?: string;
   mintedAt?: string;
 
-  /** created date dd/mm/yyyy */
-  createdDate?: string;
-
   /** business */
-  status: WorkStatus;
-  sellType: SellType;
+  status?: "pending" | "verified" | "rejected" | string;
 
-  /** ✅ royalty percent used in UI / license */
-  royalty?: number;
-
-  /** licenses (only when sellType = license) */
   licenses: WorkLicense[];
 
   /** exclusive sale history */
@@ -82,9 +70,6 @@ export type Work = {
 
   /** reviewerId -> weight */
   approvalMap: Record<string, number>;
-
-  /** tổng weight cần đạt để verified */
-  quorumWeight: number;
 
   /** reviewer đã reject */
   rejectionBy: string[];
@@ -98,7 +83,6 @@ export type Work = {
 /* ================= INTERNAL ================= */
 
 function uid() {
-  // crypto.randomUUID fallback
   try {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
       // @ts-ignore
@@ -121,14 +105,34 @@ function save(data: Work[]) {
 }
 
 function sumApprovalWeight(w: Work) {
-  return Object.values(w.approvalMap || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+  return Object.values(w.approvalMap || {}).reduce(
+    (s, v) => s + (Number(v) || 0),
+    0
+  );
 }
 
+/**
+ * ✅ SSR-safe wrapper for loadProfile
+ * - build/SSR: không đọc localStorage
+ * - client: đọc profileStore bình thường
+ */
 function resolveAuthorSnapshot(authorId: string) {
+  if (typeof window === "undefined") {
+    return { authorName: authorId, authorPhone: "" };
+  }
+
   const p = loadProfile(authorId);
   const authorName = p?.name && p.name.trim() ? p.name.trim() : authorId;
   const authorPhone = p?.phone ?? "";
   return { authorName, authorPhone };
+}
+
+/** ✅ normalize sellType to avoid undefined */
+function normalizeSellType(v?: string): "exclusive" | "license" | string {
+  const s = String(v || "").trim();
+  if (!s) return "exclusive";
+  if (s === "exclusive" || s === "license") return s;
+  return s; // allow custom string if you ever used it
 }
 
 /* ================= GETTERS ================= */
@@ -155,11 +159,19 @@ export const countWorksByAuthor = (authorId: string) =>
 export function addWork(data: {
   title: string;
   authorId: string;
-  hash?: string;
+  hash: string;
+
+  authorName?: string;
+  authorEmail?: string;
+  authorAvatar?: string;
+  authorPhone?: string;
+  authorWallet?: string;
+
+  category?: string;
   language?: string;
   createdDate?: string;
-  category?: string;
-  sellType: SellType;
+
+  sellType?: "exclusive" | "license" | string;
   royalty?: number;
   quorumWeight?: number;
 }) {
@@ -169,21 +181,25 @@ export function addWork(data: {
 
   const work: Work = {
     id: uid(),
-    title: data.title,
+
+    // ✅ keep safe (avoid empty title)
+    title: String(data.title || "").trim() || "Untitled",
+
     authorId: data.authorId,
 
     authorName,
     authorPhone,
 
-    hash: data.hash,
+    // ✅ keep safe (avoid empty hash)
+    hash: String(data.hash || "").trim(),
+
     language: data.language,
-
-    // ✅ FIX: category bị thiếu trước đó
     category: data.category,
-
     createdDate: data.createdDate,
 
-    sellType: data.sellType,
+    // ✅ FIX STRICT TS: never allow undefined here
+    sellType: normalizeSellType(data.sellType),
+
     royalty: data.royalty ?? 0,
 
     status: "pending",
@@ -257,8 +273,8 @@ export function updateAuthorNameForUser(authorId: string, newName: string) {
 
 /**
  * ✅ Listen profile changes and auto-sync works.
- * - Ưu tiên custom event `WORKSTORE_PROFILE_UPDATED_EVENT` (nếu bạn bắn event khi saveProfile)
- * - Cross-tab: storage event (luôn chạy)
+ * - same-tab: custom event (profileStore dispatch)
+ * - cross-tab: storage event
  */
 export function startWorkAuthorAutoSync() {
   if (typeof window === "undefined") return () => {};
@@ -266,7 +282,7 @@ export function startWorkAuthorAutoSync() {
   const onProfileUpdated = (ev: Event) => {
     const anyEv = ev as any;
     const userId = anyEv?.detail?.userId as string | undefined;
-    if (!userId) return;
+    if (!userId || userId === "*") return;
     updateAuthorProfileForUser(userId);
   };
 
@@ -286,25 +302,6 @@ export function startWorkAuthorAutoSync() {
     window.removeEventListener("storage", onStorage);
   };
 }
-
-export async function saveProfile(userId: string, patch: any) {
-  const prev = loadProfile(userId);
-  const next = {
-    ...prev,
-    ...patch,
-    wallet: {
-      ...(prev as any)?.wallet,
-      ...(patch as any)?.wallet,
-    },
-  };
-
-  localStorage.setItem(getKey(userId), JSON.stringify(next));
-
-  // bắn event để UI/Auth (nếu có subscribe) cập nhật
-  window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-  window.dispatchEvent(new StorageEvent("storage", { key: getKey(userId) }));
-}
-
 
 /* ================= NFT BIND ================= */
 
@@ -404,7 +401,10 @@ export function softDeleteWork(params: {
   save(works);
 }
 
-export function restoreWork(params: { workId: string; actor: { id: string; role: UserRole } }) {
+export function restoreWork(params: {
+  workId: string;
+  actor: { id: string; role: UserRole };
+}) {
   const works = load();
   const w = works.find((x) => x.id === params.workId);
   if (!w) return;
@@ -439,7 +439,6 @@ export function markWorkSold(params: {
   w.authorWallet = params.buyerWallet;
   w.txDigest = params.txDigest;
 
-  // ✅ ensure array
   if (!Array.isArray(w.sales)) w.sales = [];
   w.sales.push({
     buyer: params.buyerWallet,
@@ -463,7 +462,6 @@ export function bindLicenseToWork(params: {
 
   if (w.sellType !== "license") throw new Error("WORK_NOT_LICENSE_MODE");
 
-  // ✅ ensure array
   if (!Array.isArray(w.licenses)) w.licenses = [];
 
   w.licenses.push({
@@ -487,8 +485,9 @@ export function getRoyaltyStats(workId: string) {
     totalLicenses === 0
       ? 0
       : Math.round(
-          ((w.licenses || []).reduce((s, x) => s + (x?.royalty || 0), 0) / totalLicenses) * 100
-        ) / 100;
+          (((w.licenses || []).reduce((s, x) => s + (x?.royalty || 0), 0) / totalLicenses) * 100) /
+            100
+        );
 
   return { totalLicenses, avgRoyalty };
 }

@@ -3,79 +3,120 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "@/styles/footer.module.css";
 
+import {
+  MapPin,
+  Phone,
+  EnvelopeSimple,
+  TwitterLogo,
+  MusicNotes,
+  ShieldCheck,
+} from "@phosphor-icons/react";
+
 export default function Footer() {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
   const [show, setShow] = useState(false);
 
   useEffect(() => {
     const obs = new IntersectionObserver(
       ([e]) => e.isIntersecting && setShow(true),
-      { threshold: 0.2 }
+      { threshold: 0.15 }
     );
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   return (
-    <footer
-      ref={ref}
-      className={`${styles.footer} ${
-        show ? styles.show : ""
-      }`}
-    >
-      <div className={styles.grid}>
-        {/* BRAND */}
-        <div>
-          <h3 className={styles.title}>
-            SUMUSIC
-          </h3>
-          <p className={styles.desc}>
-            Membership Music Copyright Model
-          </p>
+    <footer ref={ref} className={`${styles.footer} ${show ? styles.show : ""}`}>
+      <div className={styles.inner}>
+        <div className={styles.top}>
+          {/* BRAND */}
+          <div className={styles.brand}>
+            <div className={styles.brandTitleRow}>
+              <span className={styles.logoDot} aria-hidden="true">
+                <MusicNotes weight="duotone" size={18} />
+              </span>
+              <h3 className={styles.title}>SUIMUSIC</h3>
+            </div>
+
+            <p className={styles.tagline}>
+              Membership Music Copyright Model — đăng ký, xác thực và giao dịch bản quyền minh bạch
+              trên blockchain.
+            </p>
+
+            <div className={styles.badges}>
+              <span className={styles.pill}>
+                <ShieldCheck weight="duotone" size={16} /> <strong>Verified</strong> on-chain
+              </span>
+              <span className={styles.pill}>Sui • NPT</span>
+            </div>
+          </div>
+
+          {/* CONTACT */}
+          <div className={styles.col}>
+            <h4 className={styles.heading}>Liên hệ</h4>
+            <ul className={styles.list}>
+              <li className={styles.item}>
+                <span className={styles.itemIcon} aria-hidden="true">
+                  <MapPin weight="duotone" size={16} />
+                </span>
+                <span className={styles.itemText}>613 Âu Cơ, Phú Trung</span>
+              </li>
+
+              <li className={styles.item}>
+                <span className={styles.itemIcon} aria-hidden="true">
+                  <Phone weight="duotone" size={16} />
+                </span>
+                <span className={styles.itemText}>0918.924.576</span>
+              </li>
+
+              <li className={styles.item}>
+                <span className={styles.itemIcon} aria-hidden="true">
+                  <EnvelopeSimple weight="duotone" size={16} />
+                </span>
+                <span className={styles.itemText}>Di8494081@gmail.com</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* SOCIAL */}
+          <div className={styles.col}>
+            <h4 className={styles.heading}>Social</h4>
+
+            <div className={styles.links}>
+              <a
+                href="https://x.com/SuiMusic_"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.link}
+              >
+                <span className={styles.linkIcon} aria-hidden="true">
+                  <TwitterLogo weight="fill" size={16} />
+                </span>
+                Twitter / X
+              </a>
+
+              <div className={styles.hint}>
+                Theo dõi để cập nhật sản phẩm, marketplace và các bản phát hành mới.
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* CONTACT */}
-        <div>
-          <h4 className={styles.heading}>
-            Thông tin liên hệ
-          </h4>
-          <p>📍 613 Âu Cơ, Phú Trung</p>
-          <p>📞 0918.924.576</p>
-          <p>✉️ Di8494081@gmail.com</p>
-        </div>
+        <div className={styles.divider} />
 
-        {/* SOCIAL */}
-        <div>
-          <h4 className={styles.heading}>
-            Social
-          </h4>
-          <a
-            href="https://x.com/SuiMusic_"
-            target="_blank"
-            className={styles.social}
-          >
-            <XIcon /> Twitter
-          </a>
-        </div>
-      </div>
+        <div className={styles.bottom}>
+          <div>© {new Date().getFullYear()} SUIMUSIC Copyright • All rights reserved</div>
 
-      <div className={styles.copy}>
-        © {new Date().getFullYear()} SUMUSIC
+          <div className={styles.bottomRight}>
+            <a className={styles.miniLink} href="#">
+              Terms
+            </a>
+            <a className={styles.miniLink} href="#" >
+              Privacy
+            </a>
+          </div>
+        </div>
       </div>
     </footer>
-  );
-}
-
-/* X ICON */
-function XIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-    >
-      <path d="M18.9 2H22l-6.6 7.5L23 22h-6.8l-5.3-7-6.1 7H2l7.1-8.1L1 2h7l4.8 6.3L18.9 2z" />
-    </svg>
   );
 }

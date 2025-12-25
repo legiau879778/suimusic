@@ -6,7 +6,7 @@ import Providers from "@/components/Providers";
 import GoogleProvider from "@/components/GoogleProvider";
 
 export const metadata: Metadata = {
-  title: "Chainstorm",
+  title: "SUIMUSIC",
   description: "Music Copyright on Blockchain",
 };
 

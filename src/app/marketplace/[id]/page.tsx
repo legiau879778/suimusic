@@ -157,7 +157,6 @@ export default function MarketplaceDetailPage() {
 
       const result = await signAndExecuteTransaction({
         transaction: tx,
-        execute: { options: { showEffects: true, showObjectChanges: true } },
       });
 
       bindLicenseToWork({

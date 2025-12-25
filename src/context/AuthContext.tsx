@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
 
@@ -11,15 +11,9 @@ import { useToast } from "@/context/ToastContext";
 
 import { connectSuiWallet, signSuiMessage } from "@/lib/suiWallet";
 
-// ✅ clear local stores
-import { clearMembership } from "@/lib/membershipStore";
-import {
-  clearProfile,
-  loadProfile,
-  subscribeProfile,
-} from "@/lib/profileStore";
+import { clearMembership, subscribeMembership } from "@/lib/membershipStore";
+import { clearProfile, loadProfile, subscribeProfile } from "@/lib/profileStore";
 
-// ✅ membership truth -> role sync
 import { syncUserMembershipAndRole } from "@/lib/syncMembership";
 
 export type UserRole = "user" | "author" | "admin";
@@ -54,70 +48,105 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+function isSameUser(a: User | null, b: User | null) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    (a.avatar ?? "") === (b.avatar ?? "") &&
+    a.role === b.role &&
+    (a.membership ?? null) === (b.membership ?? null) &&
+    (a.membershipNftId ?? "") === (b.membershipNftId ?? "") &&
+    ((a.wallet?.address ?? "").toLowerCase() === (b.wallet?.address ?? "").toLowerCase()) &&
+    (a.wallet?.verified ?? false) === (b.wallet?.verified ?? false)
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const { showToast } = useToast();
 
-  /**
-   * ✅ Boot:
-   * - load auth user
-   * - sync walletAddress from profileStore -> auth user (if missing)
-   * - sync membership truth -> role
-   */
+  const userId = user?.id ?? "";
+  const userEmail = user?.email ?? "";
+
+  // chống chạy chồng sync
+  const syncingRef = useRef(false);
+
+  async function syncAll(fromStorageFirst = true) {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+
+    try {
+      const base = fromStorageFirst ? loadUser() : user;
+
+      if (!base?.id) {
+        setUser(null);
+        return;
+      }
+
+      let next: User = base;
+
+      // 1) sync walletAddress từ profileStore -> auth (nếu thiếu)
+      try {
+        const p = loadProfile(next.id);
+        const pAddr = (p.walletAddress || "").trim();
+
+        if (pAddr) {
+          const curr = (next.wallet?.address || "").trim();
+          if (!curr || curr.toLowerCase() !== pAddr.toLowerCase()) {
+            next = {
+              ...next,
+              wallet: {
+                address: pAddr,
+                verified: next.wallet?.verified ?? false,
+              },
+            };
+          }
+        }
+      } catch {}
+
+      // 2) sync membership -> role (truth verify + migrate key email->id)
+      try {
+        next = await syncUserMembershipAndRole(next);
+      } catch {}
+
+      // 3) apply
+      setUser((prev) => {
+        if (isSameUser(prev, next)) return prev;
+        return next;
+      });
+      saveUser(next);
+    } finally {
+      syncingRef.current = false;
+    }
+  }
+
+  /* ================= INIT LOAD ================= */
+
   useEffect(() => {
     const u = loadUser();
     setUser(u);
-
-    (async () => {
-      if (!u?.id) return;
-
-      // 1) sync walletAddress from profileStore -> auth (if missing)
-      try {
-        const p = loadProfile(u.id);
-        const pAddr = (p.walletAddress || "").trim();
-
-        if (pAddr && !u.wallet?.address) {
-          const updatedWallet: User = {
-            ...u,
-            wallet: { address: pAddr, verified: false },
-          };
-          setUser(updatedWallet);
-          saveUser(updatedWallet);
-        }
-      } catch {}
-
-      // 2) sync membership -> role
-      try {
-        const latest = loadUser();
-        if (!latest) return;
-        const synced = await syncUserMembershipAndRole(latest);
-        if (JSON.stringify(synced) !== JSON.stringify(latest)) {
-          setUser(synced);
-          saveUser(synced);
-        }
-      } catch {}
-    })();
+    // sync ngay khi mount để kéo wallet/membership đúng
+    void syncAll(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /**
-   * ✅ Subscribe profile changes:
-   * - When profileStore walletAddress changes (auto-link),
-   *   sync into auth user.wallet.address and saveUser for UI updates.
-   */
-  useEffect(() => {
-    const uid = user?.id || "";
-    if (!uid) return;
+  /* ================= SUBSCRIBE: PROFILE (walletAddress) ================= */
 
-    const unsub = subscribeProfile(uid, (p) => {
+  useEffect(() => {
+    if (!userId) return;
+
+    const unsub = subscribeProfile(userId, (p) => {
       const addr = (p.walletAddress || "").trim();
       if (!addr) return;
 
       setUser((prev) => {
-        if (!prev || prev.id !== uid) return prev;
+        if (!prev || prev.id !== userId) return prev;
 
-        const curr = prev.wallet?.address || "";
+        const curr = (prev.wallet?.address || "").trim();
         if (curr.toLowerCase() === addr.toLowerCase()) return prev;
 
         const updated: User = {
@@ -134,105 +163,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsub();
-  }, [user?.id]);
+  }, [userId]);
 
-  /**
-   * ✅ Auto downgrade / auto sync membership -> role by polling
-   * - catches expiry while user stays on the page
-   * - also syncs immediately when tab becomes visible again
-   */
+  /* ================= SUBSCRIBE: MEMBERSHIP (update header immediately) ================= */
+
   useEffect(() => {
-    const uid = user?.id || "";
-    if (!uid) return;
+    if (!userId) return;
 
-    let running = false;
+    // subscribeMembership() của bạn là cb-only (same-tab event + storage)
+    const unsub = subscribeMembership(() => {
+      // mua xong / refresh tab khác / storage change -> sync lại role + membership ngay
+      void syncAll(true);
+    });
 
-    const tick = async () => {
-      if (running) return;
-      running = true;
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, userEmail]);
 
-      try {
-        const latest = loadUser();
-        if (!latest || latest.id !== uid) return;
+  /* ================= VISIBILITY: when back to tab ================= */
 
-        const synced = await syncUserMembershipAndRole(latest);
+  useEffect(() => {
+    if (!userId) return;
 
-        if (JSON.stringify(synced) !== JSON.stringify(latest)) {
-          setUser(synced);
-          saveUser(synced);
-        }
-      } catch {
-        // ignore
-      } finally {
-        running = false;
-      }
-    };
-
-    // run once
-    tick();
-
-    // every minute
-    const id = setInterval(tick, 60_000);
-
-    // sync when user returns to the tab
     const onVis = () => {
-      if (document.visibilityState === "visible") tick();
+      if (document.visibilityState === "visible") {
+        void syncAll(true);
+      }
     };
     document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [user?.id]);
+  /* ================= PUBLIC refresh() ================= */
 
-  /**
- * ✅ Public refresh: re-read auth + sync wallet from profileStore + sync membership->role
- */
   async function refresh() {
-    const u = loadUser();
-    if (!u) {
-      setUser(null);
-      return;
-    }
-
-    // ✅ 1) sync walletAddress from profileStore -> auth user (if missing)
-    try {
-      const p = loadProfile(u.id);
-      const pAddr = (p.walletAddress || "").trim();
-
-      if (pAddr) {
-        // nếu chưa có wallet hoặc wallet khác, đồng bộ lại
-        const curr = (u.wallet?.address || "").trim();
-        if (!curr || curr.toLowerCase() !== pAddr.toLowerCase()) {
-          u.wallet = {
-            address: pAddr,
-            verified: u.wallet?.verified ?? false,
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    // ✅ 2) sync membership truth -> role
-    try {
-      const synced = await syncUserMembershipAndRole(u);
-
-      setUser(synced);
-      saveUser(synced);
-    } catch {
-      setUser(u);
-      saveUser(u);
-    }
+    await syncAll(true);
   }
+
+  /* ================= GOOGLE LOGIN ================= */
 
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (token) => {
       const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-        headers: {
-          Authorization: `Bearer ${token.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${token.access_token}` },
       });
 
       const profile = await res.json();
@@ -245,16 +219,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: isAdmin ? "admin" : "user",
       };
 
-      // ✅ if profileStore already has walletAddress -> sync into auth user
+      // pull wallet from profileStore if any
       try {
         const p = loadProfile(u.id);
         const pAddr = (p.walletAddress || "").trim();
-        if (pAddr) {
-          u.wallet = { address: pAddr, verified: false };
-        }
+        if (pAddr) u.wallet = { address: pAddr, verified: false };
       } catch {}
 
-      // ✅ sync membership truth -> role
+      // sync membership -> role
       try {
         u = await syncUserMembershipAndRole(u);
       } catch {}
@@ -266,6 +238,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.replace(consumeRedirect());
     },
   });
+
+  /* ================= WALLET ================= */
 
   async function connectWallet() {
     if (!user) return;
@@ -287,24 +261,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // base update
+    // admin thì giữ admin, còn lại lên author
     let updated: User = {
       ...user,
-      wallet: {
-        address,
-        verified: true,
-      },
-      // keep admin, otherwise author when wallet verified
+      wallet: { address, verified: true },
       role: user.role === "admin" ? "admin" : "author",
     };
 
-    // ✅ also save to profileStore (field = walletAddress)
     try {
       const { saveProfile } = await import("@/lib/profileStore");
       saveProfile(updated.id, { walletAddress: address });
     } catch {}
 
-    // ✅ sync membership truth -> role (don’t force author if membership says otherwise)
+    // membership có thể map lại role (vd business/creator/artist policy của bạn)
     try {
       updated = await syncUserMembershipAndRole(updated);
     } catch {}
@@ -327,7 +296,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updated);
     saveUser(updated);
 
-    // ✅ optional: clear walletAddress in profileStore so it won’t auto-link
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { saveProfile } = require("@/lib/profileStore");
@@ -337,44 +305,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     showToast("Đã ngắt kết nối ví", "warning");
   }
 
+  /* ================= LOGOUT ================= */
   function logout() {
-    const uid = user?.id || "";
+    // 1) đóng session ngay lập tức
+    setUser(null);
+    clearUser(); // xóa authStorage (token/user)
 
-    if (uid) {
-      clearMembership(uid);
-      clearProfile(uid);
-    }
-
+    // 2) dọn các key “session-only”
     if (typeof window !== "undefined") {
       localStorage.removeItem("chainstorm_last_wallet");
+      // nếu bạn có redirect lưu tạm
+      localStorage.removeItem("chainstorm_redirect");
     }
-
-    setUser(null);
-    clearUser();
 
     showToast("Đã đăng xuất", "warning");
 
+    // 3) hard redirect để reset toàn bộ client state + subscriptions
     if (typeof window !== "undefined") {
-      window.location.href = "/";
+      window.location.replace("/"); // replace tránh back quay lại profile
     } else {
       router.replace("/");
     }
   }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        refresh,
-        loginWithGoogle,
-        connectWallet,
-        revokeWallet,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      refresh,
+      loginWithGoogle,
+      connectWallet,
+      revokeWallet,
+      logout,
+    }),
+    [user]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

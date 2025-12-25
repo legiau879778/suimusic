@@ -27,16 +27,48 @@ export type UserProfile = {
 
   walletAddress?: string;
 
+  /** ✅ avatar URL: http/https hoặc ipfs://CID hoặc cid trần */
+  avatar?: string;
+
   socials?: SocialLinks;
   options?: ProfileOptions;
+  membership?: "Free" | "Starter" | "Pro" | "Studio" | string;
 };
 
 function getKey(userId: string) {
   return `${KEY}:${userId}`;
 }
 
+function getOldKey(userId: string) {
+  return `${KEY}_${userId}`;
+}
+
 function isPlainObject(v: unknown): v is Record<string, any> {
   return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function safeTrim(v: any) {
+  if (typeof v !== "string") return v;
+  const t = v.trim();
+  return t;
+}
+
+/** ✅ helper normalize ipfs://CID hoặc cid -> gateway (dùng cho avatar/cover/metadata nếu cần) */
+export function toGateway(input?: string) {
+  if (typeof input !== "string") return "";
+  const v = input.trim();
+  if (!v) return "";
+
+  // URL đầy đủ
+  if (v.startsWith("http://") || v.startsWith("https://")) return v;
+
+  // ipfs://CID/...
+  if (v.startsWith("ipfs://")) {
+    return `https://gateway.pinata.cloud/ipfs/${v.replace("ipfs://", "")}`;
+  }
+
+  // CID thuần
+  return `https://gateway.pinata.cloud/ipfs/${v}`;
 }
 
 /** merge sâu tối thiểu cho profile (tránh mất socials/options khi update 1 phần) */
@@ -51,6 +83,15 @@ function mergeProfile(base: UserProfile, patch: UserProfile): UserProfile {
     out.options = { ...(base?.options || {}), ...(patch?.options || {}) };
   }
 
+  // normalize string fields (trim)
+  (Object.keys(out) as (keyof UserProfile)[]).forEach((k) => {
+    // @ts-ignore
+    out[k] = safeTrim(out[k]);
+  });
+
+  // normalize avatar: cho phép ipfs:// hoặc cid hoặc http(s)
+  if (out.avatar) out.avatar = String(out.avatar).trim();
+
   return out;
 }
 
@@ -60,10 +101,17 @@ function safeParseProfile(raw: string | null): UserProfile | null {
     const v = JSON.parse(raw);
     if (!isPlainObject(v)) return null;
 
-    // normalize: đảm bảo socials/options là object nếu có
     const p: UserProfile = { ...v };
+
+    // normalize: đảm bảo socials/options là object nếu có
     if (p.socials && !isPlainObject(p.socials)) delete (p as any).socials;
     if (p.options && !isPlainObject(p.options)) delete (p as any).options;
+
+    // trim strings
+    (Object.keys(p) as (keyof UserProfile)[]).forEach((k) => {
+      // @ts-ignore
+      p[k] = safeTrim(p[k]);
+    });
 
     return p;
   } catch {
@@ -71,21 +119,39 @@ function safeParseProfile(raw: string | null): UserProfile | null {
   }
 }
 
+/**
+ * ✅ loadProfile(userId)
+ * - đọc key mới trước
+ * - nếu có key cũ -> migrate
+ * - nếu lỡ tồn tại cả 2 -> merge (tránh mất field)
+ */
 export function loadProfile(userId: string): UserProfile {
   if (typeof window === "undefined") return {};
   if (!userId) return {};
 
   const newKey = getKey(userId);
-  const oldKey = `${KEY}_${userId}`;
+  const oldKey = getOldKey(userId);
 
   try {
-    const pNew = safeParseProfile(localStorage.getItem(newKey));
+    const rawNew = localStorage.getItem(newKey);
+    const rawOld = localStorage.getItem(oldKey);
+
+    const pNew = safeParseProfile(rawNew);
+    const pOld = safeParseProfile(rawOld);
+
+    // case: có cả 2 -> merge và lưu về key mới
+    if (pNew && pOld) {
+      const merged = mergeProfile(pOld, pNew); // new override old
+      localStorage.setItem(newKey, JSON.stringify(merged));
+      localStorage.removeItem(oldKey);
+      return merged;
+    }
+
+    // case: chỉ có new
     if (pNew) return pNew;
 
-    const rawOld = localStorage.getItem(oldKey);
-    const pOld = safeParseProfile(rawOld);
+    // case: chỉ có old -> migrate
     if (pOld && rawOld) {
-      // migrate old -> new
       localStorage.setItem(newKey, rawOld);
       localStorage.removeItem(oldKey);
       return pOld;
@@ -103,16 +169,21 @@ export function loadProfile(userId: string): UserProfile {
 }
 
 /**
- * ✅ saveProfile(userId, data)
+ * ✅ saveProfile(userId, data, options?)
  * - mặc định MERGE với profile hiện tại để không mất field
+ * - options.replace=true => ghi đè hoàn toàn (ít dùng)
  * - vẫn dispatch event same-tab
  */
-export function saveProfile(userId: string, data: UserProfile) {
+export function saveProfile(
+  userId: string,
+  data: UserProfile,
+  options: { replace?: boolean } = {}
+) {
   if (typeof window === "undefined") return;
   if (!userId) return;
 
   try {
-    const current = loadProfile(userId);
+    const current = options.replace ? ({} as UserProfile) : loadProfile(userId);
     const merged = mergeProfile(current, data);
 
     localStorage.setItem(getKey(userId), JSON.stringify(merged));
@@ -130,7 +201,7 @@ export function clearProfile(userId: string) {
 
   try {
     localStorage.removeItem(getKey(userId));
-    localStorage.removeItem(`${KEY}_${userId}`);
+    localStorage.removeItem(getOldKey(userId));
     window.dispatchEvent(
       new CustomEvent(PROFILE_UPDATED_EVENT, { detail: { userId } })
     );
@@ -140,7 +211,7 @@ export function clearProfile(userId: string) {
 /**
  * clearAllProfiles:
  * - xoá hết key profile
- * - (tuỳ) có thể bắn 1 event chung để UI refresh nếu bạn muốn
+ * - (tuỳ) notify "*" để UI reload
  */
 export function clearAllProfiles({ notify = false }: { notify?: boolean } = {}) {
   if (typeof window === "undefined") return;
@@ -163,13 +234,17 @@ export function clearAllProfiles({ notify = false }: { notify?: boolean } = {}) 
 }
 
 /**
- * ✅ subscribeProfile(userId, cb)
+ * ✅ subscribeProfile(userId, cb, options?)
  * - nghe PROFILE_UPDATED_EVENT (same tab)
  * - nghe storage event (other tabs)
  * - gọi cb lần đầu để sync UI ngay
  * - debounce nhẹ để tránh spam setState
  */
-export function subscribeProfile(userId: string, cb: (p: UserProfile) => void) {
+export function subscribeProfile(
+  userId: string,
+  cb: (p: UserProfile) => void,
+  options?: { listenAll?: boolean }
+) {
   if (typeof window === "undefined") return () => {};
   if (!userId) return () => {};
 
@@ -183,21 +258,24 @@ export function subscribeProfile(userId: string, cb: (p: UserProfile) => void) {
     const anyEv = ev as any;
     const changedId = anyEv?.detail?.userId as string | undefined;
 
-    // nếu notify "*" (clearAllProfiles notify) thì cũng reload
-    if (changedId !== userId && changedId !== "*") return;
-    emit();
+    if (changedId === userId) return emit();
+
+    // ✅ nếu notify "*" và listenAll=true thì reload
+    if (options?.listenAll && changedId === "*") return emit();
   };
 
   const onStorage = (e: StorageEvent) => {
     if (!e.key) return;
-    if (e.key !== getKey(userId) && e.key !== `${KEY}_${userId}`) return;
+    const KEY = "chainstorm_profile";
+    const newKey = `${KEY}:${userId}`;
+    const oldKey = `${KEY}_${userId}`;
+    if (e.key !== newKey && e.key !== oldKey) return;
     emit();
   };
 
   window.addEventListener(PROFILE_UPDATED_EVENT, onLocal as any);
   window.addEventListener("storage", onStorage);
 
-  // sync ngay lúc subscribe
   emit();
 
   return () => {
@@ -205,4 +283,59 @@ export function subscribeProfile(userId: string, cb: (p: UserProfile) => void) {
     window.removeEventListener(PROFILE_UPDATED_EVENT, onLocal as any);
     window.removeEventListener("storage", onStorage);
   };
+}
+
+// ===== FIND PROFILE (scan localStorage) =====
+
+export function findProfileByEmail(email?: string) {
+  if (typeof window === "undefined") return null;
+  const target = String(email || "").trim().toLowerCase();
+  if (!target) return null;
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+
+      // key dạng chainstorm_profile:<id>
+      if (!k.startsWith(`${KEY}:`)) continue;
+
+      const raw = localStorage.getItem(k);
+      const p = safeParseProfile(raw);
+      if (!p) continue;
+
+      if (String(p.email || "").trim().toLowerCase() === target) {
+        const userId = k.replace(`${KEY}:`, "");
+        return { userId, profile: p as UserProfile };
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+export function findProfileByWallet(wallet?: string) {
+  if (typeof window === "undefined") return null;
+  const target = String(wallet || "").trim().toLowerCase();
+  if (!target) return null;
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+
+      if (!k.startsWith(`${KEY}:`)) continue;
+
+      const raw = localStorage.getItem(k);
+      const p = safeParseProfile(raw);
+      if (!p) continue;
+
+      if (String(p.walletAddress || "").trim().toLowerCase() === target) {
+        const userId = k.replace(`${KEY}:`, "");
+        return { userId, profile: p as UserProfile };
+      }
+    }
+  } catch {}
+
+  return null;
 }

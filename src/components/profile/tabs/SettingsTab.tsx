@@ -2,45 +2,38 @@
 
 import styles from "@/styles/profile.module.css";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useState } from "react";
-import {
-  loadProfile,
-  saveProfile,
-  UserProfile,
-} from "@/lib/profileStore";
+import { useEffect, useMemo, useState } from "react";
+import { loadProfile, saveProfile, UserProfile } from "@/lib/profileStore";
+
+type SocialKey = "twitter" | "facebook" | "instagram" | "website";
 
 export default function SettingsTab() {
   const { user } = useAuth();
   const userId = user?.id || user?.email || "guest";
 
-  const [profile, setProfile] = useState<UserProfile>(
-    () => loadProfile(userId)
-  );
+  const [profile, setProfile] = useState<UserProfile>(() => loadProfile(userId));
 
   /* ===== AUTOSAVE ===== */
   useEffect(() => {
-    const t = setTimeout(
-      () => saveProfile(userId, profile),
-      600
-    );
+    const t = setTimeout(() => saveProfile(userId, profile), 600);
     return () => clearTimeout(t);
   }, [profile, userId]);
 
   const socials = profile.socials || {};
   const options = profile.options || {};
 
-  const setSocial = (k: string, v: string) =>
+  const setSocial = (k: SocialKey, v: string) =>
     setProfile({
       ...profile,
       socials: { ...socials, [k]: v },
     });
 
-  const toggleOption = (k: string) =>
+  const toggleOption = (k: keyof NonNullable<UserProfile["options"]>) =>
     setProfile({
       ...profile,
       options: {
         ...options,
-        [k]: !options[k as keyof typeof options],
+        [k]: !options?.[k],
       },
     });
 
@@ -53,29 +46,31 @@ export default function SettingsTab() {
         <div className={styles.socialGrid}>
           <SocialField
             label="Twitter"
+            kind="twitter"
             value={socials.twitter}
+            placeholder="https://twitter.com/username"
             onChange={(v) => setSocial("twitter", v)}
           />
           <SocialField
             label="Facebook"
+            kind="facebook"
             value={socials.facebook}
-            onChange={(v) =>
-              setSocial("facebook", v)
-            }
+            placeholder="https://facebook.com/..."
+            onChange={(v) => setSocial("facebook", v)}
           />
           <SocialField
             label="Instagram"
+            kind="instagram"
             value={socials.instagram}
-            onChange={(v) =>
-              setSocial("instagram", v)
-            }
+            placeholder="https://instagram.com/..."
+            onChange={(v) => setSocial("instagram", v)}
           />
           <SocialField
             label="Website"
+            kind="website"
             value={socials.website}
-            onChange={(v) =>
-              setSocial("website", v)
-            }
+            placeholder="https://your-site.com"
+            onChange={(v) => setSocial("website", v)}
           />
         </div>
       </section>
@@ -89,62 +84,107 @@ export default function SettingsTab() {
             label="Hiển thị hồ sơ công khai"
             desc="Cho phép người khác xem hồ sơ của bạn"
             checked={!!options.publicProfile}
-            onToggle={() =>
-              toggleOption("publicProfile")
-            }
+            onToggle={() => toggleOption("publicProfile")}
           />
 
           <OptionRow
             label="Hiển thị mạng xã hội"
             desc="Hiển thị link mạng xã hội trên hồ sơ"
             checked={!!options.showSocials}
-            onToggle={() =>
-              toggleOption("showSocials")
-            }
+            onToggle={() => toggleOption("showSocials")}
           />
 
           <OptionRow
             label="Cho phép liên hệ qua email"
             desc="Người khác có thể liên hệ bạn qua email"
             checked={!!options.allowEmailContact}
-            onToggle={() =>
-              toggleOption("allowEmailContact")
-            }
+            onToggle={() => toggleOption("allowEmailContact")}
           />
         </div>
 
-        <div className={styles.autoSaveHint}>
-          ✔ Cài đặt được lưu tự động
-        </div>
+        <div className={styles.autoSaveHint}>✔ Cài đặt được lưu tự động</div>
       </section>
     </div>
   );
 }
 
-/* ===== SUB COMPONENTS ===== */
+/* ================= SOCIAL FIELD ================= */
 
 function SocialField({
   label,
+  kind,
   value,
+  placeholder,
   onChange,
 }: {
   label: string;
+  kind: SocialKey;
   value?: string;
+  placeholder?: string;
   onChange: (v: string) => void;
 }) {
+  const v = value || "";
+
+  const status = useMemo(() => {
+    if (!v.trim()) return "empty" as const;
+    return isValidUrl(v) ? ("ok" as const) : ("bad" as const);
+  }, [v]);
+
+  const helperText = useMemo(() => {
+    if (status === "empty") return "Để trống nếu bạn không muốn hiển thị";
+    if (status === "ok") return "Hợp lệ";
+    return "Link chưa đúng định dạng (nên có https://)";
+  }, [status]);
+
+  const normalizeOnBlur = () => {
+    const next = normalizeUrl(v);
+    if (next !== v) onChange(next);
+  };
+
   return (
     <div className={styles.socialField}>
       <label>{label}</label>
-      <input
-        value={value || ""}
-        placeholder={`Nhập link ${label}`}
-        onChange={(e) =>
-          onChange(e.target.value)
-        }
-      />
+
+      <div className={styles.socialInputWrap}>
+        <span className={styles.socialIcon} aria-hidden>
+          {kind === "twitter" && <TwitterIcon />}
+          {kind === "facebook" && <FacebookIcon />}
+          {kind === "instagram" && <InstagramIcon />}
+          {kind === "website" && <GlobeIcon />}
+        </span>
+
+        <input
+          value={v}
+          placeholder={placeholder || `Nhập link ${label}`}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={normalizeOnBlur}
+          className={`${styles.socialInput} ${
+            status === "ok" ? styles.inputOk : status === "bad" ? styles.inputBad : ""
+          }`}
+        />
+
+        <span
+          className={`${styles.socialStatus} ${
+            status === "ok" ? styles.statusOk : status === "bad" ? styles.statusBad : styles.statusIdle
+          }`}
+          title={helperText}
+        >
+          {status === "ok" ? "✓" : status === "bad" ? "!" : "—"}
+        </span>
+      </div>
+
+      <div
+        className={`${styles.socialHint} ${
+          status === "ok" ? styles.hintOk : status === "bad" ? styles.hintBad : styles.hintIdle
+        }`}
+      >
+        {helperText}
+      </div>
     </div>
   );
 }
+
+/* ================= OPTIONS ================= */
 
 function OptionRow({
   label,
@@ -165,13 +205,74 @@ function OptionRow({
       </div>
 
       <button
-        className={`${styles.toggle} ${
-          checked ? styles.on : ""
-        }`}
+        className={`${styles.toggle} ${checked ? styles.on : ""}`}
         onClick={onToggle}
+        aria-label={checked ? "Bật" : "Tắt"}
+        type="button"
       >
         <span />
       </button>
     </div>
+  );
+}
+
+/* ================= HELPERS ================= */
+
+function normalizeUrl(input: string) {
+  const s = (input || "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  // nếu user nhập dạng "twitter.com/abc" -> tự thêm https://
+  if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/?.*/.test(s)) return `https://${s}`;
+  return s;
+}
+
+function isValidUrl(input: string) {
+  const s = normalizeUrl(input);
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/* ================= ICONS (INLINE SVG) ================= */
+
+function TwitterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M22 5.8c-.7.3-1.5.5-2.3.6.8-.5 1.4-1.2 1.7-2.1-.8.5-1.7.8-2.6 1A4 4 0 0 0 12 8.7a11.4 11.4 0 0 1-8.3-4.2 4 4 0 0 0 1.2 5.3c-.6 0-1.2-.2-1.7-.4v.1a4 4 0 0 0 3.2 3.9c-.5.1-1.1.1-1.6 0a4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.1a11.3 11.3 0 0 0 6.3 1.8c7.6 0 11.7-6.4 11.7-11.9v-.5c.8-.6 1.4-1.2 2-2z" />
+    </svg>
+  );
+}
+
+function FacebookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M14 8h2V5h-2c-2.2 0-4 1.8-4 4v3H8v3h2v7h3v-7h2.3l.7-3H13V9c0-.6.4-1 1-1z" />
+    </svg>
+  );
+}
+
+function InstagramIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="7" y="7" width="10" height="10" rx="3" />
+      <path d="M16.5 7.5h.01" />
+      <path d="M12 11a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+      <rect x="4" y="4" width="16" height="16" rx="5" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 0 1 0 18" />
+      <path d="M12 3a14 14 0 0 0 0 18" />
+    </svg>
   );
 }

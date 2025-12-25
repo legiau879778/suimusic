@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -52,6 +53,10 @@ function explorerTxUrl(net: "devnet" | "testnet" | "mainnet", digest: string) {
   return `https://suiexplorer.com/txblock/${digest}?network=${net}`;
 }
 
+/**
+ * ✅ FIX: toGateway phải accept CIDv0 + CIDv1 phổ biến (bafy/bafk/baf...).
+ * Tránh tình trạng cover/preview bị "" => No cover
+ */
 function toGateway(input?: string) {
   if (!input) return "";
 
@@ -64,8 +69,15 @@ function toGateway(input?: string) {
   v = v.replace(/^\/+/, "");
   if (v.startsWith("ipfs/")) v = v.slice("ipfs/".length);
 
-  // chặn rác (UUID) tránh spam 400
-  if (!v.startsWith("Qm") && !v.startsWith("bafy")) return "";
+  v = v.split("?")[0].split("#")[0];
+
+  const isLikelyCid =
+    v.startsWith("Qm") ||
+    v.startsWith("bafy") ||
+    v.startsWith("bafk") ||
+    v.startsWith("baf");
+
+  if (!isLikelyCid) return "";
 
   return `https://gateway.pinata.cloud/ipfs/${v}`;
 }
@@ -73,7 +85,6 @@ function toGateway(input?: string) {
 function normalizeIpfsUrl(url?: string) {
   return toGateway(url);
 }
-
 function cidToGateway(cidOrUrl?: string) {
   return toGateway(cidOrUrl);
 }
@@ -91,19 +102,19 @@ function toDDMMYYYY(iso?: string) {
 
 /** createdDate display for UI (work.createdDate ưu tiên) */
 function pickCreatedDate(work: Work, meta: any | null) {
-  const w = (work.createdDate || "").trim();
+  const w = String(work.createdDate || "").trim();
   if (w) return w;
 
-  const m1 = (meta?.properties?.createdDate || "").trim();
+  const m1 = String(meta?.properties?.createdDate || "").trim();
   if (m1) return m1;
 
-  const mIso = (meta?.properties?.createdAtISO || "").trim();
+  const mIso = String(meta?.properties?.createdAtISO || "").trim();
   if (mIso) return toDDMMYYYY(mIso);
 
   return "—";
 }
 
-/** SHA-256(CID) -> 0x..(32 bytes hex) to compare with Move `address` */
+/** SHA-256(CID) -> 0x..(32 bytes hex) */
 async function cidToAddressHex(cid: string): Promise<string> {
   const enc = new TextEncoder();
   const raw = enc.encode(cid);
@@ -114,14 +125,18 @@ async function cidToAddressHex(cid: string): Promise<string> {
   return hex;
 }
 
+/** ✅ FIX: đọc mime/name từ nhiều nơi (top-level + properties) */
 function guessKindFromFile(meta: any): "image" | "audio" | "video" | "pdf" | "other" {
   const t: string =
+    meta?.file?.mime ||
+    meta?.file?.type ||
     meta?.properties?.file?.type ||
     meta?.properties?.cover?.type ||
     meta?.mimeType ||
     "";
 
   const name: string =
+    meta?.file?.name ||
     meta?.properties?.file?.name ||
     meta?.properties?.cover?.name ||
     meta?.name ||
@@ -185,8 +200,6 @@ export default function ManagePage() {
 
   const PACKAGE_ID = cfg?.packageId || "";
   const MODULE = cfg?.module || "chainstorm_nft";
-  const SELL_FN = "sell_nft";
-  const ISSUE_LICENSE_FN = "issue_license";
 
   const [view, setView] = useState<ViewMode>("active");
   const [filter, setFilter] = useState<MarketFilter>("all");
@@ -194,24 +207,31 @@ export default function ManagePage() {
   const [works, setWorks] = useState<Work[]>([]);
   const [page, setPage] = useState(1);
 
+  /** ✅ FIX TS: cho phép string luôn (fallback "") */
   const prevStatus = useRef<Record<string, string>>({});
+
   const [syncingOwners, setSyncingOwners] = useState<Record<string, boolean>>({});
   const [syncingAll, setSyncingAll] = useState(false);
-  const [selling, setSelling] = useState(false);
-  const [licensing, setLicensing] = useState(false);
+
+  // ✅ per-card busy state
+  const [sellingId, setSellingId] = useState<string | null>(null);
+  const [licensingId, setLicensingId] = useState<string | null>(null);
 
   const [selected, setSelected] = useState<Work | null>(null);
 
   /* ================= Load list ================= */
 
-  function load() {
-    if (!user) {
+  const userId = user?.id || "";
+  const userRole = (user as any)?.role || "";
+
+  const load = useCallback(() => {
+    if (!userId) {
       setWorks([]);
       return;
     }
 
     const base = view === "trash" ? getTrashWorks() : getActiveWorks();
-    let list = user.role === "admin" ? base : base.filter((w) => w.authorId === user.id);
+    let list = userRole === "admin" ? base : base.filter((w) => w.authorId === userId);
 
     if (filter !== "all") {
       list = list.filter(
@@ -221,29 +241,33 @@ export default function ManagePage() {
       );
     }
 
+    // toast status change
     list.forEach((w) => {
-      const prev = prevStatus.current[w.id];
-      if (prev && prev !== w.status) {
+      const id = String(w.id);
+      const cur = (w.status ?? "") as string;
+
+      const prev = prevStatus.current[id];
+      if (prev && prev !== cur) {
         showToast(
-          `Tác phẩm "${w.title}" ${
-            w.status === "verified" ? "đã được duyệt" : "bị từ chối"
-          }`,
-          w.status === "verified" ? "success" : "warning"
+          `Tác phẩm "${w.title}" ${cur === "verified" ? "đã được duyệt" : "bị từ chối"}`,
+          cur === "verified" ? "success" : "warning"
         );
       }
-      prevStatus.current[w.id] = w.status;
+
+      // ✅ FIX TS: luôn là string
+      prevStatus.current[id] = cur;
     });
 
     setWorks(list as Work[]);
-  }
+  }, [filter, showToast, userId, userRole, view]);
 
   useEffect(() => {
     autoCleanTrash();
+
     load();
     window.addEventListener("works_updated", load);
     return () => window.removeEventListener("works_updated", load);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, filter, user]);
+  }, [load]);
 
   useEffect(() => setPage(1), [view, filter]);
 
@@ -261,62 +285,67 @@ export default function ManagePage() {
 
   /* ================= Auto-sync chain -> store ================= */
 
-  async function syncOneWorkFromChain(w: Work) {
-    if (!PACKAGE_ID?.startsWith("0x")) return;
+  const syncOneWorkFromChain = useCallback(
+    async (w: Work) => {
+      if (!PACKAGE_ID?.startsWith("0x")) return;
 
-    if (w.nftObjectId) {
-      const obj = await suiClient.getObject({
-        id: w.nftObjectId,
-        options: { showOwner: true },
-      });
-      const owner = (obj as any)?.data?.owner?.AddressOwner as string | undefined;
-      if (owner && owner.toLowerCase() !== (w.authorWallet || "").toLowerCase()) {
-        updateNFTOwner({ workId: w.id, newOwner: owner });
-      }
-      return;
-    }
-
-    const cid = (w.hash || "").trim();
-    if (!cid) return;
-
-    const ownerToScan = currentAccount?.address || w.authorWallet;
-    if (!ownerToScan) return;
-
-    const contentHashAddr = await cidToAddressHex(cid);
-    const type = `${PACKAGE_ID}::${MODULE}::WorkNFT`;
-
-    let cursor: string | null | undefined = null;
-
-    for (let i = 0; i < 6; i++) {
-      const resp = await suiClient.getOwnedObjects({
-        owner: ownerToScan,
-        filter: { StructType: type },
-        options: { showContent: true, showType: true },
-        cursor: cursor ?? undefined,
-        limit: 50,
-      });
-
-      for (const it of resp.data as any[]) {
-        const objectId = it?.data?.objectId as string | undefined;
-        const fields = it?.data?.content?.fields;
-        const ch = fields?.content_hash as string | undefined;
-
-        if (objectId && ch && ch.toLowerCase() === contentHashAddr.toLowerCase()) {
-          bindNFTToWork({
-            workId: w.id,
-            nftObjectId: objectId,
-            packageId: PACKAGE_ID,
-            txDigest: w.txDigest || "",
-            authorWallet: ownerToScan,
-          });
-          return;
+      // Case 1: đã có nftObjectId => sync owner
+      if (w.nftObjectId) {
+        const obj = await suiClient.getObject({
+          id: w.nftObjectId,
+          options: { showOwner: true },
+        });
+        const owner = (obj as any)?.data?.owner?.AddressOwner as string | undefined;
+        if (owner && owner.toLowerCase() !== String(w.authorWallet || "").toLowerCase()) {
+          updateNFTOwner({ workId: w.id, newOwner: owner });
         }
+        return;
       }
 
-      cursor = resp.nextCursor;
-      if (!resp.hasNextPage) break;
-    }
-  }
+      // Case 2: chưa có nftObjectId => scan theo content_hash
+      const cid = String(w.hash || "").trim();
+      if (!cid) return;
+
+      const ownerToScan = currentAccount?.address || w.authorWallet;
+      if (!ownerToScan) return;
+
+      const contentHashAddr = await cidToAddressHex(cid);
+      const type = `${PACKAGE_ID}::${MODULE}::WorkNFT`;
+
+      let cursor: string | null | undefined = null;
+
+      for (let i = 0; i < 6; i++) {
+        const resp = await suiClient.getOwnedObjects({
+          owner: ownerToScan,
+          filter: { StructType: type },
+          options: { showContent: true, showType: true },
+          cursor: cursor ?? undefined,
+          limit: 50,
+        });
+
+        for (const it of resp.data as any[]) {
+          const objectId = it?.data?.objectId as string | undefined;
+          const fields = it?.data?.content?.fields;
+          const ch = fields?.content_hash as string | undefined;
+
+          if (objectId && ch && ch.toLowerCase() === contentHashAddr.toLowerCase()) {
+            bindNFTToWork({
+              workId: w.id,
+              nftObjectId: objectId,
+              packageId: PACKAGE_ID,
+              txDigest: w.txDigest || "",
+              authorWallet: ownerToScan,
+            });
+            return;
+          }
+        }
+
+        cursor = resp.nextCursor;
+        if (!resp.hasNextPage) break;
+      }
+    },
+    [MODULE, PACKAGE_ID, currentAccount?.address, suiClient]
+  );
 
   async function handleSyncAll(reason?: string) {
     if (!currentAccount?.address) {
@@ -330,15 +359,14 @@ export default function ManagePage() {
 
     try {
       setSyncingAll(true);
-      if (reason) showToast(reason, "info");
-      else showToast("Đang auto-sync NFT từ chain...", "info");
+      showToast(reason || "Đang auto-sync NFT từ chain...", "info");
 
       const base = getActiveWorks();
-      const list = user?.role === "admin" ? base : base.filter((x) => x.authorId === user?.id);
+      const list = userRole === "admin" ? base : base.filter((x) => x.authorId === userId);
 
       const candidates = list.filter((w) => !!w.hash || !!w.nftObjectId);
-      const toProcess = candidates.slice(0, 6);
 
+      const toProcess = candidates.slice(0, 8);
       for (const w of toProcess) {
         // eslint-disable-next-line no-await-in-loop
         await syncOneWorkFromChain(w);
@@ -354,17 +382,19 @@ export default function ManagePage() {
   }
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     if (!currentAccount?.address) return;
     if (!PACKAGE_ID?.startsWith("0x")) return;
     if (view !== "active") return;
 
     const t = setInterval(() => {
       if (syncingAll || isPending) return;
+
       void (async () => {
         try {
           const base = getActiveWorks();
-          const list = user.role === "admin" ? base : base.filter((x) => x.authorId === user.id);
+          const list = userRole === "admin" ? base : base.filter((x) => x.authorId === userId);
+
           const candidates = list.filter((w) => !!w.hash || !!w.nftObjectId);
           const need = candidates.filter((w) => !w.nftObjectId || !w.authorWallet);
 
@@ -379,7 +409,16 @@ export default function ManagePage() {
     }, 30_000);
 
     return () => clearInterval(t);
-  }, [user, currentAccount?.address, PACKAGE_ID, view, syncingAll, isPending]);
+  }, [
+    userId,
+    userRole,
+    currentAccount?.address,
+    PACKAGE_ID,
+    view,
+    syncingAll,
+    isPending,
+    syncOneWorkFromChain,
+  ]);
 
   /* ================= Actions ================= */
 
@@ -436,14 +475,14 @@ export default function ManagePage() {
     }
 
     try {
-      setSelling(true);
+      setSellingId(work.id);
       showToast("Đang xử lý giao dịch bán NFT...", "info");
 
       const tx = new Transaction();
       const [payment] = tx.splitCoins(tx.gas, [tx.pure.u64(priceMist)]);
 
       tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULE}::${SELL_FN}`,
+        target: `${PACKAGE_ID}::${MODULE}::sell_nft`,
         arguments: [
           tx.object(work.nftObjectId),
           payment,
@@ -452,15 +491,12 @@ export default function ManagePage() {
         ],
       });
 
-      const result = await signAndExecuteTransaction({
-        transaction: tx,
-        execute: { options: { showEffects: true, showObjectChanges: true } },
-      });
+      const result = await signAndExecuteTransaction({ transaction: tx });
 
       markWorkSold({
         workId: work.id,
         buyerWallet: buyer,
-        txDigest: result.digest,
+        txDigest: (result as any).digest,
         priceMist: priceMist.toString(),
       });
 
@@ -469,7 +505,7 @@ export default function ManagePage() {
       console.error(e);
       showToast("Giao dịch thất bại", "error");
     } finally {
-      setSelling(false);
+      setSellingId(null);
     }
   }
 
@@ -497,29 +533,26 @@ export default function ManagePage() {
     }
 
     try {
-      setLicensing(true);
+      setLicensingId(work.id);
       showToast("Đang cấp license...", "info");
 
       const tx = new Transaction();
       tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULE}::${ISSUE_LICENSE_FN}`,
+        target: `${PACKAGE_ID}::${MODULE}::issue_license`,
         arguments: [
-          tx.pure.address(work.nftObjectId), // work_id: address
+          tx.object(work.nftObjectId),
           tx.pure.address(licensee),
           tx.pure.u8(Math.floor(royalty)),
         ],
       });
 
-      const result = await signAndExecuteTransaction({
-        transaction: tx,
-        execute: { options: { showEffects: true, showObjectChanges: true } },
-      });
+      const result = await signAndExecuteTransaction({ transaction: tx });
 
       bindLicenseToWork({
         workId: work.id,
         licensee,
         royalty,
-        txDigest: result.digest,
+        txDigest: (result as any).digest,
       });
 
       showToast("✅ Cấp license thành công", "success");
@@ -527,12 +560,12 @@ export default function ManagePage() {
       console.error(e);
       showToast("Cấp license thất bại", "error");
     } finally {
-      setLicensing(false);
+      setLicensingId(null);
     }
   }
 
   function handleSoftDelete(work: Work) {
-    if (!user) return;
+    if (!userId) return;
 
     const ok = confirm(`Đưa "${work.title}" vào thùng rác?`);
     if (!ok) return;
@@ -540,7 +573,7 @@ export default function ManagePage() {
     try {
       softDeleteWork({
         workId: work.id,
-        actor: { id: user.id, role: user.role },
+        actor: { id: userId, role: userRole as any },
         walletAddress: currentAccount?.address,
       });
       showToast("🗑️ Đã chuyển vào thùng rác", "success");
@@ -555,9 +588,9 @@ export default function ManagePage() {
   }
 
   function handleRestore(work: Work) {
-    if (!user) return;
+    if (!userId) return;
 
-    if (user.role !== "admin") {
+    if (userRole !== "admin") {
       showToast("Chỉ admin mới được khôi phục", "warning");
       return;
     }
@@ -566,7 +599,7 @@ export default function ManagePage() {
     if (!ok) return;
 
     try {
-      restoreWork({ workId: work.id, actor: { id: user.id, role: user.role } });
+      restoreWork({ workId: work.id, actor: { id: userId, role: userRole as any } });
       showToast("♻️ Đã khôi phục tác phẩm", "success");
     } catch (e: any) {
       console.error(e);
@@ -576,7 +609,7 @@ export default function ManagePage() {
 
   /* ================= Render ================= */
 
-  if (!user) {
+  if (!userId) {
     return (
       <div className={styles.page}>
         <div className={styles.locked}>
@@ -660,8 +693,8 @@ export default function ManagePage() {
             onRestore={() => handleRestore(w)}
             view={view}
             disableGlobal={isPending || syncingAll}
-            selling={selling}
-            licensing={licensing}
+            selling={sellingId === w.id}
+            licensing={licensingId === w.id}
             syncingOwner={!!syncingOwners[w.id]}
           />
         ))}
@@ -706,8 +739,8 @@ export default function ManagePage() {
           onRestore={() => handleRestore(selected)}
           view={view}
           disableGlobal={isPending || syncingAll}
-          selling={selling}
-          licensing={licensing}
+          selling={sellingId === selected.id}
+          licensing={licensingId === selected.id}
           syncingOwner={!!syncingOwners[selected.id]}
         />
       ) : null}
@@ -759,50 +792,62 @@ function WorkCard(props: {
       setMeta(null);
       return;
     }
-
     setLoadingMeta(true);
     fetchMetadata(metaUrl)
-      .then((m) => {
-        if (alive) setMeta(m);
-      })
-      .finally(() => {
-        if (alive) setLoadingMeta(false);
-      });
-
+      .then((m) => alive && setMeta(m))
+      .finally(() => alive && setLoadingMeta(false));
     return () => {
       alive = false;
     };
   }, [metaUrl]);
 
+  // ✅ cover fallback: properties.cover.url -> cover_image -> cover.url -> image
   const coverUrl = useMemo(() => {
-    // ✅ cover riêng ưu tiên
-    const cover = normalizeIpfsUrl(meta?.properties?.cover?.url);
+    const cover =
+      normalizeIpfsUrl(meta?.properties?.cover?.url) ||
+      normalizeIpfsUrl(meta?.cover_image) ||
+      normalizeIpfsUrl(meta?.cover?.url);
+
     const img = normalizeIpfsUrl(meta?.image);
     return cover || img || "";
   }, [meta]);
 
-  const mediaUrl = useMemo(() => {
-    const a = normalizeIpfsUrl(meta?.animation_url);
-    const file = normalizeIpfsUrl(meta?.properties?.file?.url);
-    return a || file || "";
-  }, [meta]);
-
   const kind = useMemo(() => guessKindFromFile(meta), [meta]);
-
   const createdText = useMemo(() => pickCreatedDate(work, meta), [work, meta]);
 
+  // ✅ FIX TS: s?: string
+  function statusLabel(s?: string) {
+    if (s === "verified") return "Đã duyệt";
+    if (s === "pending") return "Chờ duyệt";
+    if (s === "rejected") return "Từ chối";
+    return "—";
+  }
+  function sellTypeLabel(t?: string) {
+    if (t === "exclusive") return "Bán đứt";
+    if (t === "license") return "License";
+    return t || "—";
+  }
+
   return (
-    <div className={styles.card} onClick={onOpen} role="button" tabIndex={0}>
+    <div
+      className={styles.card}
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+    >
       <div className={styles.cardHead}>
         <div className={styles.cardTitle} title={work.title}>
           {work.title}
         </div>
 
         <div className={styles.badges}>
-          <span className={styles.badge} data-status={work.status}>
-            {work.status}
+          <span className={styles.badge} data-status={work.status ?? "unknown"}>
+            {statusLabel(work.status)}
           </span>
-          <span className={styles.badge2}>{work.sellType}</span>
+          <span className={styles.badge2}>{sellTypeLabel(work.sellType)}</span>
         </div>
       </div>
 
@@ -812,31 +857,33 @@ function WorkCard(props: {
         ) : coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className={styles.previewImg} src={coverUrl} alt={work.title} />
-        ) : kind === "image" && mediaUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className={styles.previewImg} src={mediaUrl} alt={work.title} />
         ) : (
           <div className={styles.previewEmpty}>No cover</div>
         )}
 
         <div className={styles.previewHint}>
-          {kind === "audio" ? "🎵 Audio" : kind === "video" ? "🎬 Video" : kind === "pdf" ? "📄 PDF" : "🧾"}
+          {kind === "audio"
+            ? "🎵 Audio"
+            : kind === "video"
+            ? "🎬 Video"
+            : kind === "pdf"
+            ? "📄 PDF"
+            : "🧾"}
         </div>
 
-        {/* ✅ NEW: createdDate badge (bottom-right) */}
-        <div className={styles.dateBadge} title="Ngày sáng tác">
+        <div
+          className={`${styles.dateBadge} ${createdText === "—" ? styles.dateBadgeMuted : ""}`}
+          title="Ngày sáng tác"
+        >
           {createdText}
         </div>
 
+        <div className={styles.previewOverlay}>
+          <span className={styles.previewCta}>Xem chi tiết →</span>
+        </div>
       </div>
 
       <div className={styles.info}>
-        {/* ✅ ADD createdDate */}
-        <div className={styles.kv}>
-          <span className={styles.k}>Ngày</span>
-          <span className={styles.v}>{createdText}</span>
-        </div>
-
         <div className={styles.kv}>
           <span className={styles.k}>NFT</span>
           <span className={styles.v}>
@@ -851,14 +898,16 @@ function WorkCard(props: {
                 {shortAddr(work.nftObjectId)}
               </a>
             ) : (
-              <span className={styles.warnText}>— (chưa bind)</span>
+              <span className={styles.warnText}>— chưa bind</span>
             )}
           </span>
         </div>
 
         <div className={styles.kv}>
           <span className={styles.k}>Owner</span>
-          <span className={styles.v}>{work.authorWallet ? shortAddr(work.authorWallet) : "—"}</span>
+          <span className={styles.v}>
+            {work.authorWallet ? shortAddr(work.authorWallet) : "—"}
+          </span>
         </div>
 
         <div className={styles.kv}>
@@ -876,7 +925,7 @@ function WorkCard(props: {
           disabled={view === "trash" || selling || disableGlobal}
           title={view === "trash" ? "Khôi phục trước khi thao tác" : "Bán NFT"}
         >
-          Bán
+          {selling ? "Đang bán…" : "Bán"}
         </button>
 
         <button
@@ -885,7 +934,7 @@ function WorkCard(props: {
           disabled={view === "trash" || licensing || disableGlobal}
           title={view === "trash" ? "Khôi phục trước khi thao tác" : "Cấp license"}
         >
-          License
+          {licensing ? "Đang cấp…" : "License"}
         </button>
 
         <button
@@ -949,7 +998,6 @@ function WorkDetailModal(props: {
 
   useEffect(() => {
     let alive = true;
-
     async function run() {
       if (!metaUrl) {
         setMeta(null);
@@ -960,7 +1008,6 @@ function WorkDetailModal(props: {
       if (alive) setMeta(m);
       if (alive) setLoadingMeta(false);
     }
-
     run();
     return () => {
       alive = false;
@@ -968,36 +1015,53 @@ function WorkDetailModal(props: {
   }, [metaUrl]);
 
   const coverUrl = useMemo(() => {
-    const cover = normalizeIpfsUrl(meta?.properties?.cover?.url);
+    const cover =
+      normalizeIpfsUrl(meta?.properties?.cover?.url) ||
+      normalizeIpfsUrl(meta?.cover_image) ||
+      normalizeIpfsUrl(meta?.cover?.url);
+
     const img = normalizeIpfsUrl(meta?.image);
     return cover || img || "";
   }, [meta]);
 
   const mediaUrl = useMemo(() => {
     const a = normalizeIpfsUrl(meta?.animation_url);
-    const file = normalizeIpfsUrl(meta?.properties?.file?.url);
-    return a || file || "";
+    const f =
+      normalizeIpfsUrl(meta?.file?.url) ||
+      normalizeIpfsUrl(meta?.properties?.file?.url);
+    return a || f || "";
   }, [meta]);
 
   const kind = useMemo(() => guessKindFromFile(meta), [meta]);
-
   const createdText = useMemo(() => pickCreatedDate(work, meta), [work, meta]);
 
-  function stop(e: React.MouseEvent) {
+  function stop(e: MouseEvent<HTMLDivElement>) {
     e.stopPropagation();
+  }
+
+  function statusLabel(s?: string) {
+    if (s === "verified") return "Đã duyệt";
+    if (s === "pending") return "Chờ duyệt";
+    if (s === "rejected") return "Từ chối";
+    return "—";
+  }
+  function sellTypeLabel(t?: string) {
+    if (t === "exclusive") return "Bán đứt";
+    if (t === "license") return "License";
+    return t || "—";
   }
 
   return (
     <div className={styles.modalOverlay} onClick={onClose} role="presentation">
-      <div className={styles.modal} onClick={stop} role="dialog" aria-modal="true">
-        <div className={styles.modalTop}>
+      <div className={styles.modalPro} onClick={stop} role="dialog" aria-modal="true">
+        <div className={styles.modalHeader}>
           <div>
             <div className={styles.modalTitle}>{work.title}</div>
             <div className={styles.modalSub}>
-              <span className={styles.badge} data-status={work.status}>
-                {work.status}
+              <span className={styles.badge} data-status={work.status ?? "unknown"}>
+                {statusLabel(work.status)}
               </span>
-              <span className={styles.badge2}>{work.sellType}</span>
+              <span className={styles.badge2}>{sellTypeLabel(work.sellType)}</span>
               <span className={styles.modalDot}>•</span>
               <span className={styles.mono}>{net}</span>
             </div>
@@ -1008,33 +1072,38 @@ function WorkDetailModal(props: {
           </button>
         </div>
 
-        <div className={styles.modalPreview}>
+        <div className={styles.modalPreviewPro}>
           {loadingMeta ? (
             <div className={styles.previewLoading}>Loading…</div>
           ) : coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img className={styles.modalImg} src={coverUrl} alt={work.title} />
+            <img className={styles.modalImgPro} src={coverUrl} alt={work.title} />
           ) : (
             <div className={styles.previewEmpty}>No cover</div>
           )}
-          {/* ✅ NEW: createdDate badge (bottom-right) */}
-          <div className={styles.dateBadge} title="Ngày sáng tác">
+
+          <div className={styles.previewGrid} />
+          <div className={styles.previewGloss} />
+
+          <div className={`${styles.dateBadge} ${createdText === "—" ? styles.dateBadgeMuted : ""}`}>
             {createdText}
           </div>
         </div>
 
-        <div className={styles.mediaBox}>
+        <div className={styles.mediaBoxPro}>
           <div className={styles.mediaHead}>
-            <div className={styles.mediaTitle}>Preview</div>
+            <div className={styles.mediaTitle}>Preview file</div>
             {mediaUrl ? (
               <a className={styles.link} href={mediaUrl} target="_blank" rel="noreferrer">
-                Open file
+                Open
               </a>
             ) : null}
           </div>
 
           {!mediaUrl ? (
-            <div className={styles.mediaEmpty}>Không có file preview (metadata thiếu animation_url / file.url).</div>
+            <div className={styles.mediaEmpty}>
+              Không có file preview (metadata thiếu animation_url / file.url).
+            </div>
           ) : kind === "audio" ? (
             <audio className={styles.audio} controls src={mediaUrl} />
           ) : kind === "video" ? (
@@ -1054,10 +1123,8 @@ function WorkDetailModal(props: {
           )}
         </div>
 
-        <div className={styles.modalGrid}>
-          {/* ✅ ADD createdDate */}
+        <div className={styles.modalGridPro}>
           <KV label="Ngày sáng tác" value={createdText} />
-
           <KV label="Owner" value={work.authorWallet ? shortAddr(work.authorWallet) : "—"} mono />
           <KV label="Royalty" value={`${work.royalty ?? 0}%`} />
 
@@ -1065,7 +1132,12 @@ function WorkDetailModal(props: {
             label="NFT"
             value={
               work.nftObjectId ? (
-                <a className={styles.link} href={explorerObjUrl(net, work.nftObjectId)} target="_blank" rel="noreferrer">
+                <a
+                  className={styles.link}
+                  href={explorerObjUrl(net, work.nftObjectId)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {work.nftObjectId}
                 </a>
               ) : (
@@ -1079,7 +1151,12 @@ function WorkDetailModal(props: {
             label="Tx"
             value={
               work.txDigest ? (
-                <a className={styles.link} href={explorerTxUrl(net, work.txDigest)} target="_blank" rel="noreferrer">
+                <a
+                  className={styles.link}
+                  href={explorerTxUrl(net, work.txDigest)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {work.txDigest}
                 </a>
               ) : (
@@ -1105,7 +1182,9 @@ function WorkDetailModal(props: {
 
           <KV
             label="Tác giả"
-            value={`${work.authorName || work.authorId}${work.authorPhone ? ` • ${work.authorPhone}` : ""}`}
+            value={`${work.authorName || work.authorId || "—"}${
+              work.authorPhone ? ` • ${work.authorPhone}` : ""
+            }`}
           />
         </div>
 
@@ -1124,15 +1203,22 @@ function WorkDetailModal(props: {
               {work.licenses
                 .slice()
                 .reverse()
-                .map((l, idx) => (
+                .map((l: any, idx: number) => (
                   <div key={idx} className={styles.licenseItem}>
                     <div className={styles.licenseRow}>
                       <span className={styles.mono}>{shortAddr(l.licensee)}</span>
                       <span className={styles.royaltyPill}>{l.royalty}%</span>
                     </div>
                     <div className={styles.licenseRow2}>
-                      <span className={styles.mutedSmall}>{new Date(l.issuedAt).toLocaleString()}</span>
-                      <a className={styles.linkSmall} href={explorerTxUrl(net, l.txDigest)} target="_blank" rel="noreferrer">
+                      <span className={styles.mutedSmall}>
+                        {new Date(l.issuedAt).toLocaleString()}
+                      </span>
+                      <a
+                        className={styles.linkSmall}
+                        href={explorerTxUrl(net, l.txDigest)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         tx
                       </a>
                     </div>
