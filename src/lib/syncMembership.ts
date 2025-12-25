@@ -9,10 +9,7 @@ import { getActiveMembership } from "@/lib/membershipStore";
  * - có membership => tối thiểu author để mở menu
  * - nếu không có membership thì cần wallet verified mới lên author
  */
-export function mapRoleFromMembership(
-  u: User,
-  membershipType: User["membership"]
-) {
+export function mapRoleFromMembership(u: User, membershipType: User["membership"]) {
   if (u.role === "admin") return "admin";
 
   const hasVerifiedWallet = !!u.wallet?.address && !!u.wallet?.verified;
@@ -23,7 +20,7 @@ export function mapRoleFromMembership(
 
 /**
  * ✅ sync membership từ store -> user.membership + role
- * - getActiveMembership({ userId, email }) sẽ dùng verify + cached (sau khi bạn fix store)
+ * - getActiveMembership({ userId, email }) sẽ dùng verify + cached
  */
 export async function syncUserMembershipAndRole(u: User): Promise<User> {
   const userId = (u.id || "").trim();
@@ -31,7 +28,9 @@ export async function syncUserMembershipAndRole(u: User): Promise<User> {
   if (!userId) return u;
 
   const m = await getActiveMembership({ userId, email }).catch(() => null);
-  const membershipType = (m?.type ?? null) as User["membership"];
+
+  // ✅ không cần cast nữa nếu AuthContext.membership đã đồng bộ store
+  const membershipType: User["membership"] = m?.type ?? null;
 
   const nextRole = mapRoleFromMembership(u, membershipType);
 
