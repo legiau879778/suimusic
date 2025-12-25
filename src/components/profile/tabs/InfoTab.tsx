@@ -108,8 +108,17 @@ function InternalQR({
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
-    QRCode.toCanvas(ref.current, value, {
+    const canvas = ref.current;
+    if (!canvas) return;
+
+    // ✅ tránh vẽ QR khi value rỗng
+    if (!value) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    QRCode.toCanvas(canvas, value, {
       width: size,
       margin: 1,
       errorCorrectionLevel: "M",
@@ -355,7 +364,7 @@ export default function InfoTab() {
         {!isConnected || !currentAccount ? (
           <div className={styles.walletConnectBox}>
             <p>Bạn chưa kết nối ví SUI</p>
-            <button className={styles.connectBtn} onClick={connectWallet}>
+            <button className={styles.connectBtn} onClick={connectWallet} type="button">
               Kết nối ví
             </button>
 
@@ -390,7 +399,7 @@ export default function InfoTab() {
 
             <div className={styles.walletRow}>
               <input value={currentAccount.address} readOnly />
-              <button className={styles.copyBtn} onClick={copyAddress}>
+              <button className={styles.copyBtn} onClick={copyAddress} type="button">
                 {copied ? "✓" : "COPY"}
               </button>
             </div>
@@ -400,11 +409,11 @@ export default function InfoTab() {
               <strong>{balance} SUI</strong>
             </div>
 
-            <button className={styles.disconnectBtn} onClick={disconnectWallet}>
+            <button className={styles.disconnectBtn} onClick={disconnectWallet} type="button">
               Ngắt kết nối ví
             </button>
 
-            {/* QR nội bộ + info (giống figma: wallet + QR) */}
+            {/* QR nội bộ + info */}
             <div className={styles.qrWrap}>
               <div className={styles.qrHeader}>
                 <div className={styles.qrTitle}>QR nội bộ</div>
@@ -490,7 +499,11 @@ function Field({
       {hint ? (
         <div
           className={`${styles.fieldHint} ${
-            hintTone === "ok" ? styles.hintOk : hintTone === "bad" ? styles.hintBad : styles.hintIdle
+            hintTone === "ok"
+              ? styles.hintOk
+              : hintTone === "bad"
+              ? styles.hintBad
+              : styles.hintIdle
           }`}
         >
           {hint}
@@ -512,7 +525,10 @@ function FieldFull({
   return (
     <div className={styles.formFieldFull}>
       <label>{label}</label>
-      <input value={value ?? ""} onChange={onChange ? (e) => onChange(e.target.value) : undefined} />
+      <input
+        value={value ?? ""}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+      />
     </div>
   );
 }
