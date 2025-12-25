@@ -20,6 +20,21 @@ type Props = {
   onSuccess: (m: Membership) => void;
 };
 
+// ✅ artist plan local (nếu membershipStore chưa khai báo type)
+type ArtistPlan = "1m" | "3m" | "1y";
+
+function planLabel(type: MembershipType, planCreator: CreatorPlan, planArtist: ArtistPlan) {
+  if (type === "creator") return planCreator.toUpperCase();
+  if (type === "artist") return planArtist === "1m" ? "1 THÁNG" : planArtist === "3m" ? "3 THÁNG" : "1 NĂM";
+  return "";
+}
+
+function planSubArtist(p: ArtistPlan) {
+  if (p === "1m") return "2.5 SUI · ~30 ngày";
+  if (p === "3m") return "7.5 SUI · ~90 ngày";
+  return "30 SUI · ~365 ngày";
+}
+
 export default function MembershipModal({ type, onClose, onSuccess }: Props) {
   const { pushToast } = useToast();
   const currentAccount = useCurrentAccount();
@@ -28,10 +43,14 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
   const memberKey = (user?.id || user?.email || "").trim();
 
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<CreatorPlan>("starter");
+
+  // ✅ plan theo type
+  const [creatorPlan, setCreatorPlan] = useState<CreatorPlan>("starter");
+  const [artistPlan, setArtistPlan] = useState<ArtistPlan>("1y");
 
   useEffect(() => {
-    if (type === "creator") setPlan("starter");
+    if (type === "creator") setCreatorPlan("starter");
+    if (type === "artist") setArtistPlan("1y");
   }, [type]);
 
   // ✅ lock scroll when modal open
@@ -43,10 +62,16 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
     };
   }, []);
 
+  // ✅ base membership cho store tính giá + thời hạn
   const base = useMemo(() => {
-    const b: Pick<Membership, "type" | "plan"> = type === "creator" ? { type, plan } : { type };
-    return b;
-  }, [type, plan]);
+    if (type === "creator") return { type, plan: creatorPlan } as Pick<Membership, "type" | "plan">;
+
+    // ✅ Artist có plan 1m/3m/1y
+    if (type === "artist") return { type, plan: artistPlan as any } as Pick<Membership, "type" | "plan">;
+
+    // business / ai (nếu ai locked thì thường không mở modal)
+    return { type } as Pick<Membership, "type" | "plan">;
+  }, [type, creatorPlan, artistPlan]);
 
   const priceSui = useMemo(() => getMembershipPriceSui(base), [base]);
   const durationMs = useMemo(() => getMembershipDurationMs(base), [base]);
@@ -67,7 +92,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
       const expireAt = Date.now() + durationMs;
 
       const membership: Membership = {
-        ...base,
+        ...(base as any),
         expireAt,
         txHash,
         paidAmountSui: priceSui,
@@ -86,6 +111,9 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
     }
   }
 
+  const days = Math.max(1, Math.round(durationMs / (24 * 60 * 60 * 1000)));
+  const planText = planLabel(type, creatorPlan, artistPlan);
+
   return (
     <div className={styles.modalOverlay} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
@@ -100,12 +128,12 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
           <div className={styles.modalSummary}>
             <div className={styles.modalLine}>
               Bạn đang mua gói <strong>{type.toUpperCase()}</strong>
-              {type === "creator" ? (
+              {(type === "creator" || type === "artist") && (
                 <>
                   {" "}
-                  · <strong>{plan.toUpperCase()}</strong>
+                  · <strong>{planText}</strong>
                 </>
-              ) : null}
+              )}
             </div>
 
             <div className={styles.modalMeta}>
@@ -113,19 +141,20 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                 Phí dự kiến: <strong>{priceSui} SUI</strong>
               </span>
               <span>
-                Thời hạn: <strong>{Math.round(durationMs / (24 * 60 * 60 * 1000))} ngày</strong>
+                Thời hạn: <strong>{days} ngày</strong>
               </span>
             </div>
           </div>
 
+          {/* ✅ CREATOR: starter/pro/studio */}
           {type === "creator" && (
             <div className={styles.planGrid}>
               {(["starter", "pro", "studio"] as CreatorPlan[]).map((p) => (
                 <button
                   key={p}
                   type="button"
-                  className={`${styles.pickBtn} ${plan === p ? styles.pickActive : ""}`}
-                  onClick={() => setPlan(p)}
+                  className={`${styles.pickBtn} ${creatorPlan === p ? styles.pickActive : ""}`}
+                  onClick={() => setCreatorPlan(p)}
                   disabled={loading}
                 >
                   <div className={styles.pickTitle}>{p.toUpperCase()}</div>
@@ -136,6 +165,24 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                       ? "15 SUI/tháng · không giới hạn"
                       : "40 SUI/tháng · team"}
                   </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ✅ ARTIST: 1m / 3m / 1y */}
+          {type === "artist" && (
+            <div className={styles.planGrid}>
+              {(["1m", "3m", "1y"] as ArtistPlan[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`${styles.pickBtn} ${artistPlan === p ? styles.pickActive : ""}`}
+                  onClick={() => setArtistPlan(p)}
+                  disabled={loading}
+                >
+                  <div className={styles.pickTitle}>{p === "1m" ? "1 THÁNG" : p === "3m" ? "3 THÁNG" : "1 NĂM"}</div>
+                  <div className={styles.pickSub}>{planSubArtist(p)}</div>
                 </button>
               ))}
             </div>
