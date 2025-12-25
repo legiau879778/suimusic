@@ -3,12 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-HEAD
-import { useEffect, useState } from "react";
-import styles from '@/styles/header.module.css'
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/styles/header.module.css";
-e1d6e1383e50df77f91295a5cf7e4b97a8024fa7
 import { useAuth } from "@/context/AuthContext";
 import { useModal } from "@/context/ModalContext";
 import { saveRedirect } from "@/lib/redirect";
