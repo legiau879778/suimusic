@@ -4,11 +4,16 @@ import { suiClient } from "./suiClient";
 /* ================= TYPES ================= */
 
 export type MembershipType = "artist" | "creator" | "business";
+
 export type CreatorPlan = "starter" | "pro" | "studio";
+export type ArtistPlan = "1m" | "3m" | "1y";
 
 export type Membership = {
   type: MembershipType;
-  plan?: CreatorPlan;
+
+  // ✅ plan theo type
+  plan?: CreatorPlan | ArtistPlan;
+
   expireAt: number;
   txHash: string;
   paidAmountSui?: number;
@@ -56,31 +61,57 @@ function possibleKeys(userId: string, email?: string) {
 /* ================= PRICING ================= */
 
 export const PRICES_SUI = {
-  artist_year: 30,
+  // ✅ Artist theo kỳ hạn
+  artist_1m: 2.5,
+  artist_3m: 7.5,
+  artist_1y: 30,
+
   creator_starter_month: 5,
   creator_pro_month: 15,
   creator_studio_month: 40,
+
   business_year: 60,
 } as const;
 
-export function getMembershipPriceSui(
-  m: Pick<Membership, "type" | "plan">
-): number {
-  if (m.type === "artist") return PRICES_SUI.artist_year;
+function isArtistPlan(p: unknown): p is ArtistPlan {
+  return p === "1m" || p === "3m" || p === "1y";
+}
+
+function isCreatorPlan(p: unknown): p is CreatorPlan {
+  return p === "starter" || p === "pro" || p === "studio";
+}
+
+export function getMembershipPriceSui(m: Pick<Membership, "type" | "plan">): number {
+  if (m.type === "artist") {
+    const p = isArtistPlan(m.plan) ? m.plan : "1y";
+    if (p === "1m") return PRICES_SUI.artist_1m;
+    if (p === "3m") return PRICES_SUI.artist_3m;
+    return PRICES_SUI.artist_1y;
+  }
+
   if (m.type === "business") return PRICES_SUI.business_year;
 
-  if (m.plan === "starter") return PRICES_SUI.creator_starter_month;
-  if (m.plan === "pro") return PRICES_SUI.creator_pro_month;
+  // creator
+  const p = isCreatorPlan(m.plan) ? m.plan : "starter";
+  if (p === "starter") return PRICES_SUI.creator_starter_month;
+  if (p === "pro") return PRICES_SUI.creator_pro_month;
   return PRICES_SUI.creator_studio_month;
 }
 
-export function getMembershipDurationMs(
-  m: Pick<Membership, "type" | "plan">
-): number {
+export function getMembershipDurationMs(m: Pick<Membership, "type" | "plan">): number {
   const DAY = 24 * 60 * 60 * 1000;
-  if (m.type === "artist") return 365 * DAY;
+
+  if (m.type === "artist") {
+    const p = isArtistPlan(m.plan) ? m.plan : "1y";
+    if (p === "1m") return 30 * DAY;
+    if (p === "3m") return 90 * DAY;
+    return 365 * DAY;
+  }
+
   if (m.type === "business") return 365 * DAY;
-  return 30 * DAY; // creator
+
+  // creator
+  return 30 * DAY;
 }
 
 export function isMembershipActive(m: Membership) {
@@ -94,6 +125,9 @@ export const CREATOR_STARTER_MUSIC_USE_LIMIT = 20;
 export function getFeaturePolicy(m: Membership | null) {
   const type = m?.type;
 
+  // artist plan not affect entitlements, only duration/price
+  const plan = m?.plan;
+
   return {
     // menu
     canManage: type === "artist",
@@ -101,18 +135,16 @@ export function getFeaturePolicy(m: Membership | null) {
     canTrade: type === "creator" || type === "business",
 
     // creator plan flags
-    creatorPlan: type === "creator" ? m?.plan : undefined,
+    creatorPlan: type === "creator" && isCreatorPlan(plan) ? plan : undefined,
     creatorUnlimited:
-      type === "creator" ? m?.plan === "pro" || m?.plan === "studio" : false,
-    creatorTeam: type === "creator" ? m?.plan === "studio" : false,
+      type === "creator" && isCreatorPlan(plan) ? plan === "pro" || plan === "studio" : false,
+    creatorTeam: type === "creator" && isCreatorPlan(plan) ? plan === "studio" : false,
 
     // feature-level
     musicUseUnlimited:
-      type === "creator" ? m?.plan === "pro" || m?.plan === "studio" : false,
+      type === "creator" && isCreatorPlan(plan) ? plan === "pro" || plan === "studio" : false,
     musicUseLimit:
-      type === "creator" && m?.plan === "starter"
-        ? CREATOR_STARTER_MUSIC_USE_LIMIT
-        : 0,
+      type === "creator" && plan === "starter" ? CREATOR_STARTER_MUSIC_USE_LIMIT : 0,
   };
 }
 
@@ -120,9 +152,16 @@ export function getFeaturePolicy(m: Membership | null) {
 
 export function getMembershipBadgeLabel(m: Membership): string {
   if (m.type === "creator") {
-    const p = m.plan ? ` • ${m.plan.toUpperCase()}` : "";
+    const p = isCreatorPlan(m.plan) ? ` • ${m.plan.toUpperCase()}` : "";
     return `CREATOR${p}`;
   }
+
+  if (m.type === "artist") {
+    const p = isArtistPlan(m.plan) ? m.plan : undefined;
+    const label = p === "1m" ? " • 1 THÁNG" : p === "3m" ? " • 3 THÁNG" : p === "1y" ? " • 1 NĂM" : "";
+    return `ARTIST${label}`;
+  }
+
   return m.type.toUpperCase();
 }
 
@@ -141,8 +180,7 @@ export async function verifyMembershipResult(m: Membership): Promise<VerifyResul
     if (!m?.txHash) return "invalid";
     if (!isMembershipActive(m)) return "invalid";
 
-    // ✅ DEMO MODE: cho phép txHash giả để làm đồ án
-    // Bạn có thể set NEXT_PUBLIC_MEMBERSHIP_VERIFY=0 để bỏ verify toàn bộ
+    // ✅ DEMO MODE
     const verifyEnabled =
       typeof process !== "undefined"
         ? process.env.NEXT_PUBLIC_MEMBERSHIP_VERIFY !== "0"
@@ -150,7 +188,7 @@ export async function verifyMembershipResult(m: Membership): Promise<VerifyResul
 
     if (!verifyEnabled) return "ok";
 
-    // demo txHash (random) thường không tồn tại -> pending
+    // demo txHash
     if (m.txHash.startsWith("demo_")) return "ok";
 
     const tx = await suiClient.getTransactionBlock({
@@ -185,7 +223,6 @@ export async function verifyMembershipResult(m: Membership): Promise<VerifyResul
 
     return paid ? "ok" : "invalid";
   } catch (e: any) {
-    // ✅ Nếu không tìm thấy tx digest => PENDING (đừng xóa local)
     const msg = String(e?.message || e || "").toLowerCase();
     const notFound =
       msg.includes("not found") ||
@@ -198,7 +235,6 @@ export async function verifyMembershipResult(m: Membership): Promise<VerifyResul
     return notFound ? "pending" : "pending";
   }
 }
-
 
 /* ================= INTERNAL HELPERS ================= */
 
@@ -224,10 +260,7 @@ function emitUpdated() {
  * ✅ Cached membership (NO verify) – UI không “tụt” sau refresh.
  * Chỉ check expireAt.
  */
-export function getCachedMembership(
-  userId: string,
-  email?: string
-): Membership | null {
+export function getCachedMembership(userId: string, email?: string): Membership | null {
   if (typeof window === "undefined") return null;
   if (!userId) return null;
 
@@ -274,14 +307,12 @@ export async function getActiveMembership(
   const vr = await verifyMembershipResult(found);
 
   if (vr === "invalid") {
-    // ✅ chỉ xoá khi thật sự invalid
     for (const k of possibleKeys(userId, email)) localStorage.removeItem(k);
     emitUpdated();
     return null;
   }
 
-  // vr === "pending" -> giữ cached để UI/role cập nhật ngay
-  // vr === "ok" -> migrate key
+  // migrate key
   const canonical = keyById(userId);
   if (foundKey !== canonical) {
     localStorage.setItem(canonical, JSON.stringify(found));
@@ -289,7 +320,6 @@ export async function getActiveMembership(
 
   return found;
 }
-
 
 /**
  * ✅ Save membership
@@ -341,7 +371,6 @@ export function subscribeMembership(cb: () => void) {
   const onEvent = () => cb();
 
   const onStorage = (e: StorageEvent) => {
-    // chỉ react khi key liên quan membership
     const k = e.key || "";
     if (k.startsWith(KEY) || k.startsWith(`${KEY}_`)) cb();
   };
