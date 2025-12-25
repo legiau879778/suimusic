@@ -22,6 +22,9 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
 type SellTypeUI = "exclusive" | "license";
+
+type UploadStage = "idle" | "upload_file" | "upload_cover" | "upload_meta" | "done";
+
 type UploadResult = {
   cid: string;
   url: string;
@@ -48,6 +51,41 @@ function parseDDMMYYYYToISO(v: string): string | null {
     return null;
 
   return d.toISOString();
+}
+
+async function readApi(res: Response) {
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const text = await res.text();
+
+  if (!res.ok) {
+    // 413 / 502 / html/text đều không làm crash
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+
+  if (ct.includes("application/json")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+const MAX_MB = 4; // Vercel serverless thường ~4-5MB
+function guardSize(f: File) {
+  const mb = f.size / 1024 / 1024;
+  if (mb > MAX_MB) {
+    throw new Error(
+      `File quá lớn (${mb.toFixed(1)}MB). Giới hạn upload qua server ~${MAX_MB}MB. ` +
+        `Hãy dùng file nhỏ hơn hoặc chuyển sang direct upload.`
+    );
+  }
 }
 
 export default function RegisterWorkPage() {
@@ -80,18 +118,21 @@ export default function RegisterWorkPage() {
   const [sellType, setSellType] = useState<SellTypeUI>("exclusive");
   const [royalty, setRoyalty] = useState<string>("5");
 
-  // main file
+  // audio/work file
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadStage, setUploadStage] = useState<
-    "idle" | "upload_file" | "upload_cover" | "upload_meta" | "done"
-  >("idle");
 
+  // cover
+  const [cover, setCover] = useState<File | null>(null);
+
+  // upload
+  const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
+  const [uploadPct, setUploadPct] = useState(0);
+
+  // uploaded results
   const [fileCid, setFileCid] = useState("");
   const [fileUrl, setFileUrl] = useState("");
 
-  // cover (optional but recommended)
-  const [cover, setCover] = useState<File | null>(null);
   const [coverCid, setCoverCid] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
 
@@ -103,7 +144,7 @@ export default function RegisterWorkPage() {
   const [authorName, setAuthorName] = useState<string>("Unknown");
   const [authorPhone, setAuthorPhone] = useState<string>("");
 
-  // ✅ FIX: thêm email + avatar snapshot
+  // ✅ email + avatar snapshot
   const [authorEmail, setAuthorEmail] = useState<string>("");
   const [authorAvatar, setAuthorAvatar] = useState<string>("");
 
@@ -136,23 +177,72 @@ export default function RegisterWorkPage() {
     return unsub;
   }, [user?.id, user?.email, (user as any)?.avatar]);
 
+  /* =======================
+     ✅ helpers: progress UI
+  ======================= */
+  function stageLabel(s: UploadStage) {
+    switch (s) {
+      case "upload_file":
+        return "Uploading audio/file…";
+      case "upload_cover":
+        return "Uploading cover…";
+      case "upload_meta":
+        return "Uploading metadata…";
+      case "done":
+        return "Done";
+      default:
+        return "Idle";
+    }
+  }
+
+  // fetch() không có upload progress chuẩn, dùng stage-progress giả lập cho UX
+  function startFakeProgress(stage: UploadStage) {
+    setUploadStage(stage);
+    setUploadPct(2);
+
+    let pct = 2;
+    const cap = stage === "upload_file" ? 88 : stage === "upload_cover" ? 92 : 96;
+
+    const id = window.setInterval(() => {
+      const step = pct < 30 ? 6 : pct < 60 ? 4 : pct < 80 ? 2 : 1;
+      pct = Math.min(cap, pct + step);
+      setUploadPct(pct);
+    }, 250);
+
+    return () => window.clearInterval(id);
+  }
+
+  function finishProgress() {
+    setUploadPct(100);
+    window.setTimeout(() => setUploadPct(0), 450);
+  }
+
+  function resetIpfsState() {
+    setErr(null);
+    setFileCid("");
+    setFileUrl("");
+    setCoverCid("");
+    setCoverUrl("");
+    setMetaCid("");
+    setMetaUrl("");
+    setUploadStage("idle");
+    setUploadPct(0);
+  }
+
+  /* =======================
+     ✅ computed
+  ======================= */
   const royaltyNum = useMemo(() => {
     const n = Number(royalty);
     if (!Number.isFinite(n)) return 0;
     return Math.max(0, Math.min(100, Math.floor(n)));
   }, [royalty]);
 
-  const sellTypeU8 = useMemo(
-    () => (sellType === "exclusive" ? 1 : 2),
-    [sellType]
-  );
+  const sellTypeU8 = useMemo(() => (sellType === "exclusive" ? 1 : 2), [sellType]);
 
   const configOk = useMemo(() => {
     return Boolean(
-      PACKAGE_ID?.startsWith("0x") &&
-        REGISTRY_ID?.startsWith("0x") &&
-        MODULE &&
-        MINT_FN
+      PACKAGE_ID?.startsWith("0x") && REGISTRY_ID?.startsWith("0x") && MODULE && MINT_FN
     );
   }, [PACKAGE_ID, REGISTRY_ID, MODULE, MINT_FN]);
 
@@ -178,16 +268,7 @@ export default function RegisterWorkPage() {
     if (uploading) return false;
     if (isPending) return false;
     return true;
-  }, [
-    configOk,
-    user?.id,
-    walletAddress,
-    title,
-    file,
-    createdDateOk,
-    uploading,
-    isPending,
-  ]);
+  }, [configOk, user?.id, walletAddress, title, file, createdDateOk, uploading, isPending]);
 
   useEffect(() => setErr(null), [step, sellType, activeNet]);
 
@@ -198,47 +279,33 @@ export default function RegisterWorkPage() {
     return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "";
   }
 
-  /* =======================
-     ✅ IPFS helpers
-  ======================= */
-  async function uploadFileToIPFS(f: File): Promise<UploadResult> {
-    setUploading(true);
-    setUploadStage("upload_file");
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-
-      const res = await fetch("/api/ipfs/upload", { method: "POST", body: fd });
-      const data = await res.json();
-
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.error || "Upload IPFS failed");
-
-      return {
-        cid: data.cid,
-        url: data.url,
-        name: data.name,
-        size: data.size,
-        type: data.type,
-      };
-    } finally {
-      setUploading(false);
-    }
+  function isImageMime(mime?: string) {
+    return !!mime && mime.startsWith("image/");
   }
 
-  async function uploadCoverToIPFS(f: File): Promise<UploadResult> {
+  /* =======================
+     ✅ IPFS upload helpers
+     route name giữ nguyên:
+     - POST /api/ipfs/upload (FormData: file)
+     - POST /api/ipfs/upload-json (JSON)
+  ======================= */
+  async function uploadToIPFSFile(f: File, kind: "audio" | "cover"): Promise<UploadResult> {
     setUploading(true);
-    setUploadStage("upload_cover");
+    const stop =
+      kind === "audio" ? startFakeProgress("upload_file") : startFakeProgress("upload_cover");
+
     try {
+      guardSize(f);
+
       const fd = new FormData();
-      fd.append("file", f);
+      fd.append("file", f, f.name);
 
       const res = await fetch("/api/ipfs/upload", { method: "POST", body: fd });
-      const data = await res.json();
+      const data: any = await readApi(res);
 
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.error || "Upload cover failed");
+      if (!data?.ok) throw new Error(data?.error || "Upload IPFS failed");
 
+      finishProgress();
       return {
         cid: data.cid,
         url: data.url,
@@ -247,29 +314,33 @@ export default function RegisterWorkPage() {
         type: data.type,
       };
     } finally {
+      stop?.();
       setUploading(false);
     }
   }
 
   async function uploadJSONToIPFS(json: any): Promise<{ cid: string; url: string }> {
     setUploading(true);
-    setUploadStage("upload_meta");
+    const stop = startFakeProgress("upload_meta");
+
     try {
       const res = await fetch("/api/ipfs/upload-json", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(json),
       });
-      const data = await res.json();
 
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.error || "Upload metadata failed");
+      const data: any = await readApi(res);
+      if (!data?.ok) throw new Error(data?.error || "Upload metadata failed");
 
       setMetaCid(data.cid);
       setMetaUrl(data.url);
       setUploadStage("done");
+      finishProgress();
+
       return { cid: data.cid, url: data.url };
     } finally {
+      stop?.();
       setUploading(false);
     }
   }
@@ -280,11 +351,6 @@ export default function RegisterWorkPage() {
     const raw = enc.encode(cid);
     const hash = await crypto.subtle.digest("SHA-256", raw);
     return new Uint8Array(hash);
-  }
-
-  // ✅ helper: file loại nào thì có thể dùng làm image fallback?
-  function isImageMime(mime?: string) {
-    return !!mime && mime.startsWith("image/");
   }
 
   async function ensureIPFSReady(): Promise<{
@@ -300,12 +366,12 @@ export default function RegisterWorkPage() {
     if (!user?.id) throw new Error("Bạn cần đăng nhập.");
     if (!file) throw new Error("Bạn chưa chọn file tác phẩm.");
 
-    // 1) ensure file
+    // 1) ensure main file (audio)
     let fCid = fileCid;
     let fUrl = fileUrl;
 
     if (!fCid) {
-      const r = await uploadFileToIPFS(file);
+      const r = await uploadToIPFSFile(file, "audio");
       fCid = r.cid;
       fUrl = r.url;
       setFileCid(r.cid);
@@ -318,14 +384,14 @@ export default function RegisterWorkPage() {
     let cUrl = coverUrl;
 
     if (cover && !cCid) {
-      const r = await uploadCoverToIPFS(cover);
+      const r = await uploadToIPFSFile(cover, "cover");
       cCid = r.cid;
       cUrl = r.url;
       setCoverCid(r.cid);
       setCoverUrl(r.url);
     }
 
-    // 3) metadata JSON (✅ FIX: thêm top-level file.url + cover_image)
+    // 3) metadata JSON
     const profile = loadProfile(user.id);
     const aName = profile?.name?.trim() ? profile.name.trim() : user.id;
 
@@ -338,25 +404,15 @@ export default function RegisterWorkPage() {
     }
 
     const safeTitle = title.trim();
-
-    // ✅ TOP-LEVEL fields mà Manage đang đọc:
-    // - animation_url
-    // - file.url
-    // - image
-    const topImage =
-      cUrl || (isImageMime(file.type) ? fUrl : ""); // nếu file không phải ảnh thì để cover, còn không có cover thì để rỗng
+    const topImage = cUrl || (isImageMime(file.type) ? fUrl : "");
 
     const metadata: any = {
       name: safeTitle,
       description: "Chainstorm WorkNFT metadata",
 
-      // ✅ (1) Cover hiển thị cho card
       ...(topImage ? { image: topImage } : {}),
-
-      // ✅ (2) Preview file (audio/video/pdf)
       animation_url: fUrl,
 
-      // ✅ (3) QUAN TRỌNG: Manage của bạn đang check meta.file?.url
       file: {
         url: fUrl,
         cid: fCid,
@@ -365,7 +421,6 @@ export default function RegisterWorkPage() {
         size: file.size,
       },
 
-      // ✅ optional: tách riêng cover nếu có
       ...(cUrl
         ? {
             cover_image: cUrl,
@@ -379,23 +434,17 @@ export default function RegisterWorkPage() {
           }
         : {}),
 
-      // ✅ attributes vẫn giữ như bạn đang dùng
       attributes: [
         { trait_type: "sellType", value: sellType },
         { trait_type: "sell_type_u8", value: sellTypeU8 },
         { trait_type: "royalty_percent", value: royaltyNum },
-        ...(category.trim()
-          ? [{ trait_type: "category", value: category.trim() }]
-          : []),
-        ...(language.trim()
-          ? [{ trait_type: "language", value: language.trim() }]
-          : []),
+        ...(category.trim() ? [{ trait_type: "category", value: category.trim() }] : []),
+        ...(language.trim() ? [{ trait_type: "language", value: language.trim() }] : []),
         ...(createdDate.trim()
           ? [{ trait_type: "createdDate", value: createdDate.trim() }]
           : []),
       ],
 
-      // ✅ properties giữ lại để app nội bộ dùng
       properties: {
         app: "Chainstorm",
         network: activeNet,
@@ -421,7 +470,6 @@ export default function RegisterWorkPage() {
           walletAddress,
         },
 
-        // ✅ vẫn giữ dạng cũ để code khác không gãy
         file: {
           cid: fCid,
           url: fUrl,
@@ -525,7 +573,7 @@ export default function RegisterWorkPage() {
         if (Object.keys(patch).length) saveProfile(user!.id, patch);
       } catch {}
 
-      // 1) off-chain store (snapshot đầy đủ cho /author/[id] fallback)
+      // 1) off-chain store
       const workId = addWork({
         title: title.trim(),
         authorId: user!.id,
@@ -557,9 +605,7 @@ export default function RegisterWorkPage() {
         ],
       });
 
-      const result = await signAndExecuteTransaction({
-        transaction: tx,
-      });
+      const result = await signAndExecuteTransaction({ transaction: tx });
 
       const digest = (result as any)?.digest as string | undefined;
       if (!digest) throw new Error("Không nhận được digest từ giao dịch.");
@@ -579,9 +625,7 @@ export default function RegisterWorkPage() {
         createdObjectId = created?.objectId ?? null;
 
         if (!createdObjectId) {
-          const anyCreated = changes.find(
-            (c) => c?.type === "created" && c?.objectId
-          );
+          const anyCreated = changes.find((c) => c?.type === "created" && c?.objectId);
           createdObjectId = anyCreated?.objectId ?? null;
         }
       }
@@ -604,9 +648,7 @@ export default function RegisterWorkPage() {
           createdObjectId = created?.objectId ?? null;
 
           if (!createdObjectId) {
-            const anyCreated = oc.find(
-              (c) => c?.type === "created" && c?.objectId
-            );
+            const anyCreated = oc.find((c) => c?.type === "created" && c?.objectId);
             createdObjectId = anyCreated?.objectId ?? null;
           }
         }
@@ -633,17 +675,12 @@ export default function RegisterWorkPage() {
         setErr(
           `PACKAGE_ID không tồn tại trên "${activeNet}". Kiểm tra Sui Wallet network + chainstormConfig.ts`
         );
-      } else if (
-        msg.includes("Object does not exist") &&
-        msg.includes(REGISTRY_ID)
-      ) {
+      } else if (msg.includes("Object does not exist") && msg.includes(REGISTRY_ID)) {
         setErr(
           `REGISTRY_ID không tồn tại trên "${activeNet}". Bạn đã init_registry chưa? (registry phải là Shared object)`
         );
       } else if (msg.includes("100") || msg.toLowerCase().includes("duplicate")) {
-        setErr(
-          "DUPLICATE_HASH (100): Hash bị trùng. Upload metadata mới hoặc đổi tác phẩm."
-        );
+        setErr("DUPLICATE_HASH (100): Hash bị trùng. Upload metadata mới hoặc đổi tác phẩm.");
       } else {
         setErr(msg);
       }
@@ -660,9 +697,7 @@ export default function RegisterWorkPage() {
         <div className={styles.shell}>
           <div className={styles.warn}>
             <b>Chưa đăng nhập.</b>
-            <div className={styles.warnText}>
-              Vui lòng đăng nhập để đăng ký tác phẩm.
-            </div>
+            <div className={styles.warnText}>Vui lòng đăng nhập để đăng ký tác phẩm.</div>
           </div>
         </div>
       </div>
@@ -677,8 +712,7 @@ export default function RegisterWorkPage() {
           <div>
             <h1 className={styles.title}>Đăng ký tác phẩm</h1>
             <p className={styles.subtitle}>
-              Network: <b className={styles.net}>{activeNet}</b> • Module:{" "}
-              <b>{MODULE}</b>
+              Network: <b className={styles.net}>{activeNet}</b> • Module: <b>{MODULE}</b>
             </p>
           </div>
 
@@ -687,9 +721,7 @@ export default function RegisterWorkPage() {
             <div className={styles.statusText}>
               <div className={styles.statusTop}>
                 <b>{authorName}</b>
-                {authorPhone ? (
-                  <span className={styles.muted}> • {authorPhone}</span>
-                ) : null}
+                {authorPhone ? <span className={styles.muted}> • {authorPhone}</span> : null}
               </div>
 
               <div className={styles.mono}>
@@ -717,19 +749,29 @@ export default function RegisterWorkPage() {
 
         {err ? <div className={styles.error}>{err}</div> : null}
 
+        {/* ✅ upload progress */}
+        {uploading ? (
+          <div className={styles.uploadBarWrap}>
+            <div className={styles.uploadBarTop}>
+              <span className={styles.uploadStage}>{stageLabel(uploadStage)}</span>
+              <span className={styles.uploadPct}>{uploadPct}%</span>
+            </div>
+            <div className={styles.uploadTrack}>
+              <div className={styles.uploadFill} style={{ width: `${uploadPct}%` }} />
+            </div>
+          </div>
+        ) : null}
+
         {/* ===== Main Card ===== */}
         <div className={styles.card}>
           <div className={styles.cardTop}>
             <div className={styles.stepTitle}>
-              {step === 1 && "Step 1 — File, cover & thông tin"}
+              {step === 1 && "Step 1 — Audio/file, cover & thông tin"}
               {step === 2 && "Step 2 — Bán / License"}
               {step === 3 && "Step 3 — Xác nhận & Mint"}
             </div>
             <div className={styles.progress}>
-              <div
-                className={styles.progressBar}
-                style={{ width: `${(step / 3) * 100}%` }}
-              />
+              <div className={styles.progressBar} style={{ width: `${(step / 3) * 100}%` }} />
             </div>
           </div>
 
@@ -782,22 +824,18 @@ export default function RegisterWorkPage() {
                 </span>
               </label>
 
-              {/* FILE WORK */}
+              {/* AUDIO/FILE WORK */}
               <label className={styles.fieldFull}>
-                <span className={styles.label}>File tác phẩm</span>
+                <span className={styles.label}>Audio / File tác phẩm</span>
                 <div className={styles.fileRow}>
                   <input
                     className={styles.file}
                     type="file"
+                    accept="audio/*,video/*,application/pdf,image/*"
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
                       setFile(f);
-
-                      setFileCid("");
-                      setFileUrl("");
-                      setMetaCid("");
-                      setMetaUrl("");
-                      setUploadStage("idle");
+                      resetIpfsState();
                     }}
                   />
 
@@ -809,7 +847,7 @@ export default function RegisterWorkPage() {
                       try {
                         setErr(null);
                         if (!file) return;
-                        const r = await uploadFileToIPFS(file);
+                        const r = await uploadToIPFSFile(file, "audio");
                         setFileCid(r.cid);
                         setFileUrl(r.url);
                       } catch (e: any) {
@@ -817,9 +855,7 @@ export default function RegisterWorkPage() {
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_file"
-                      ? "Đang upload..."
-                      : "Upload IPFS"}
+                    {uploading && uploadStage === "upload_file" ? "Đang upload..." : "Upload IPFS"}
                   </button>
                 </div>
 
@@ -828,23 +864,15 @@ export default function RegisterWorkPage() {
                     <span className={styles.badge} data-ok={!!fileCid}>
                       File CID
                     </span>
-                    <span className={styles.mono}>
-                      {fileCid ? shortCid(fileCid) : "Chưa có"}
-                    </span>
+                    <span className={styles.mono}>{fileCid ? shortCid(fileCid) : "Chưa có"}</span>
                     {fileUrl ? (
-                      <a
-                        className={styles.link}
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a className={styles.link} href={fileUrl} target="_blank" rel="noreferrer">
                         Open
                       </a>
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Mint sẽ pin metadata → lấy CID metadata → SHA-256 (32 bytes) →
-                    chống trùng hash.
+                    Mint sẽ pin metadata → lấy CID metadata → SHA-256 (32 bytes) → chống trùng hash.
                   </div>
                 </div>
               </label>
@@ -859,13 +887,22 @@ export default function RegisterWorkPage() {
                     accept="image/*"
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
-                      setCover(f);
 
+                      if (f && !f.type.startsWith("image/")) {
+                        setErr("Cover phải là ảnh (image/*).");
+                        e.currentTarget.value = "";
+                        return;
+                      }
+
+                      setCover(f);
+                      // chỉ reset cover/meta (giữ file nếu có)
+                      setErr(null);
                       setCoverCid("");
                       setCoverUrl("");
                       setMetaCid("");
                       setMetaUrl("");
                       setUploadStage("idle");
+                      setUploadPct(0);
                     }}
                   />
 
@@ -877,7 +914,7 @@ export default function RegisterWorkPage() {
                       try {
                         setErr(null);
                         if (!cover) return;
-                        const r = await uploadCoverToIPFS(cover);
+                        const r = await uploadToIPFSFile(cover, "cover");
                         setCoverCid(r.cid);
                         setCoverUrl(r.url);
                       } catch (e: any) {
@@ -885,9 +922,7 @@ export default function RegisterWorkPage() {
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_cover"
-                      ? "Đang upload..."
-                      : "Upload cover"}
+                    {uploading && uploadStage === "upload_cover" ? "Đang upload..." : "Upload cover"}
                   </button>
                 </div>
 
@@ -900,20 +935,14 @@ export default function RegisterWorkPage() {
                       {coverCid ? shortCid(coverCid) : "Chưa có"}
                     </span>
                     {coverUrl ? (
-                      <a
-                        className={styles.link}
-                        href={coverUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a className={styles.link} href={coverUrl} target="_blank" rel="noreferrer">
                         Open
                       </a>
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống và
-                    file là ảnh thì dùng file làm image; còn không thì có thể card
-                    sẽ không có cover.
+                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống và file là ảnh thì
+                    dùng file làm image; còn không thì card có thể không có cover.
                   </div>
                 </div>
               </label>
@@ -948,8 +977,7 @@ export default function RegisterWorkPage() {
               <div className={styles.reviewCard}>
                 <div className={styles.reviewTitle}>🛡️ Quy trình duyệt</div>
                 <div className={styles.reviewText}>
-                  Tác phẩm sẽ vào trạng thái <b>pending</b> → đủ quorum thì{" "}
-                  <b>verified</b>.
+                  Tác phẩm sẽ vào trạng thái <b>pending</b> → đủ quorum thì <b>verified</b>.
                 </div>
               </div>
             </div>
@@ -963,50 +991,28 @@ export default function RegisterWorkPage() {
               <Row label="Module" value={MODULE} />
               <Row label="Mint fn" value={MINT_FN} />
               <Row label="Tác giả" value={authorName} />
-              <Row label="Email" value={authorEmail || (user?.email || "-")} />
-              <Row
-                label="Ví"
-                value={walletAddress ? shortAddr(walletAddress) : "-"}
-                mono
-              />
+              <Row label="Email" value={authorEmail || user?.email || "-"} />
+              <Row label="Ví" value={walletAddress ? shortAddr(walletAddress) : "-"} mono />
               <Row label="Tiêu đề" value={title || "-"} />
               <Row label="Thể loại" value={category || "-"} />
               <Row label="Ngôn ngữ" value={language || "-"} />
               <Row label="Ngày sáng tác" value={createdDate || "-"} />
               <Row label="SellType" value={`${sellType} (u8=${sellTypeU8})`} />
               <Row label="Royalty" value={`${royaltyNum}%`} />
-              <Row
-                label="File CID"
-                value={fileCid ? shortCid(fileCid) : "Chưa có"}
-                mono
-              />
-              <Row
-                label="Cover CID"
-                value={coverCid ? shortCid(coverCid) : "Chưa có"}
-                mono
-              />
-              <Row
-                label="Metadata CID"
-                value={metaCid ? shortCid(metaCid) : "Sẽ tạo khi Mint"}
-                mono
-              />
+              <Row label="File CID" value={fileCid ? shortCid(fileCid) : "Chưa có"} mono />
+              <Row label="Cover CID" value={coverCid ? shortCid(coverCid) : "Chưa có"} mono />
+              <Row label="Metadata CID" value={metaCid ? shortCid(metaCid) : "Sẽ tạo khi Mint"} mono />
 
               {metaUrl ? (
                 <div className={styles.metaLinkRow}>
-                  <a
-                    className={styles.link}
-                    href={metaUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a className={styles.link} href={metaUrl} target="_blank" rel="noreferrer">
                     Open metadata on gateway
                   </a>
                 </div>
               ) : null}
 
               <div className={styles.callout}>
-                Mint sẽ hash CID metadata (SHA-256) → <b>32 bytes</b> → Move để chống
-                duplicate.
+                Mint sẽ hash CID metadata (SHA-256) → <b>32 bytes</b> → Move để chống duplicate.
               </div>
             </div>
           )}
@@ -1026,12 +1032,7 @@ export default function RegisterWorkPage() {
                 <button
                   className={styles.btnPrimary}
                   onClick={next}
-                  disabled={
-                    (step === 1 && !canGoStep1) ||
-                    submitting ||
-                    isPending ||
-                    uploading
-                  }
+                  disabled={(step === 1 && !canGoStep1) || submitting || isPending || uploading}
                 >
                   Tiếp theo
                 </button>
@@ -1064,15 +1065,7 @@ export default function RegisterWorkPage() {
   );
 }
 
-function Row({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className={styles.row}>
       <div className={styles.rowLabel}>{label}</div>

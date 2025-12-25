@@ -456,3 +456,115 @@
     max-width: 62%;
   }
 }
+
+/* ===========================
+   Upload progress bar
+=========================== */
+.uploadBarWrap {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+}
+
+.uploadBarTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.uploadStage {
+  font-size: 13px;
+  opacity: 0.92;
+}
+
+.uploadPct {
+  font-size: 12px;
+  opacity: 0.78;
+  font-variant-numeric: tabular-nums;
+}
+
+.uploadTrack {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.uploadFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(250, 204, 21, 0.92),
+    rgba(34, 211, 238, 0.92)
+  );
+  transition: width 0.25s ease;
+}
+
+/* ===========================
+   Review card (Step 2) polish
+=========================== */
+.reviewCard {
+  grid-column: 1 / -1;
+  border-radius: 16px;
+  padding: 14px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.reviewTitle {
+  font-weight: 700;
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+
+.reviewText {
+  opacity: 0.9;
+  line-height: 1.55;
+}
+
+/* ===========================
+   File row tweaks (optional)
+=========================== */
+.fileRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.file {
+  flex: 1;
+}
+
+/* keep buttons from shrinking weirdly */
+.btn {
+  white-space: nowrap;
+}
+
+/* ===========================
+   Small responsive adjustments
+=========================== */
+@media (max-width: 720px) {
+  .uploadBarWrap {
+    padding: 10px 10px;
+  }
+  .uploadStage {
+    font-size: 12px;
+  }
+  .uploadPct {
+    font-size: 12px;
+  }
+  .fileRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn {
+    width: 100%;
+  }
+}
