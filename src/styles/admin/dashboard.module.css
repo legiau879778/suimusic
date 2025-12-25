@@ -118,3 +118,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+.cardTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.cardTitle{
+  font-size:12px;
+  opacity:.75;
+}
+
+.cardValue{
+  display:block;
+  margin-top:8px;
+  font-size:22px;
+  font-weight:900;
+  letter-spacing:-0.02em;
+}
+
+.cardIcon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  opacity:.9;
+}
+
+.cardOk{
+  border-color: rgba(250,204,21,0.22);
+  background: rgba(250,204,21,0.08);
+}
+
+.cardBad{
+  border-color: rgba(239,68,68,0.22);
+  background: rgba(239,68,68,0.08);
+}
+
+.cardInfo{
+  border-color: rgba(56,189,248,0.22);
+  background: rgba(56,189,248,0.08);
+}

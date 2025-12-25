@@ -1,125 +1,150 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import styles from "@/styles/admin/table.module.css";
+import { useEffect, useMemo, useState } from "react";
+import styles from "@/styles/admin/users.module.css";
 
-import { getUsers, updateUserRole } from "@/lib/userStore";
+import { getUsers, subscribeUsers, updateUserRole } from "@/lib/userStore";
 import type { UserRole } from "@/context/AuthContext";
 
-import {
-  Crown,
-  User,
-  UserCircle,
-} from "@phosphor-icons/react";
+import { Crown, User, UserCircle, CheckCircle } from "@phosphor-icons/react";
 
-/* ================= COMPONENT ================= */
+function shortAddr(a?: string) {
+  if (!a) return "—";
+  const v = String(a);
+  if (v.length <= 14) return v;
+  return `${v.slice(0, 8)}…${v.slice(-6)}`;
+}
 
-export default function UserTable() {
-  const [users, setUsers] = useState(() => getUsers());
+export default function UserTable({ query = "" }: { query?: string }) {
+  // ✅ IMPORTANT: đừng đọc localStorage trong initial render (SSR -> [])
+  const [mounted, setMounted] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
 
-  /* ================= REALTIME ================= */
   useEffect(() => {
+    setMounted(true);
+
     const refresh = () => setUsers(getUsers());
+    refresh();
 
-    // same-tab (nếu bạn dispatch event trong userStore)
-    window.addEventListener("users_updated", refresh);
-
-    // cross-tab
-    window.addEventListener("storage", refresh);
-
-    return () => {
-      window.removeEventListener("users_updated", refresh);
-      window.removeEventListener("storage", refresh);
-    };
+    const unsub = subscribeUsers(refresh);
+    return () => unsub();
   }, []);
+
+  const filtered = useMemo(() => {
+    const k = query.trim().toLowerCase();
+    if (!k) return users;
+
+    return users.filter((u) => {
+      const email = (u.email || "").toLowerCase();
+      const role = (u.role || "").toLowerCase();
+      const wallet = (u.wallet?.address || "").toLowerCase();
+      return email.includes(k) || role.includes(k) || wallet.includes(k);
+    });
+  }, [users, query]);
 
   function changeRole(id: string, role: UserRole) {
     updateUserRole(id, role);
     setUsers(getUsers());
   }
 
+  // ✅ tránh hydration mismatch: SSR render null, client mới render UI thật
+  if (!mounted) return null;
+
   return (
     <div className={styles.wrap}>
-      <div className={styles.header}>
-        <h3>Quản lý người dùng</h3>
-        <span className={styles.count}>{users.length} users</span>
+      <div className={styles.tableHeader}>
+        <div>
+          <h3 className={styles.h3}>Users</h3>
+          <div className={styles.meta}>
+            <span>
+              Tổng: <b>{users.length}</b>
+            </span>
+            <span>
+              Hiển thị: <b>{filtered.length}</b>
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Hành động</th>
-            </tr>
-          </thead>
+      <div className={styles.gridTable}>
+        <div className={`${styles.gridRow} ${styles.gridHead}`}>
+          <div>Email</div>
+          <div>Role</div>
+          <div>Wallet</div>
+          <div>Hành động</div>
+        </div>
 
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td className={styles.emailCell}>
-                  <UserCircle size={16} weight="duotone" />
-                  {u.email}
-                </td>
+        {filtered.map((u) => (
+          <div key={u.id} className={styles.gridRow}>
+            <div className={styles.emailCell}>
+              <UserCircle size={16} weight="duotone" />
+              <span className={styles.emailText} title={u.email}>
+                {u.email}
+              </span>
+            </div>
 
-                <td>
-                  <RoleBadge role={u.role} />
-                </td>
+            <div className={styles.roleCell}>
+              <RoleBadge role={u.role as UserRole} />
+            </div>
 
-                <td className={styles.actions}>
-                  <button
-                    className={`${styles.actionBtn} ${styles.adminBtn}`}
-                    disabled={u.role === "admin"}
-                    onClick={() => changeRole(u.id, "admin")}
-                  >
-                    <Crown size={14} /> Admin
-                  </button>
+            <div className={styles.walletCell}>
+              <span className={styles.walletPill} title={u.wallet?.address || ""}>
+                {u.wallet?.address ? shortAddr(u.wallet.address) : "—"}
+              </span>
+              {u.wallet?.verified ? (
+                <span className={styles.verified} title="Wallet verified">
+                  <CheckCircle size={16} weight="fill" />
+                </span>
+              ) : null}
+            </div>
 
-                  <button
-                    className={`${styles.actionBtn} ${styles.authorBtn}`}
-                    disabled={u.role === "author"}
-                    onClick={() => changeRole(u.id, "author")}
-                  >
-                    <User size={14} /> Author
-                  </button>
+            <div className={styles.actions}>
+              <button
+                className={`${styles.actionBtn} ${styles.adminBtn}`}
+                disabled={u.role === "admin"}
+                onClick={() => changeRole(u.id, "admin")}
+                type="button"
+              >
+                <Crown size={14} /> Admin
+              </button>
 
-                  <button
-                    className={`${styles.actionBtn}`}
-                    disabled={u.role === "user"}
-                    onClick={() => changeRole(u.id, "user")}
-                  >
-                    User
-                  </button>
-                </td>
-              </tr>
-            ))}
+              <button
+                className={`${styles.actionBtn} ${styles.authorBtn}`}
+                disabled={u.role === "author"}
+                onClick={() => changeRole(u.id, "author")}
+                type="button"
+              >
+                <User size={14} /> Author
+              </button>
 
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={3} className={styles.empty}>
-                  Chưa có user nào
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              <button
+                className={styles.actionBtn}
+                disabled={u.role === "user"}
+                onClick={() => changeRole(u.id, "user")}
+                type="button"
+              >
+                User
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {filtered.length === 0 ? (
+          <div className={styles.empty}>
+            <div className={styles.emptyTitle}>Không có kết quả</div>
+            <div className={styles.emptySub}>Thử tìm theo email / role / wallet.</div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-/* ================= UI PARTS ================= */
-
 function RoleBadge({ role }: { role: UserRole }) {
   return (
     <span
-      className={`${styles.roleBadge} ${
-        role === "admin"
-          ? styles.roleAdmin
-          : role === "author"
-          ? styles.roleAuthor
-          : styles.roleUser
+      className={`${styles.rolePill} ${
+        role === "admin" ? styles.roleAdmin : role === "author" ? styles.roleAuthor : styles.roleUser
       }`}
     >
       {role.toUpperCase()}

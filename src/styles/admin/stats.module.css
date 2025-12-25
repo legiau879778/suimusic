@@ -1,0 +1,35 @@
+.page {
+  min-height: calc(100vh - 72px);
+  padding: 40px 56px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(250,204,21,.10), transparent 45%),
+    radial-gradient(circle at 80% 40%, rgba(56,189,248,.10), transparent 45%),
+    linear-gradient(180deg, #020617, #020617);
+  color: rgba(255,255,255,0.92);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+.sub {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: 28px 18px;
+  }
+}

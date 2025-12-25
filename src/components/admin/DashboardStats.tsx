@@ -1,169 +1,127 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "@/styles/admin/dashboard.module.css";
 
 import { getWorks } from "@/lib/workStore";
 import { buildAdminStats } from "@/lib/adminStats";
 
-import { ShieldCheck, XCircle, CalendarCheck } from "@phosphor-icons/react";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Files,
+} from "@phosphor-icons/react";
 
-/* ================= TYPES ================= */
-
-type ApprovalDay = {
-  date: string;
-  verified: number;
-  rejected: number;
-};
-
-type AdminStats = {
-  approvalByDay: ApprovalDay[];
-};
-
-/* ================= COMPONENT ================= */
+type Stat = ReturnType<typeof buildAdminStats>;
 
 export default function DashboardStats() {
-  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [stats, setStats] = useState<Stat>(() => buildAdminStats(getWorks()));
 
-  // chống refresh chồng khi event bắn liên tục
-  const refreshingRef = useRef(false);
-
-  const refreshStats = async () => {
-    if (refreshingRef.current) return;
-    refreshingRef.current = true;
-    try {
-      const works = getWorks() || [];
-      const s = buildAdminStats(works) as AdminStats;
-      setStats(s);
-    } finally {
-      refreshingRef.current = false;
-    }
-  };
-
-  /* ================= INIT + REALTIME ================= */
   useEffect(() => {
-    void refreshStats();
-
-    // ✅ SAME TAB: ManagePage/ReviewPage bắn event này sau khi duyệt
-    const onWorksUpdated = () => void refreshStats();
-
-    // ✅ CROSS TAB: nếu duyệt ở tab khác -> localStorage thay đổi -> tab này cập nhật
-    const onStorage = () => void refreshStats();
-
-    // ✅ khi user quay lại tab (đỡ trường hợp bỏ tab lâu)
-    const onVis = () => {
-      if (document.visibilityState === "visible") void refreshStats();
+    const refresh = () => {
+      try {
+        setStats(buildAdminStats(getWorks()));
+      } catch {
+        setStats(buildAdminStats([]));
+      }
     };
 
-    window.addEventListener("works_updated", onWorksUpdated);
+    refresh();
+
+    // ✅ same-tab realtime (workStore.save dispatch "works_updated")
+    window.addEventListener("works_updated", refresh);
+
+    // ✅ cross-tab realtime
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key.includes("chainstorm_works")) refresh();
+    };
     window.addEventListener("storage", onStorage);
+
+    // ✅ when back to tab
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
     document.addEventListener("visibilitychange", onVis);
 
-    // ✅ fallback poll nhẹ (nếu bạn quên bắn event ở chỗ duyệt)
-    const id = window.setInterval(() => void refreshStats(), 15000);
-
     return () => {
-      window.removeEventListener("works_updated", onWorksUpdated);
+      window.removeEventListener("works_updated", refresh);
       window.removeEventListener("storage", onStorage);
       document.removeEventListener("visibilitychange", onVis);
-      window.clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const summary = useMemo(() => {
-    if (!stats) {
-      return { verifiedTotal: 0, rejectedTotal: 0, activeDays: 0 };
-    }
-
-    const verifiedTotal = stats.approvalByDay.reduce((sum, d) => sum + d.verified, 0);
-    const rejectedTotal = stats.approvalByDay.reduce((sum, d) => sum + d.rejected, 0);
-
+  const totals = useMemo(() => {
     return {
-      verifiedTotal,
-      rejectedTotal,
-      activeDays: stats.approvalByDay.length,
+      verified: stats.verified,
+      rejected: stats.rejected,
+      pending: stats.pending,
+      total: stats.total,
+      activeDays: (stats.approvalByDay || []).length,
     };
   }, [stats]);
-
-  if (!stats) {
-    return (
-      <div className={styles.grid}>
-        <SkeletonCard />
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
-    );
-  }
 
   return (
     <div className={styles.grid}>
       <StatCard
-        title="Tác phẩm đã duyệt"
-        value={summary.verifiedTotal}
-        subtitle="Tổng số tác phẩm được phê duyệt"
-        icon={<ShieldCheck weight="duotone" size={22} />}
-        tone="success"
+        title="Tổng tác phẩm"
+        value={totals.total}
+        icon={<Files size={18} weight="duotone" />}
+        tone="muted"
       />
-
       <StatCard
-        title="Tác phẩm bị từ chối"
-        value={summary.rejectedTotal}
-        subtitle="Không đạt yêu cầu kiểm duyệt"
-        icon={<XCircle weight="duotone" size={22} />}
-        tone="danger"
+        title="Đã duyệt"
+        value={totals.verified}
+        icon={<CheckCircle size={18} weight="fill" />}
+        tone="ok"
       />
-
       <StatCard
-        title="Ngày hoạt động"
-        value={summary.activeDays}
-        subtitle="Số ngày có kiểm duyệt"
-        icon={<CalendarCheck weight="duotone" size={22} />}
-        tone="neutral"
+        title="Bị từ chối"
+        value={totals.rejected}
+        icon={<XCircle size={18} weight="fill" />}
+        tone="bad"
+      />
+      <StatCard
+        title="Đang chờ"
+        value={totals.pending}
+        icon={<Clock size={18} weight="duotone" />}
+        tone="info"
       />
     </div>
   );
 }
-
-/* ================= UI COMPONENTS ================= */
 
 function StatCard({
   title,
   value,
-  subtitle,
   icon,
-  tone = "neutral",
+  tone = "muted",
 }: {
   title: string;
   value: number;
-  subtitle: string;
   icon: React.ReactNode;
-  tone?: "success" | "danger" | "neutral";
+  tone?: "ok" | "bad" | "info" | "muted";
 }) {
   return (
     <div
       className={`${styles.card} ${
-        tone === "success" ? styles.cardSuccess : tone === "danger" ? styles.cardDanger : ""
+        tone === "ok"
+          ? styles.cardOk
+          : tone === "bad"
+          ? styles.cardBad
+          : tone === "info"
+          ? styles.cardInfo
+          : ""
       }`}
     >
-      <div className={styles.cardHeader}>
+      <div className={styles.cardTop}>
         <span className={styles.cardTitle}>{title}</span>
-        <span className={styles.cardIcon}>{icon}</span>
+        <span className={styles.cardIcon} aria-hidden="true">
+          {icon}
+        </span>
       </div>
-
-      <div className={styles.cardValue}>{value}</div>
-
-      <div className={styles.cardSubtitle}>{subtitle}</div>
-    </div>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <div className={`${styles.card} ${styles.skeleton}`}>
-      <div className={styles.skeletonLine} />
-      <div className={styles.skeletonValue} />
-      <div className={styles.skeletonLineSmall} />
+      <strong className={styles.cardValue}>{value}</strong>
     </div>
   );
 }

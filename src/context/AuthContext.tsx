@@ -16,6 +16,9 @@ import { clearProfile, loadProfile, subscribeProfile } from "@/lib/profileStore"
 
 import { syncUserMembershipAndRole } from "@/lib/syncMembership";
 
+// ✅ NEW: userStore (admin/users)
+import { upsertUser as upsertUserToStore } from "@/lib/userStore";
+
 export type UserRole = "user" | "author" | "admin";
 
 export type WalletInfo = {
@@ -76,6 +79,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // chống chạy chồng sync
   const syncingRef = useRef(false);
 
+  // ✅ push user -> userStore để admin/users đọc được
+  function pushUserToUserStore(u: User) {
+    if (!u?.id || !u?.email) return;
+    try {
+      upsertUserToStore({
+        id: u.id,
+        email: u.email,
+        role: u.role,
+        wallet: u.wallet
+          ? { address: u.wallet.address, verified: u.wallet.verified }
+          : undefined,
+        // createdAt: userStore sẽ giữ cũ nếu đã có, không thì lấy Date.now()
+        createdAt: Date.now(),
+      });
+    } catch {}
+  }
+
   async function syncAll(fromStorageFirst = true) {
     if (syncingRef.current) return;
     syncingRef.current = true;
@@ -119,7 +139,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isSameUser(prev, next)) return prev;
         return next;
       });
+
       saveUser(next);
+      // ✅ IMPORTANT: upsert vào chainstorm_users
+      pushUserToUserStore(next);
     } finally {
       syncingRef.current = false;
     }
@@ -158,6 +181,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         saveUser(updated);
+        // ✅ update userStore realtime
+        pushUserToUserStore(updated);
+
         return updated;
       });
     });
@@ -232,6 +258,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u);
       saveUser(u);
 
+      // ✅ IMPORTANT: upsert vào chainstorm_users
+      pushUserToUserStore(u);
+
       showToast("Đăng nhập thành công", isAdmin ? "admin" : "success");
       router.replace(consumeRedirect());
     },
@@ -240,7 +269,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithGoogle = () => {
     if (!googleClientId) {
-      showToast("Chưa cấu hình Google OAuth. Hãy thêm NEXT_PUBLIC_GOOGLE_CLIENT_ID trên Vercel hoặc .env.local.", "warning");
+      showToast(
+        "Chưa cấu hình Google OAuth. Hãy thêm NEXT_PUBLIC_GOOGLE_CLIENT_ID trên Vercel hoặc .env.local.",
+        "warning"
+      );
       return;
     }
     googleLoginFn();
@@ -284,6 +316,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updated);
     saveUser(updated);
 
+    // ✅ IMPORTANT: upsert vào chainstorm_users
+    pushUserToUserStore(updated);
+
     showToast("Kết nối ví SUI thành công", "success");
   }
 
@@ -298,6 +333,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(updated);
     saveUser(updated);
+
+    // ✅ IMPORTANT: upsert vào chainstorm_users
+    pushUserToUserStore(updated);
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires

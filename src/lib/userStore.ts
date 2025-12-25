@@ -15,8 +15,6 @@ export type User = {
 };
 
 const KEY = "chainstorm_users";
-
-/** ✅ realtime event name */
 export const USERS_UPDATED_EVENT = "users_updated";
 
 /* ================= SAFE STORAGE ================= */
@@ -53,12 +51,24 @@ export function getUsers(): User[] {
   return load();
 }
 
-/** (optional) dùng khi login để upsert user */
-export function upsertUser(u: User) {
+export function upsertUser(u: Omit<User, "createdAt"> & { createdAt?: number }) {
   const users = load();
   const idx = users.findIndex((x) => x.id === u.id);
-  if (idx >= 0) users[idx] = { ...users[idx], ...u };
-  else users.unshift(u);
+
+  if (idx >= 0) {
+    const prev = users[idx];
+    users[idx] = {
+      ...prev,
+      ...u,
+      createdAt: prev.createdAt || u.createdAt || Date.now(), // ✅ giữ createdAt cũ
+    };
+  } else {
+    users.unshift({
+      ...u,
+      createdAt: u.createdAt || Date.now(),
+    } as User);
+  }
+
   save(users);
 }
 
@@ -71,9 +81,9 @@ export function updateUserRole(id: string, role: User["role"]) {
   save(users);
 }
 
-/** optional: subscribe realtime */
 export function subscribeUsers(cb: () => void) {
   if (typeof window === "undefined") return () => {};
+
   const onEvent = () => cb();
   const onStorage = (e: StorageEvent) => {
     if (e.key === KEY) cb();
