@@ -8,6 +8,7 @@ import {
   type Membership,
   type MembershipType,
   type CreatorPlan,
+  type ArtistPlan,
   getMembershipDurationMs,
   getMembershipPriceSui,
 } from "@/lib/membershipStore";
@@ -20,21 +21,6 @@ type Props = {
   onSuccess: (m: Membership) => void;
 };
 
-// ✅ artist plan local (nếu membershipStore chưa khai báo type)
-type ArtistPlan = "1m" | "3m" | "1y";
-
-function planLabel(type: MembershipType, planCreator: CreatorPlan, planArtist: ArtistPlan) {
-  if (type === "creator") return planCreator.toUpperCase();
-  if (type === "artist") return planArtist === "1m" ? "1 THÁNG" : planArtist === "3m" ? "3 THÁNG" : "1 NĂM";
-  return "";
-}
-
-function planSubArtist(p: ArtistPlan) {
-  if (p === "1m") return "2.5 SUI · ~30 ngày";
-  if (p === "3m") return "7.5 SUI · ~90 ngày";
-  return "30 SUI · ~365 ngày";
-}
-
 export default function MembershipModal({ type, onClose, onSuccess }: Props) {
   const { pushToast } = useToast();
   const currentAccount = useCurrentAccount();
@@ -44,7 +30,6 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
 
   const [loading, setLoading] = useState(false);
 
-  // ✅ plan theo type
   const [creatorPlan, setCreatorPlan] = useState<CreatorPlan>("starter");
   const [artistPlan, setArtistPlan] = useState<ArtistPlan>("1y");
 
@@ -62,19 +47,16 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
     };
   }, []);
 
-  // ✅ base membership cho store tính giá + thời hạn
   const base = useMemo(() => {
-    if (type === "creator") return { type, plan: creatorPlan } as Pick<Membership, "type" | "plan">;
-
-    // ✅ Artist có plan 1m/3m/1y
-    if (type === "artist") return { type, plan: artistPlan as any } as Pick<Membership, "type" | "plan">;
-
-    // business / ai (nếu ai locked thì thường không mở modal)
-    return { type } as Pick<Membership, "type" | "plan">;
+    if (type === "creator") return { type, plan: creatorPlan } as const;
+    if (type === "artist") return { type, plan: artistPlan } as const;
+    return { type } as const;
   }, [type, creatorPlan, artistPlan]);
 
   const priceSui = useMemo(() => getMembershipPriceSui(base), [base]);
   const durationMs = useMemo(() => getMembershipDurationMs(base), [base]);
+
+  const days = Math.max(1, Math.round(durationMs / (24 * 60 * 60 * 1000)));
 
   async function confirm() {
     if (!currentAccount?.address) {
@@ -88,17 +70,17 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
 
     setLoading(true);
     try {
-      const txHash = "0x" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+      const txHash = "demo_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
       const expireAt = Date.now() + durationMs;
 
       const membership: Membership = {
-        ...(base as any),
+        type: base.type,
+        plan: "plan" in base ? base.plan : undefined,
         expireAt,
         txHash,
         paidAmountSui: priceSui,
       };
 
-      // ✅ SAVE THEO memberKey chuẩn
       saveMembership(memberKey, membership);
 
       pushToast("success", "🎉 Kích hoạt Membership thành công");
@@ -110,9 +92,6 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
       setLoading(false);
     }
   }
-
-  const days = Math.max(1, Math.round(durationMs / (24 * 60 * 60 * 1000)));
-  const planText = planLabel(type, creatorPlan, artistPlan);
 
   return (
     <div className={styles.modalOverlay} onClick={onClose} role="dialog" aria-modal="true">
@@ -128,12 +107,20 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
           <div className={styles.modalSummary}>
             <div className={styles.modalLine}>
               Bạn đang mua gói <strong>{type.toUpperCase()}</strong>
-              {(type === "creator" || type === "artist") && (
+              {type === "creator" ? (
                 <>
                   {" "}
-                  · <strong>{planText}</strong>
+                  · <strong>{creatorPlan.toUpperCase()}</strong>
                 </>
-              )}
+              ) : type === "artist" ? (
+                <>
+                  {" "}
+                  ·{" "}
+                  <strong>
+                    {artistPlan === "1m" ? "1 THÁNG" : artistPlan === "3m" ? "3 THÁNG" : "1 NĂM"}
+                  </strong>
+                </>
+              ) : null}
             </div>
 
             <div className={styles.modalMeta}>
@@ -146,7 +133,6 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* ✅ CREATOR: starter/pro/studio */}
           {type === "creator" && (
             <div className={styles.planGrid}>
               {(["starter", "pro", "studio"] as CreatorPlan[]).map((p) => (
@@ -170,7 +156,6 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* ✅ ARTIST: 1m / 3m / 1y */}
           {type === "artist" && (
             <div className={styles.planGrid}>
               {(["1m", "3m", "1y"] as ArtistPlan[]).map((p) => (
@@ -182,15 +167,16 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                   disabled={loading}
                 >
                   <div className={styles.pickTitle}>{p === "1m" ? "1 THÁNG" : p === "3m" ? "3 THÁNG" : "1 NĂM"}</div>
-                  <div className={styles.pickSub}>{planSubArtist(p)}</div>
+                  <div className={styles.pickSub}>
+                    {p === "1m" ? "2.5 SUI · ~30 ngày" : p === "3m" ? "7.5 SUI · ~90 ngày" : "30 SUI · ~365 ngày"}
+                  </div>
                 </button>
               ))}
             </div>
           )}
 
           <div className={styles.modalHint}>
-            * Cần ví SUI để xác nhận. (Lưu ý: ví extension là dùng chung, nhưng membership sẽ lưu theo tài khoản Gmail của
-            bạn.)
+            * Cần ví SUI để xác nhận. (Lưu ý: ví extension là dùng chung, nhưng membership sẽ lưu theo tài khoản Gmail của bạn.)
           </div>
         </div>
 

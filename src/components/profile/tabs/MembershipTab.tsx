@@ -36,7 +36,7 @@ export default function MembershipTab() {
   const { pushToast } = useToast();
   const { user, refresh } = useAuth();
 
-  const memberKey = (user?.id || user?.email || "").trim(); // ✅ KEY CHUẨN
+  const memberKey = (user?.id || user?.email || "").trim();
   const email = (user?.email || "").trim();
 
   const [membership, setMembership] = useState<Membership | null>(null);
@@ -247,9 +247,9 @@ export default function MembershipTab() {
           title="Artist"
           desc="Mở Manage + Register"
           icon={<ArtistIcon />}
-          price="30 SUI / năm"
-          duration="~ 365 ngày"
-          bullets={["Quản lý & đăng ký tác phẩm", "Gia hạn linh hoạt"]}
+          price="Từ 2.5 SUI / tháng"
+          duration="~ 30 ngày"
+          bullets={["1 tháng: 2.5 SUI", "3 tháng: 7.5 SUI", "1 năm: 30 SUI"]}
           active={membership?.type === "artist"}
           onClick={() => openModal("artist")}
         />
@@ -293,20 +293,15 @@ export default function MembershipTab() {
           type={open}
           onClose={() => setOpen(null)}
           onSuccess={async (m) => {
-            // update UI ngay
             setMembership(m);
             setOpen(null);
 
-            // toast nổi + confetti + tx
             setToastTx(m?.txHash || "");
             setToastOpen(true);
 
             pushToast("success", "🎉 Membership đã được kích hoạt");
 
-            // ✅ quan trọng: refresh auth (sync membership->role)
             await refresh();
-
-            // ✅ load lại truth
             await loadMembership();
           }}
         />
