@@ -290,34 +290,76 @@ export default function RegisterWorkPage() {
      - POST /api/ipfs/upload-json (JSON)
   ======================= */
   async function uploadToIPFSFile(f: File, kind: "audio" | "cover"): Promise<UploadResult> {
-    setUploading(true);
-    const stop =
-      kind === "audio" ? startFakeProgress("upload_file") : startFakeProgress("upload_cover");
+  setUploading(true);
+  setUploadStage(kind === "audio" ? "upload_file" : "upload_cover");
+  setUploadPct(0);
 
-    try {
-      guardSize(f);
+  try {
+    // ✅ lấy JWT từ server
+    const tRes = await fetch("/api/pinata/token");
+    const tData = await tRes.json();
+    if (!tData?.ok) throw new Error(tData?.error || "Cannot get Pinata token");
+    const jwt = tData.jwt as string;
 
-      const fd = new FormData();
-      fd.append("file", f, f.name);
+    // ✅ form-data gửi thẳng Pinata
+    const fd = new FormData();
+    fd.append("file", f, f.name);
+    fd.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
+    fd.append(
+      "pinataMetadata",
+      JSON.stringify({
+        name: f.name,
+        keyvalues: { app: "chainstorm", kind: kind === "audio" ? "work-file" : "work-cover" },
+      })
+    );
 
-      const res = await fetch("/api/ipfs/upload", { method: "POST", body: fd });
-      const data: any = await readApi(res);
+    // ✅ XHR để có progress thật theo byte
+    const result = await new Promise<any>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "https://api.pinata.cloud/pinning/pinFileToIPFS", true);
+      xhr.setRequestHeader("Authorization", `Bearer ${jwt}`);
 
-      if (!data?.ok) throw new Error(data?.error || "Upload IPFS failed");
-
-      finishProgress();
-      return {
-        cid: data.cid,
-        url: data.url,
-        name: data.name,
-        size: data.size,
-        type: data.type,
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round((e.loaded / e.total) * 100);
+        setUploadPct(pct);
       };
-    } finally {
-      stop?.();
-      setUploading(false);
-    }
+
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          return reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+        }
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error("Invalid Pinata response"));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error"));
+      xhr.send(fd);
+    });
+
+    const cid = result?.IpfsHash as string;
+    if (!cid) throw new Error("Pinata response missing IpfsHash");
+
+    const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
+
+    setUploadStage("done");
+    setTimeout(() => setUploadPct(0), 800);
+
+    return {
+      cid,
+      url,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    };
+  } finally {
+    setUploading(false);
   }
+}
+
 
   async function uploadJSONToIPFS(json: any): Promise<{ cid: string; url: string }> {
     setUploading(true);
