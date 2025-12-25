@@ -10,8 +10,9 @@ import {
   useConnectWallet,
   useDisconnectWallet,
 } from "@mysten/dapp-kit";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { loadProfile, saveProfile } from "@/lib/profileStore";
+import QRCode from "qrcode";
 
 /* ================= TYPES ================= */
 
@@ -19,7 +20,7 @@ type ProfileState = {
   name?: string;
   phone?: string;
   cccd?: string;
-  birthday?: string; // ✅ LƯU ISO: yyyy-mm-dd
+  birthday?: string; // ISO yyyy-mm-dd
   country?: string;
   address?: string;
   walletAddress?: string;
@@ -27,14 +28,8 @@ type ProfileState = {
 
 const LAST_WALLET_KEY = "chainstorm_last_wallet";
 
-/** ✅ decor image localStorage key */
-function decorKey(userId: string) {
-  return `chainstorm_wallet_decor:${userId || "guest"}`;
-}
-
 /* ================= DATE HELPERS (MASK + VALIDATE) ================= */
 
-/** ISO (yyyy-mm-dd) -> dd/mm/yyyy */
 function isoToDMY(iso?: string) {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
@@ -42,9 +37,8 @@ function isoToDMY(iso?: string) {
   return `${d}/${m}/${y}`;
 }
 
-/** Keep digits only, format to dd/mm/yyyy while typing */
 function maskDMY(input: string) {
-  const digits = (input || "").replace(/\D/g, "").slice(0, 8); // ddmmyyyy
+  const digits = (input || "").replace(/\D/g, "").slice(0, 8);
   const dd = digits.slice(0, 2);
   const mm = digits.slice(2, 4);
   const yyyy = digits.slice(4, 8);
@@ -65,7 +59,6 @@ function daysInMonth(m: number, y: number) {
 }
 
 function validateDMY(dmy: string) {
-  // format strict dd/mm/yyyy
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) {
     return { ok: false, reason: "Định dạng phải là dd/mm/yyyy" };
   }
@@ -79,18 +72,12 @@ function validateDMY(dmy: string) {
     return { ok: false, reason: "Ngày không hợp lệ" };
   }
 
-  // bạn có thể chỉnh range năm theo nhu cầu
   const nowY = new Date().getFullYear();
-  if (y < 1900 || y > nowY + 1) {
-    return { ok: false, reason: "Năm không hợp lệ" };
-  }
-  if (m < 1 || m > 12) {
-    return { ok: false, reason: "Tháng phải từ 01 đến 12" };
-  }
+  if (y < 1900 || y > nowY + 1) return { ok: false, reason: "Năm không hợp lệ" };
+  if (m < 1 || m > 12) return { ok: false, reason: "Tháng phải từ 01 đến 12" };
+
   const dim = daysInMonth(m, y);
-  if (d < 1 || d > dim) {
-    return { ok: false, reason: `Ngày phải từ 01 đến ${dim}` };
-  }
+  if (d < 1 || d > dim) return { ok: false, reason: `Ngày phải từ 01 đến ${dim}` };
 
   return { ok: true as const, reason: "" };
 }
@@ -100,13 +87,45 @@ function dmyToISO(dmy: string) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function shortAddr(a?: string) {
+  if (!a) return "—";
+  const v = String(a);
+  if (v.length <= 14) return v;
+  return `${v.slice(0, 6)}…${v.slice(-6)}`;
+}
+
+/* ================= QR CANVAS ================= */
+
+function InternalQR({
+  value,
+  size = 200,
+  className,
+}: {
+  value: string;
+  size?: number;
+  className?: string;
+}) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    QRCode.toCanvas(ref.current, value, {
+      width: size,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    }).catch(() => {});
+  }, [value, size]);
+
+  return <canvas ref={ref} width={size} height={size} className={className} />;
+}
+
 /* ================= COMPONENT ================= */
 
 export default function InfoTab() {
   const { user } = useAuth();
   const userId = user?.id || user?.email || "guest";
 
-  /* ===== WALLET (CHUẨN MỚI) ===== */
+  /* ===== WALLET ===== */
   const currentAccount = useCurrentAccount();
   const { isConnected, currentWallet } = useCurrentWallet();
   const wallets = useWallets();
@@ -114,18 +133,28 @@ export default function InfoTab() {
   const { mutateAsync: disconnect } = useDisconnectWallet();
   const suiClient = useSuiClient();
 
-  /* ===== PROFILE ===== */
-  const [profile, setProfile] = useState<ProfileState>(() => loadProfile(userId));
+  /* ===== PROFILE (compat birthday/dob) ===== */
+  const [profile, setProfile] = useState<ProfileState>(() => {
+    const p: any = loadProfile(userId) || {};
+    return {
+      name: p.name,
+      phone: p.phone,
+      cccd: p.cccd,
+      birthday: p.birthday || p.dob,
+      country: p.country,
+      address: p.address,
+      walletAddress: p.walletAddress,
+    };
+  });
+
   const [balance, setBalance] = useState("0");
   const [copied, setCopied] = useState(false);
 
-  /* ===== BIRTHDAY UI STATE (dd/mm/yyyy) ===== */
-  const [birthdayText, setBirthdayText] = useState(() => isoToDMY(loadProfile(userId)?.dob));
+  /* ===== BIRTHDAY UI STATE ===== */
+  const [birthdayText, setBirthdayText] = useState(() => isoToDMY(profile.birthday));
 
-  // sync birthdayText when profile.birthday changes externally (e.g. load)
   useEffect(() => {
     setBirthdayText(isoToDMY(profile.birthday));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.birthday]);
 
   const birthdayValidation = useMemo(() => {
@@ -137,25 +166,13 @@ export default function InfoTab() {
     return { state: "ok" as const, msg: "" };
   }, [birthdayText]);
 
-  /* ===== DECOR IMAGE (upload dưới nút disconnect) ===== */
-  const [decorImg, setDecorImg] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(decorKey(userId)) || "";
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    // keep in localStorage (persist refresh/logout)
-    if (decorImg) localStorage.setItem(decorKey(userId), decorImg);
-    else localStorage.removeItem(decorKey(userId));
-  }, [decorImg, userId]);
-
   /* =====================================================
      AUTO SAVE PROFILE (DEBOUNCE)
   ===================================================== */
   useEffect(() => {
     const t = setTimeout(() => {
-      saveProfile(userId, profile);
+      const payload: any = { ...profile, dob: profile.birthday };
+      saveProfile(userId, payload);
     }, 600);
     return () => clearTimeout(t);
   }, [profile, userId]);
@@ -238,70 +255,40 @@ export default function InfoTab() {
     const masked = maskDMY(raw);
     setBirthdayText(masked);
 
-    // chỉ update profile.birthday khi đủ 10 ký tự và hợp lệ
     if (masked.length === 10) {
       const v = validateDMY(masked);
       if (v.ok) {
-        setProfile((p) => ({
-          ...p,
-          birthday: dmyToISO(masked), // ✅ LƯU ISO
-        }));
+        setProfile((p) => ({ ...p, birthday: dmyToISO(masked) }));
       }
-    } else {
-      // nếu đang gõ dở, đừng ghi đè ISO (tránh mất dữ liệu cũ)
-      // bạn có thể chọn clear birthday nếu muốn:
-      // setProfile((p) => ({ ...p, birthday: undefined }));
     }
   };
 
   const onBirthdayBlur = () => {
     if (!birthdayText) return;
-
     const masked = maskDMY(birthdayText);
     setBirthdayText(masked);
 
     if (masked.length !== 10) return;
-
     const v = validateDMY(masked);
-    if (v.ok) {
-      setProfile((p) => ({ ...p, birthday: dmyToISO(masked) }));
-    }
+    if (v.ok) setProfile((p) => ({ ...p, birthday: dmyToISO(masked) }));
   };
 
   /* =====================================================
-     DECOR UPLOAD
+     INTERNAL QR PAYLOAD
   ===================================================== */
 
-  const onPickDecor = (file?: File | null) => {
-    if (!file) return;
-
-    // ✅ giới hạn nhẹ (localStorage ~5MB)
-    if (!file.type.startsWith("image/")) {
-      alert("Vui lòng chọn file ảnh (png/jpg/webp)!");
-      return;
-    }
-    if (file.size > 2.5 * 1024 * 1024) {
-      alert("Ảnh quá lớn. Hãy chọn ảnh < 2.5MB để lưu được trong trình duyệt.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result || "");
-      setDecorImg(url);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const removeDecor = () => setDecorImg("");
+  const internalQRValue = useMemo(() => {
+    const wallet = currentAccount?.address || profile.walletAddress || "";
+    return `CHAINSTORM|USER:${userId}|WALLET:${wallet}`;
+  }, [userId, currentAccount?.address, profile.walletAddress]);
 
   /* =====================================================
-     RENDER
+     RENDER (Figma-ish: left info, right wallet + QR)
   ===================================================== */
 
   return (
-    <div className={styles.infoGrid}>
-      {/* ===== PROFILE ===== */}
+    <div className={styles.infoGrid2}>
+      {/* LEFT: PROFILE */}
       <section className={styles.card}>
         <h2>Thông tin cá nhân</h2>
 
@@ -324,7 +311,6 @@ export default function InfoTab() {
             onChange={(v) => setProfile((p) => ({ ...p, cccd: v }))}
           />
 
-          {/* ✅ MASKED BIRTHDAY dd/mm/yyyy */}
           <Field
             label="Ngày sinh (dd/mm/yyyy)"
             value={birthdayText}
@@ -341,7 +327,7 @@ export default function InfoTab() {
                 : ""
             }
             hint={birthdayValidation.msg}
-            hintTone={birthdayValidation.state} // idle | ok | bad
+            hintTone={birthdayValidation.state}
           />
 
           <Field label="Email" value={user?.email || ""} readOnly />
@@ -362,7 +348,7 @@ export default function InfoTab() {
         <div className={styles.autoSaveHint}>✔ Thông tin được lưu tự động</div>
       </section>
 
-      {/* ===== WALLET ===== */}
+      {/* RIGHT: WALLET */}
       <section className={styles.card}>
         <h2>Ví Blockchain SUI</h2>
 
@@ -372,9 +358,34 @@ export default function InfoTab() {
             <button className={styles.connectBtn} onClick={connectWallet}>
               Kết nối ví
             </button>
+
+            {/* QR nội bộ vẫn hiện để “nhận diện user” */}
+            <div className={styles.qrWrap}>
+              <div className={styles.qrHeader}>
+                <div className={styles.qrTitle}>QR nội bộ</div>
+                <div className={styles.qrSub}>Nhận diện tài khoản trong hệ thống</div>
+              </div>
+
+              <div className={styles.qrGrid}>
+                <div className={styles.qrMeta}>
+                  <div className={styles.qrMetaRow}>
+                    <span>Mã nội bộ</span>
+                    <strong className={styles.qrMono}>{String(userId)}</strong>
+                  </div>
+                  <div className={styles.qrMetaRow}>
+                    <span>Ví</span>
+                    <strong className={styles.qrMono}>—</strong>
+                  </div>
+                </div>
+
+                <div className={styles.qrBox}>
+                  <InternalQR value={internalQRValue} className={styles.qrCanvas} />
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
-          <div className={styles.walletBox}>
+          <div className={styles.walletStack}>
             <label>Địa chỉ ví</label>
 
             <div className={styles.walletRow}>
@@ -393,42 +404,36 @@ export default function InfoTab() {
               Ngắt kết nối ví
             </button>
 
-            {/* ✅ DECOR UPLOAD BOX (persist localStorage) */}
-            <div className={styles.decorWrap}>
-              <div className={styles.decorHead}>
-                <div>
-                  <div className={styles.decorTitle}></div>
-                  <div className={styles.decorSub}>
+            {/* QR nội bộ + info (giống figma: wallet + QR) */}
+            <div className={styles.qrWrap}>
+              <div className={styles.qrHeader}>
+                <div className={styles.qrTitle}>QR nội bộ</div>
+                <div className={styles.qrSub}>Quét để lấy user + ví</div>
+              </div>
+
+              <div className={styles.qrGrid}>
+                <div className={styles.qrMeta}>
+                  <div className={styles.qrMetaRow}>
+                    <span>Ví wallet</span>
+                    <strong>{currentWallet?.name || "SUI Wallet"}</strong>
+                  </div>
+                  <div className={styles.qrMetaRow}>
+                    <span>Mã nội bộ</span>
+                    <strong className={styles.qrMono}>{String(userId)}</strong>
+                  </div>
+                  <div className={styles.qrMetaRow}>
+                    <span>Địa chỉ rút gọn</span>
+                    <strong className={styles.qrMono}>{shortAddr(currentAccount.address)}</strong>
                   </div>
                 </div>
 
-                {decorImg ? (
-                  <button className={styles.decorRemove} onClick={removeDecor} type="button">
-                    Xoá
-                  </button>
-                ) : null}
+                <div className={styles.qrBox}>
+                  <InternalQR value={internalQRValue} className={styles.qrCanvas} />
+                </div>
               </div>
 
-              <label className={styles.decorPick}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={styles.decorInput}
-                  onChange={(e) => onPickDecor(e.target.files?.[0])}
-                />
-                <span className={styles.decorPickBtn}>Chọn ảnh</span>
-                <span className={styles.decorPickHint}>PNG/JPG/WebP • &lt; 2.5MB</span>
-              </label>
-
-              <div className={styles.decorFrame}>
-                {decorImg ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className={styles.decorImg} src={decorImg} alt="decor" />
-                ) : (
-                  <div className={styles.decorEmpty}>
-                    Chưa có ảnh • Upload để trang trí
-                  </div>
-                )}
+              <div className={styles.qrFootNote}>
+                Payload: <span className={styles.qrMono}>{internalQRValue}</span>
               </div>
             </div>
           </div>
@@ -485,11 +490,7 @@ function Field({
       {hint ? (
         <div
           className={`${styles.fieldHint} ${
-            hintTone === "ok"
-              ? styles.hintOk
-              : hintTone === "bad"
-              ? styles.hintBad
-              : styles.hintIdle
+            hintTone === "ok" ? styles.hintOk : hintTone === "bad" ? styles.hintBad : styles.hintIdle
           }`}
         >
           {hint}
