@@ -12,6 +12,9 @@ export type Membership = {
   expireAt: number;
   txHash: string;
   paidAmountSui?: number;
+
+  // optional
+  nftId?: string;
 };
 
 /* ================= CONFIG ================= */
@@ -19,10 +22,35 @@ export type Membership = {
 export const RECEIVER =
   "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a";
 
+/** ✅ bắn event để Header/Profile cập nhật ngay sau khi mua */
+export const MEMBERSHIP_UPDATED_EVENT = "chainstorm_membership_updated";
+
 /* ================= STORAGE KEY (PER USER) ================= */
 
-function getKey(userId: string) {
-  return `chainstorm_membership:${userId}`;
+const KEY = "chainstorm_membership";
+
+function keyById(userIdOrEmail: string) {
+  return `${KEY}:${userIdOrEmail}`;
+}
+
+/**
+ * ✅ BACKWARD COMPAT:
+ * - keyById(userId)
+ * - KEY_userId (bản cũ)
+ * - keyById(email)
+ * - KEY_email (bản cũ)
+ */
+function possibleKeys(userId: string, email?: string) {
+  const keys = new Set<string>();
+  if (userId) {
+    keys.add(keyById(userId));
+    keys.add(`${KEY}_${userId}`);
+  }
+  if (email) {
+    keys.add(keyById(email));
+    keys.add(`${KEY}_${email}`);
+  }
+  return Array.from(keys);
 }
 
 /* ================= PRICING ================= */
@@ -75,17 +103,12 @@ export function getFeaturePolicy(m: Membership | null) {
     // creator plan flags
     creatorPlan: type === "creator" ? m?.plan : undefined,
     creatorUnlimited:
-      type === "creator"
-        ? m?.plan === "pro" || m?.plan === "studio"
-        : false,
-    creatorTeam:
-      type === "creator" ? m?.plan === "studio" : false,
+      type === "creator" ? m?.plan === "pro" || m?.plan === "studio" : false,
+    creatorTeam: type === "creator" ? m?.plan === "studio" : false,
 
     // feature-level
     musicUseUnlimited:
-      type === "creator"
-        ? m?.plan === "pro" || m?.plan === "studio"
-        : false,
+      type === "creator" ? m?.plan === "pro" || m?.plan === "studio" : false,
     musicUseLimit:
       type === "creator" && m?.plan === "starter"
         ? CREATOR_STARTER_MUSIC_USE_LIMIT
@@ -105,12 +128,30 @@ export function getMembershipBadgeLabel(m: Membership): string {
 
 /* ================= ON-CHAIN VERIFY ================= */
 
-export async function verifyMembership(
-  m: Membership
-): Promise<boolean> {
+type VerifyResult = "ok" | "pending" | "invalid";
+
+/**
+ * ✅ Verify membership:
+ * - ok: tx hợp lệ + đã trả đủ vào RECEIVER
+ * - pending: chưa tìm thấy tx / RPC chưa index / demo txHash
+ * - invalid: tx fail hoặc trả không đúng
+ */
+export async function verifyMembershipResult(m: Membership): Promise<VerifyResult> {
   try {
-    if (!m?.txHash) return false;
-    if (!isMembershipActive(m)) return false;
+    if (!m?.txHash) return "invalid";
+    if (!isMembershipActive(m)) return "invalid";
+
+    // ✅ DEMO MODE: cho phép txHash giả để làm đồ án
+    // Bạn có thể set NEXT_PUBLIC_MEMBERSHIP_VERIFY=0 để bỏ verify toàn bộ
+    const verifyEnabled =
+      typeof process !== "undefined"
+        ? process.env.NEXT_PUBLIC_MEMBERSHIP_VERIFY !== "0"
+        : true;
+
+    if (!verifyEnabled) return "ok";
+
+    // demo txHash (random) thường không tồn tại -> pending
+    if (m.txHash.startsWith("demo_")) return "ok";
 
     const tx = await suiClient.getTransactionBlock({
       digest: m.txHash,
@@ -120,101 +161,162 @@ export async function verifyMembership(
       },
     });
 
-    if (tx.effects?.status.status !== "success")
-      return false;
+    if (tx.effects?.status.status !== "success") return "invalid";
 
     const expectedSui = getMembershipPriceSui(m);
-    if (expectedSui <= 0) return false;
+    if (expectedSui <= 0) return "invalid";
 
-    const expectedMist = BigInt(
-      Math.floor(expectedSui * 1e9)
-    );
+    const expectedMist = BigInt(Math.floor(expectedSui * 1e9));
     const ZERO = BigInt(0);
-    const NEG_ONE = BigInt(-1);
 
-    const paid = (tx.balanceChanges ?? []).some(
-      (b: any) => {
-        const owner = b.owner?.AddressOwner;
-        if (!owner) return false;
-        if (
-          owner.toLowerCase() !==
-          RECEIVER.toLowerCase()
-        )
-          return false;
+    const paid = (tx.balanceChanges ?? []).some((b: any) => {
+      const owner = b.owner?.AddressOwner;
+      if (!owner) return false;
+      if (owner.toLowerCase() !== RECEIVER.toLowerCase()) return false;
 
-        try {
-          const amt = BigInt(b.amount);
-
-          /* ✅ không dùng BigInt literal */
-          const abs =
-            amt < ZERO ? amt * NEG_ONE : amt;
-
-          return abs >= expectedMist;
-        } catch {
-          return (
-            Math.abs(Number(b.amount)) >=
-            Number(expectedMist)
-          );
-        }
+      try {
+        const amt = BigInt(b.amount);
+        const abs = amt < ZERO ? -amt : amt;
+        return abs >= expectedMist;
+      } catch {
+        return Math.abs(Number(b.amount)) >= Number(expectedMist);
       }
-    );
+    });
 
-    return paid;
-  } catch {
-    return false;
+    return paid ? "ok" : "invalid";
+  } catch (e: any) {
+    // ✅ Nếu không tìm thấy tx digest => PENDING (đừng xóa local)
+    const msg = String(e?.message || e || "").toLowerCase();
+    const notFound =
+      msg.includes("not found") ||
+      msg.includes("cannot find") ||
+      msg.includes("digest") ||
+      msg.includes("transaction") ||
+      msg.includes("unknown") ||
+      msg.includes("no transaction");
+
+    return notFound ? "pending" : "pending";
   }
+}
+
+
+/* ================= INTERNAL HELPERS ================= */
+
+function parseMembership(raw: string | null): Membership | null {
+  if (!raw) return null;
+  try {
+    const m = JSON.parse(raw) as Membership;
+    if (!m?.type || !m?.expireAt || !m?.txHash) return null;
+    return m;
+  } catch {
+    return null;
+  }
+}
+
+function emitUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(MEMBERSHIP_UPDATED_EVENT));
 }
 
 /* ================= PUBLIC API ================= */
 
+/**
+ * ✅ Cached membership (NO verify) – UI không “tụt” sau refresh.
+ * Chỉ check expireAt.
+ */
+export function getCachedMembership(
+  userId: string,
+  email?: string
+): Membership | null {
+  if (typeof window === "undefined") return null;
+  if (!userId) return null;
+
+  for (const k of possibleKeys(userId, email)) {
+    const m = parseMembership(localStorage.getItem(k));
+    if (!m) continue;
+    if (!isMembershipActive(m)) continue;
+    return m;
+  }
+
+  return null;
+}
+
+/**
+ * ✅ Truth membership (verify on-chain).
+ * - Accept: getActiveMembership(userId) OR getActiveMembership({ userId, email })
+ * - Auto migrate: nếu tìm thấy ở key email/old-key -> save về userId
+ */
 export async function getActiveMembership(
-  userId: string
+  arg: string | { userId: string; email?: string }
 ): Promise<Membership | null> {
   if (typeof window === "undefined") return null;
 
-  const raw = localStorage.getItem(getKey(userId));
-  if (!raw) return null;
+  const userId = typeof arg === "string" ? arg : arg.userId;
+  const email = typeof arg === "string" ? undefined : arg.email;
 
-  let m: Membership;
-  try {
-    m = JSON.parse(raw);
-  } catch {
-    localStorage.removeItem(getKey(userId));
+  if (!userId) return null;
+
+  // 1) tìm raw ở mọi key có thể
+  let foundKey: string | null = null;
+  let found: Membership | null = null;
+
+  for (const k of possibleKeys(userId, email)) {
+    const m = parseMembership(localStorage.getItem(k));
+    if (!m) continue;
+    foundKey = k;
+    found = m;
+    break;
+  }
+
+  if (!found || !foundKey) return null;
+
+  // 2) verify with 3-state
+  const vr = await verifyMembershipResult(found);
+
+  if (vr === "invalid") {
+    // ✅ chỉ xoá khi thật sự invalid
+    for (const k of possibleKeys(userId, email)) localStorage.removeItem(k);
+    emitUpdated();
     return null;
   }
 
-  if (!m.type || !m.expireAt || !m.txHash) {
-    localStorage.removeItem(getKey(userId));
-    return null;
+  // vr === "pending" -> giữ cached để UI/role cập nhật ngay
+  // vr === "ok" -> migrate key
+  const canonical = keyById(userId);
+  if (foundKey !== canonical) {
+    localStorage.setItem(canonical, JSON.stringify(found));
   }
 
-  const ok = await verifyMembership(m);
-  if (!ok) {
-    localStorage.removeItem(getKey(userId));
-    return null;
-  }
-
-  return m;
+  return found;
 }
 
-export function saveMembership(
-  userId: string,
-  m: Membership
-) {
+
+/**
+ * ✅ Save membership
+ * - Luôn lưu theo userId
+ * - Nếu có email -> lưu thêm bản copy để backward-compat
+ */
+export function saveMembership(userId: string, m: Membership, email?: string) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(getKey(userId), JSON.stringify(m));
+  if (!userId) return;
+
+  localStorage.setItem(keyById(userId), JSON.stringify(m));
+  if (email) localStorage.setItem(keyById(email), JSON.stringify(m));
+
+  emitUpdated();
 }
 
-export function clearMembership(userId: string) {
+export function clearMembership(userId: string, email?: string) {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(getKey(userId));
+  if (!userId) return;
+
+  for (const k of possibleKeys(userId, email)) localStorage.removeItem(k);
+  emitUpdated();
 }
 
 /* ================= ENTITLEMENTS (menu) ================= */
 
-export function getMembershipEntitlements(
-  m: Membership | null
-) {
+export function getMembershipEntitlements(m: Membership | null) {
   const p = getFeaturePolicy(m);
   return {
     canManage: p.canManage,
@@ -223,5 +325,32 @@ export function getMembershipEntitlements(
     creatorPlan: p.creatorPlan,
     creatorUnlimited: p.creatorUnlimited,
     creatorTeam: p.creatorTeam,
+  };
+}
+
+/* ================= SUBSCRIBE (Header / Profile realtime) ================= */
+
+/**
+ * ✅ Listen membership changes:
+ * - same-tab: MEMBERSHIP_UPDATED_EVENT
+ * - cross-tab: storage event
+ */
+export function subscribeMembership(cb: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  const onEvent = () => cb();
+
+  const onStorage = (e: StorageEvent) => {
+    // chỉ react khi key liên quan membership
+    const k = e.key || "";
+    if (k.startsWith(KEY) || k.startsWith(`${KEY}_`)) cb();
+  };
+
+  window.addEventListener(MEMBERSHIP_UPDATED_EVENT, onEvent);
+  window.addEventListener("storage", onStorage);
+
+  return () => {
+    window.removeEventListener(MEMBERSHIP_UPDATED_EVENT, onEvent);
+    window.removeEventListener("storage", onStorage);
   };
 }

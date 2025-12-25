@@ -3,12 +3,6 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type PinataFileResp = {
-  IpfsHash: string;
-  PinSize: number;
-  Timestamp?: string;
-};
-
 function mustEnv(key: string) {
   const v = process.env[key];
   if (!v) throw new Error(`Missing env: ${key}`);
@@ -22,23 +16,28 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
 
-    // ✅ FIX: không dùng instanceof File
-    if (!file || typeof (file as any).arrayBuffer !== "function") {
+    if (!file || !(file instanceof File)) {
       return NextResponse.json(
-        { ok: false, error: "Missing or invalid file field" },
+        { ok: false, error: "Missing file (field: file)" },
         { status: 400 }
       );
     }
 
-    const f = file as File;
+    // chặn vượt giới hạn serverless
+    const MAX_MB = 4;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      return NextResponse.json(
+        { ok: false, error: `File too large. Max ${MAX_MB}MB` },
+        { status: 413 }
+      );
+    }
 
     const fd = new FormData();
-    fd.append("file", f, f.name);
-
+    fd.append("file", file, file.name);
     fd.append(
       "pinataMetadata",
       JSON.stringify({
-        name: f.name,
+        name: file.name,
         keyvalues: { app: "chainstorm", kind: "work-file" },
       })
     );
@@ -46,7 +45,9 @@ export async function POST(req: Request) {
 
     const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
       method: "POST",
-      headers: { Authorization: `Bearer ${jwt}` },
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
       body: fd,
     });
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const data = JSON.parse(text) as PinataFileResp;
+    const data = JSON.parse(text) as { IpfsHash: string };
     const cid = data.IpfsHash;
     const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
 
@@ -66,12 +67,11 @@ export async function POST(req: Request) {
       ok: true,
       cid,
       url,
-      name: f.name,
-      size: f.size,
-      type: f.type || "application/octet-stream",
+      name: file.name,
+      size: file.size,
+      type: file.type || "application/octet-stream",
     });
   } catch (e: any) {
-    console.error("[upload error]", e);
     return NextResponse.json(
       { ok: false, error: e?.message || String(e) },
       { status: 500 }

@@ -1,313 +1,344 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./search.module.css";
-import { getVerifiedWorks, Work } from "@/lib/workStore";
+import { getVerifiedWorks } from "@/lib/workStore";
 
-/* ===== UTILS ===== */
+/* profileStore */
+import { loadProfile, type UserProfile, toGateway } from "@/lib/profileStore";
 
-function norm(v?: string) {
-  return (v || "Không xác định").trim();
+/* membershipStore */
+import {
+  type Membership,
+  getActiveMembership,
+  getCachedMembership,
+  getMembershipBadgeLabel,
+} from "@/lib/membershipStore";
+
+/* ===== Phosphor Icons ===== */
+import { MagnifyingGlass, UsersThree, ShieldCheck, ArrowRight } from "@phosphor-icons/react";
+
+type Work = any;
+
+type AuthorRow = {
+  authorId: string;
+  rep: Work; // work đại diện để fallback
+};
+
+type ViewModel = {
+  authorId: string;
+  name: string;
+  email: string;
+  avatar: string;
+  membership: Membership | null;
+};
+
+function shortText(v?: string) {
+  const s = (v || "").trim();
+  return s || "—";
 }
 
 function useDebounce<T>(value: T, delay = 300) {
   const [debounced, setDebounced] = useState(value);
-
   useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay);
     return () => clearTimeout(t);
   }, [value, delay]);
-
   return debounced;
 }
 
-/** CID -> gateway url */
-function cidToGateway(cid?: string) {
-  if (!cid) return "";
-  const v = cid.trim();
-  if (!v) return "";
-  if (v.startsWith("http")) return v;
-  if (v.startsWith("ipfs://")) return `https://gateway.pinata.cloud/ipfs/${v.replace("ipfs://", "")}`;
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+/** ưu tiên profileStore, fallback từ rep work */
+function buildVM(authorId: string, rep: Work): ViewModel {
+  const p: UserProfile = loadProfile(authorId) || {};
+
+  const name =
+    String(p?.name || "").trim() ||
+    String(rep?.authorName || "").trim() ||
+    "Tác giả";
+
+  const email =
+    String(p?.email || "").trim() ||
+    String(rep?.authorEmail || rep?.email || "").trim() ||
+    "—";
+
+  const avatarRaw =
+    String(p?.avatar || "").trim() ||
+    String(rep?.authorAvatar || rep?.avatar || "").trim();
+
+  const avatar = toGateway(avatarRaw);
+
+  // membership: dùng cache trước để UI có ngay
+  const cached = getCachedMembership(authorId, email);
+
+  return {
+    authorId,
+    name,
+    email,
+    avatar,
+    membership: cached || null,
+  };
 }
 
-/** normalize ipfs://... or cid -> https gateway */
-function normalizeIpfsUrl(url?: string) {
-  if (!url) return "";
-  const v = String(url).trim();
-  if (!v) return "";
-  if (v.startsWith("http")) return v;
-  if (v.startsWith("ipfs://")) return `https://gateway.pinata.cloud/ipfs/${v.replace("ipfs://", "")}`;
-  // nếu metadata ghi thẳng cid
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+/** shallow compare 2 vmMap theo key + 4 fields cơ bản */
+function sameVM(a: ViewModel, b: ViewModel) {
+  const aKey = a.membership ? `${a.membership.type}:${a.membership.expireAt}` : "";
+  const bKey = b.membership ? `${b.membership.type}:${b.membership.expireAt}` : "";
+  return (
+    a.authorId === b.authorId &&
+    a.name === b.name &&
+    a.email === b.email &&
+    a.avatar === b.avatar &&
+    aKey === bKey
+  );
 }
 
-/** chọn cover từ metadata */
-function pickCover(meta: any) {
-  // ưu tiên: meta.image (NFT convention) -> meta.properties.cover -> meta.cover -> animation_url
-  const a =
-    normalizeIpfsUrl(meta?.image) ||
-    normalizeIpfsUrl(meta?.properties?.cover) ||
-    normalizeIpfsUrl(meta?.cover) ||
-    normalizeIpfsUrl(meta?.animation_url);
-
-  return a || "";
-}
-
-/* ===== Metadata cache (in-memory) ===== */
-type MetaMap = Record<string, any | null>;
+type VmMap = Record<string, ViewModel>;
 
 export default function SearchPage() {
-  const works = getVerifiedWorks();
+  /** ✅ QUAN TRỌNG: đóng băng works để không đổi reference mỗi render */
+  const works = useMemo(() => getVerifiedWorks() as unknown as Work[], []);
 
-  /* ===== STATE ===== */
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState("all");
-  const [language, setLanguage] = useState("all");
   const [loading, setLoading] = useState(false);
-
   const debouncedQ = useDebounce(q);
 
-  /* ===== AUTO CATEGORY / LANGUAGE ===== */
+  /* ===== group works -> authors ===== */
+  const authorRows = useMemo<AuthorRow[]>(() => {
+    const map = new Map<string, Work>();
 
-  const categories = useMemo(() => {
-    return Array.from(new Set(works.map((w) => norm(w.category)))).filter(
-      (v) => v !== "Không xác định"
-    );
-  }, [works]);
+    for (const w of works) {
+      const id = String(w?.authorId || "").trim();
+      if (!id) continue;
+      if (!map.has(id)) map.set(id, w);
+    }
 
-  const languages = useMemo(() => {
-    return Array.from(new Set(works.map((w) => norm(w.language)))).filter(
-      (v) => v !== "Không xác định"
-    );
-  }, [works]);
+    const rows: AuthorRow[] = [];
+    for (const [authorId, rep] of map.entries()) {
+      rows.push({ authorId, rep });
+    }
 
-  /* ===== POPULAR CATEGORIES ===== */
-
-  const popularCategories = useMemo(() => {
-    const map: Record<string, number> = {};
-    works.forEach((w) => {
-      const c = norm(w.category);
-      if (c !== "Không xác định") map[c] = (map[c] || 0) + 1;
+    // sort theo tên fallback (để UI ổn định)
+    rows.sort((a, b) => {
+      const pa = loadProfile(a.authorId) || {};
+      const pb = loadProfile(b.authorId) || {};
+      const na = String(pa?.name || a.rep?.authorName || a.authorId);
+      const nb = String(pb?.name || b.rep?.authorName || b.authorId);
+      return na.localeCompare(nb);
     });
-    return Object.entries(map)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([k]) => k);
+
+    return rows;
   }, [works]);
 
-  /* ===== FILTER (PURE) ===== */
+  /** ✅ deps ổn định thay vì [authorRows] */
+  const authorKey = useMemo(
+    () => authorRows.map((x) => x.authorId).join("|"),
+    [authorRows]
+  );
 
+  /** init vmMap 1 lần theo authorKey */
+  const [vmMap, setVmMap] = useState<VmMap>(() => {
+    const next: VmMap = {};
+    for (const r of authorRows) next[r.authorId] = buildVM(r.authorId, r.rep);
+    return next;
+  });
+
+  /** giữ ref để effect membership không cần deps vmMap */
+  const vmRef = useRef(vmMap);
+  useEffect(() => {
+    vmRef.current = vmMap;
+  }, [vmMap]);
+
+  /** ✅ Sync profile/email/avatar khi authorKey thay đổi (không loop) */
+  useEffect(() => {
+    const next: VmMap = {};
+    for (const r of authorRows) next[r.authorId] = buildVM(r.authorId, r.rep);
+
+    setVmMap((prev) => {
+      // nếu keys giống và từng item giống -> không setState
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length === nextKeys.length) {
+        let allSame = true;
+        for (const k of nextKeys) {
+          const a = prev[k];
+          const b = next[k];
+          if (!a || !b || !sameVM(a, b)) {
+            allSame = false;
+            break;
+          }
+        }
+        if (allSame) return prev;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authorKey]);
+
+  /** ===== FILTER ===== */
   const filtered = useMemo(() => {
     const k = debouncedQ.trim().toLowerCase();
+    if (!k) return authorRows;
 
-    return works.filter((w) => {
-      if (category !== "all" && norm(w.category) !== category) return false;
-      if (language !== "all" && norm(w.language) !== language) return false;
-      if (!k) return true;
-
-      return (
-        w.title.toLowerCase().includes(k) ||
-        norm(w.category).toLowerCase().includes(k) ||
-        norm(w.language).toLowerCase().includes(k)
-      );
+    return authorRows.filter((r) => {
+      const vm = vmMap[r.authorId];
+      const name = (vm?.name || "").toLowerCase();
+      const email = (vm?.email || "").toLowerCase();
+      const id = (r.authorId || "").toLowerCase();
+      return name.includes(k) || email.includes(k) || id.includes(k);
     });
-  }, [debouncedQ, category, language, works]);
-
-  /* ===== LOADING EFFECT ===== */
+  }, [authorRows, debouncedQ, vmMap]);
 
   useEffect(() => {
     setLoading(true);
-    const t = setTimeout(() => setLoading(false), 200);
+    const t = setTimeout(() => setLoading(false), 160);
     return () => clearTimeout(t);
-  }, [debouncedQ, category, language]);
+  }, [debouncedQ]);
 
-  /* ===== STATS ===== */
-
-  const authorCount = new Set(works.map((w) => w.authorId)).size;
-
-  /* ===== LOAD METADATA FOR COVERS ===== */
-
-  const [metaMap, setMetaMap] = useState<MetaMap>({});
-
+  /** ===== membership truth (đúng “đã mua”) ===== */
   useEffect(() => {
     let alive = true;
 
-    async function loadMetas() {
-      // lấy 24 cái đầu để UI nhanh, có thể tăng nếu bạn muốn
-      const list = filtered.slice(0, 24);
-      const need = list
-        .map((w) => (w.hash || "").trim())
-        .filter((cid) => cid && metaMap[cid] === undefined);
+    async function run() {
+      // chạy nhẹ: chỉ resolve cho list đang hiển thị (tối đa 30)
+      const list = filtered.slice(0, 30);
 
-      if (need.length === 0) return;
+      for (const r of list) {
+        if (!alive) return;
 
-      const updates: MetaMap = {};
+        const current = vmRef.current[r.authorId];
+        if (!current) continue;
 
-      // fetch tuần tự để tránh spam gateway (ổn định)
-      for (const cid of need) {
+        // nếu email chưa có thì bỏ qua (không đoán)
+        const email = String(current.email || "").trim();
+        if (!email || email === "—") continue;
+
         try {
-          const url = cidToGateway(cid);
-          const res = await fetch(url, { cache: "no-store" });
-          if (!res.ok) throw new Error("fetch metadata failed");
-          const json = await res.json();
-          updates[cid] = json;
-        } catch {
-          updates[cid] = null;
-        }
-      }
+          const truth = await getActiveMembership({ userId: r.authorId, email });
+          if (!alive) return;
 
-      if (!alive) return;
-      setMetaMap((prev) => ({ ...prev, ...updates }));
+          setVmMap((prev) => {
+            const p = prev[r.authorId];
+            if (!p) return prev;
+
+            const prevKey = p.membership ? `${p.membership.type}:${p.membership.expireAt}` : "";
+            const newKey = truth ? `${truth.type}:${truth.expireAt}` : "";
+            if (prevKey === newKey) return prev;
+
+            return { ...prev, [r.authorId]: { ...p, membership: truth } };
+          });
+        } catch {
+          // ignore -> giữ cached/null
+        }
+
+        // delay nhỏ chống spam
+        await new Promise((x) => setTimeout(x, 60));
+      }
     }
 
-    loadMetas();
+    if (filtered.length > 0) run();
 
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered]);
+  }, [filtered]); // ✅ filtered thay đổi theo search, OK
 
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        {/* ===== HERO ===== */}
+        {/* HERO */}
         <section className={styles.hero}>
-          <h1 className={styles.title}>Tra cứu tác phẩm</h1>
-          <p className={styles.subtitle}>
-            Tìm kiếm và xác thực bản quyền các tác phẩm số đã được duyệt.
-            <br />
-            Dữ liệu minh bạch, truy vết rõ ràng.
-          </p>
-        </section>
-
-        {/* ===== STATS ===== */}
-        <section className={styles.stats}>
-          <div className={styles.statItem}>
-            <strong className={styles.statValue}>{works.length}</strong>
-            <span className={styles.statLabel}>Tác phẩm</span>
-          </div>
-          <div className={styles.statItem}>
-            <strong className={styles.statValue}>{authorCount}</strong>
-            <span className={styles.statLabel}>Tác giả</span>
-          </div>
-          <div className={styles.statItem}>
-            <strong className={styles.statValue}>{categories.length}</strong>
-            <span className={styles.statLabel}>Thể loại</span>
-          </div>
-        </section>
-
-        {/* ===== SEARCH ===== */}
-        <section className={styles.searchBox}>
-          <input
-            className={styles.searchInput}
-            placeholder="Nhập tên tác phẩm để tra cứu…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-
-          <div className={styles.filterRow}>
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="all">Tất cả thể loại</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-
-            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="all">Tất cả ngôn ngữ</option>
-              {languages.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {!q && popularCategories.length > 0 && (
-            <div className={styles.suggestions}>
-              Phổ biến:
-              {popularCategories.map((c) => (
-                <button key={c} onClick={() => setCategory(c)}>
-                  {c}
-                </button>
-              ))}
+          <div className={styles.heroTop}>
+            <div className={styles.heroIcon}>
+              <UsersThree size={22} weight="fill" />
             </div>
-          )}
+            <div>
+              <h1 className={styles.title}>Tra cứu tác giả</h1>
+              <p className={styles.subtitle}>
+                Hiển thị thông tin cơ bản (avatar, email, membership). Nhấn để xem chi tiết.
+              </p>
+            </div>
+          </div>
         </section>
 
-        {/* ===== RESULTS ===== */}
+        {/* SEARCH */}
+        <section className={styles.searchBox}>
+          <div className={styles.searchWrap}>
+            <MagnifyingGlass size={18} weight="bold" className={styles.searchIcon} />
+            <input
+              className={styles.searchInput}
+              placeholder="Tên tác giả / Email / ID…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+        </section>
+
+        {/* GRID */}
         <section className={styles.grid}>
           {loading &&
-            Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className={styles.skeleton} />
-            ))}
+            Array.from({ length: 8 }).map((_, i) => <div key={i} className={styles.skeleton} />)}
 
           {!loading &&
-            filtered.map((w: Work) => {
-              const cid = (w.hash || "").trim();
-              const meta = cid ? metaMap[cid] : null;
-              const cover = meta ? pickCover(meta) : "";
-              const cat = w.category || "—";
-              const lang = w.language || "—";
+            filtered.map((r) => {
+              const vm = vmMap[r.authorId];
+              const name = vm?.name || "Tác giả";
+              const email = vm?.email || "—";
+              const avatar = vm?.avatar || "";
+              const mem = vm?.membership;
+
+              const memLabel = mem ? getMembershipBadgeLabel(mem) : "Free";
 
               return (
-                <div key={w.id} className={styles.workCard}>
-                  <div className={styles.cover}>
-                    {cover ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={cover} alt={w.title} />
-                    ) : (
-                      <div className={styles.coverEmpty}>
-                        <span>NO COVER</span>
+                <Link
+                  key={r.authorId}
+                  href={`/author/${encodeURIComponent(r.authorId)}`}
+                  className={styles.authorCard}
+                >
+                  <div className={styles.cardTop}>
+                    <div className={styles.avatarRow}>
+                      <div className={styles.avatarWrap}>
+                        {avatar ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatar} alt={name} className={styles.avatarImg} />
+                        ) : (
+                          <div className={styles.avatarFallback}>
+                            {name?.[0]?.toUpperCase() || "A"}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <div className={styles.workBody}>
-                    <h3 className={styles.workTitle}>{w.title}</h3>
+                      <div className={styles.badgeCol}>
+                        <span className={styles.verifiedPill}>
+                          <ShieldCheck size={14} weight="fill" /> Verified
+                        </span>
 
-                    <div className={styles.metaRow}>
-                      <span className={styles.metaLabel}>Thể loại</span>
-                      <span className={styles.metaValue}>{cat}</span>
+                        <span className={styles.memberPill} data-tier={String(mem?.type || "").toLowerCase()}>
+                          {memLabel}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className={styles.metaRow}>
-                      <span className={styles.metaLabel}>Ngôn ngữ</span>
-                      <span className={styles.metaValue}>{lang}</span>
-                    </div>
+                    <h3 className={styles.cardTitle}>{shortText(name)}</h3>
 
-                    <div className={styles.actions}>
-                      <Link href={`/work/${w.id}`} className={styles.detailBtn}>
-                        Xem chi tiết
-                      </Link>
+                    <div className={styles.emailRow}>{shortText(email)}</div>
 
-                      {cid ? (
-                        <a
-                          className={styles.ghostBtn}
-                          href={cidToGateway(cid)}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Mở metadata từ IPFS gateway"
-                        >
-                          Metadata
-                        </a>
-                      ) : null}
+                    <div className={styles.idRow}>
+                      ID: <span className={styles.mono}>{r.authorId}</span>
                     </div>
                   </div>
-                </div>
+
+                  <div className={styles.hoverCta}>
+                    Xem chi tiết <ArrowRight size={16} weight="bold" />
+                  </div>
+                </Link>
               );
             })}
 
           {!loading && filtered.length === 0 && (
             <div className={styles.empty}>
               <div className={styles.emptyIcon}>🔍</div>
-              <p>Không tìm thấy tác phẩm</p>
-              <span>Thử từ khóa khác hoặc thay đổi bộ lọc</span>
+              <p>Không tìm thấy tác giả</p>
             </div>
           )}
         </section>

@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 export default function GoogleProvider({
@@ -10,14 +9,10 @@ export default function GoogleProvider({
 }) {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-  if (!clientId) {
-    // để dev dễ thấy lỗi env thay vì crash mơ hồ
-    console.error("Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID in .env.local");
-    return <>{children}</>;
-  }
-
+  // ✅ LUÔN bọc Provider để tránh crash build / prerender
+  // Nếu thiếu env → dùng dummy id (login sẽ không hoạt động, nhưng app/build OK)
   return (
-    <GoogleOAuthProvider clientId={clientId}>
+    <GoogleOAuthProvider clientId={clientId || "DUMMY_CLIENT_ID"}>
       {children}
     </GoogleOAuthProvider>
   );

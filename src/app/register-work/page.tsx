@@ -7,7 +7,7 @@ import styles from "./register-work.module.css";
 
 import { useAuth } from "@/context/AuthContext";
 import { addWork, bindNFTToWork } from "@/lib/workStore";
-import { loadProfile, subscribeProfile } from "@/lib/profileStore";
+import { loadProfile, subscribeProfile, saveProfile } from "@/lib/profileStore";
 
 /* ===== SUI ===== */
 import {
@@ -22,6 +22,9 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
 type SellTypeUI = "exclusive" | "license";
+
+type UploadStage = "idle" | "upload_file" | "upload_cover" | "upload_meta" | "done";
+
 type UploadResult = {
   cid: string;
   url: string;
@@ -29,8 +32,6 @@ type UploadResult = {
   size?: number;
   type?: string;
 };
-
-/* ================= Utils ================= */
 
 function isDDMMYYYY(v: string) {
   return /^\d{2}\/\d{2}\/\d{4}$/.test(v);
@@ -50,6 +51,41 @@ function parseDDMMYYYYToISO(v: string): string | null {
     return null;
 
   return d.toISOString();
+}
+
+async function readApi(res: Response) {
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const text = await res.text();
+
+  if (!res.ok) {
+    // 413 / 502 / html/text đều không làm crash
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+
+  if (ct.includes("application/json")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+const MAX_MB = 4; // Vercel serverless thường ~4-5MB
+function guardSize(f: File) {
+  const mb = f.size / 1024 / 1024;
+  if (mb > MAX_MB) {
+    throw new Error(
+      `File quá lớn (${mb.toFixed(1)}MB). Giới hạn upload qua server ~${MAX_MB}MB. ` +
+        `Hãy dùng file nhỏ hơn hoặc chuyển sang direct upload.`
+    );
+  }
 }
 
 export default function RegisterWorkPage() {
@@ -82,18 +118,21 @@ export default function RegisterWorkPage() {
   const [sellType, setSellType] = useState<SellTypeUI>("exclusive");
   const [royalty, setRoyalty] = useState<string>("5");
 
-  // main file
+  // audio/work file
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadStage, setUploadStage] = useState<
-    "idle" | "upload_file" | "upload_cover" | "upload_meta" | "done"
-  >("idle");
 
+  // cover
+  const [cover, setCover] = useState<File | null>(null);
+
+  // upload
+  const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
+  const [uploadPct, setUploadPct] = useState(0);
+
+  // uploaded results
   const [fileCid, setFileCid] = useState("");
   const [fileUrl, setFileUrl] = useState("");
 
-  // cover (optional but recommended)
-  const [cover, setCover] = useState<File | null>(null);
   const [coverCid, setCoverCid] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
 
@@ -105,6 +144,10 @@ export default function RegisterWorkPage() {
   const [authorName, setAuthorName] = useState<string>("Unknown");
   const [authorPhone, setAuthorPhone] = useState<string>("");
 
+  // ✅ email + avatar snapshot
+  const [authorEmail, setAuthorEmail] = useState<string>("");
+  const [authorAvatar, setAuthorAvatar] = useState<string>("");
+
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -114,17 +157,77 @@ export default function RegisterWorkPage() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const p = loadProfile(user.id);
-    setAuthorName(p?.name?.trim() ? p.name.trim() : user.id);
-    setAuthorPhone(p?.phone ?? "");
+    const apply = () => {
+      const p = loadProfile(user.id);
 
-    const unsub = subscribeProfile(user.id, (profile) => {
-      setAuthorName(profile?.name?.trim() ? profile.name!.trim() : user.id);
-      setAuthorPhone(profile?.phone ?? "");
-    });
+      const name = p?.name?.trim() ? p.name.trim() : user.id;
+      const phone = p?.phone ?? "";
 
+      const email = String(p?.email || user.email || "").trim();
+      const avatar = String((p as any)?.avatar || (user as any)?.avatar || "").trim();
+
+      setAuthorName(name);
+      setAuthorPhone(phone);
+      setAuthorEmail(email);
+      setAuthorAvatar(avatar);
+    };
+
+    apply();
+    const unsub = subscribeProfile(user.id, () => apply());
     return unsub;
-  }, [user?.id]);
+  }, [user?.id, user?.email, (user as any)?.avatar]);
+
+  /* =======================
+     ✅ helpers: progress UI
+  ======================= */
+  function stageLabel(s: UploadStage) {
+    switch (s) {
+      case "upload_file":
+        return "Uploading audio/file…";
+      case "upload_cover":
+        return "Uploading cover…";
+      case "upload_meta":
+        return "Uploading metadata…";
+      case "done":
+        return "Done";
+      default:
+        return "Idle";
+    }
+  }
+
+  // fetch() không có upload progress chuẩn, dùng stage-progress giả lập cho UX
+  function startFakeProgress(stage: UploadStage) {
+    setUploadStage(stage);
+    setUploadPct(2);
+
+    let pct = 2;
+    const cap = stage === "upload_file" ? 88 : stage === "upload_cover" ? 92 : 96;
+
+    const id = window.setInterval(() => {
+      const step = pct < 30 ? 6 : pct < 60 ? 4 : pct < 80 ? 2 : 1;
+      pct = Math.min(cap, pct + step);
+      setUploadPct(pct);
+    }, 250);
+
+    return () => window.clearInterval(id);
+  }
+
+  function finishProgress() {
+    setUploadPct(100);
+    window.setTimeout(() => setUploadPct(0), 450);
+  }
+
+  function resetIpfsState() {
+    setErr(null);
+    setFileCid("");
+    setFileUrl("");
+    setCoverCid("");
+    setCoverUrl("");
+    setMetaCid("");
+    setMetaUrl("");
+    setUploadStage("idle");
+    setUploadPct(0);
+  }
 
   /* =======================
      ✅ computed
@@ -135,17 +238,11 @@ export default function RegisterWorkPage() {
     return Math.max(0, Math.min(100, Math.floor(n)));
   }, [royalty]);
 
-  const sellTypeU8 = useMemo(
-    () => (sellType === "exclusive" ? 1 : 2),
-    [sellType]
-  );
+  const sellTypeU8 = useMemo(() => (sellType === "exclusive" ? 1 : 2), [sellType]);
 
   const configOk = useMemo(() => {
     return Boolean(
-      PACKAGE_ID?.startsWith("0x") &&
-        REGISTRY_ID?.startsWith("0x") &&
-        MODULE &&
-        MINT_FN
+      PACKAGE_ID?.startsWith("0x") && REGISTRY_ID?.startsWith("0x") && MODULE && MINT_FN
     );
   }, [PACKAGE_ID, REGISTRY_ID, MODULE, MINT_FN]);
 
@@ -171,16 +268,7 @@ export default function RegisterWorkPage() {
     if (uploading) return false;
     if (isPending) return false;
     return true;
-  }, [
-    configOk,
-    user?.id,
-    walletAddress,
-    title,
-    file,
-    createdDateOk,
-    uploading,
-    isPending,
-  ]);
+  }, [configOk, user?.id, walletAddress, title, file, createdDateOk, uploading, isPending]);
 
   useEffect(() => setErr(null), [step, sellType, activeNet]);
 
@@ -191,80 +279,110 @@ export default function RegisterWorkPage() {
     return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "";
   }
 
+  function isImageMime(mime?: string) {
+    return !!mime && mime.startsWith("image/");
+  }
+
   /* =======================
-     ✅ IPFS helpers
+     ✅ IPFS upload helpers
+     route name giữ nguyên:
+     - POST /api/ipfs/upload (FormData: file)
+     - POST /api/ipfs/upload-json (JSON)
   ======================= */
+  async function uploadToIPFSFile(f: File, kind: "audio" | "cover"): Promise<UploadResult> {
+  setUploading(true);
+  setUploadStage(kind === "audio" ? "upload_file" : "upload_cover");
+  setUploadPct(0);
 
-  // ✅ FIX: upload file phải gọi /api/ipfs/upload (FormData), KHÔNG gọi upload-json
-  async function uploadFileToIPFS(f: File): Promise<UploadResult> {
-    setUploading(true);
-    setUploadStage("upload_file");
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
+  try {
+    // ✅ lấy JWT từ server
+    const tRes = await fetch("/api/pinata/token");
+    const tData = await tRes.json();
+    if (!tData?.ok) throw new Error(tData?.error || "Cannot get Pinata token");
+    const jwt = tData.jwt as string;
 
-      const res = await fetch("/api/ipfs/upload", { method: "POST", body: fd });
-      const data = await res.json();
+    // ✅ form-data gửi thẳng Pinata
+    const fd = new FormData();
+    fd.append("file", f, f.name);
+    fd.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
+    fd.append(
+      "pinataMetadata",
+      JSON.stringify({
+        name: f.name,
+        keyvalues: { app: "chainstorm", kind: kind === "audio" ? "work-file" : "work-cover" },
+      })
+    );
 
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.error || "Upload IPFS failed");
+    // ✅ XHR để có progress thật theo byte
+    const result = await new Promise<any>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "https://api.pinata.cloud/pinning/pinFileToIPFS", true);
+      xhr.setRequestHeader("Authorization", `Bearer ${jwt}`);
 
-      return {
-        cid: data.cid,
-        url: data.url,
-        name: data.name,
-        size: data.size,
-        type: data.type,
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round((e.loaded / e.total) * 100);
+        setUploadPct(pct);
       };
-    } finally {
-      setUploading(false);
-    }
-  }
 
-  async function uploadCoverToIPFS(f: File): Promise<UploadResult> {
-    setUploading(true);
-    setUploadStage("upload_cover");
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-
-      const res = await fetch("/api/ipfs/upload", { method: "POST", body: fd });
-      const data = await res.json();
-
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.error || "Upload cover failed");
-
-      return {
-        cid: data.cid,
-        url: data.url,
-        name: data.name,
-        size: data.size,
-        type: data.type,
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          return reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+        }
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error("Invalid Pinata response"));
+        }
       };
-    } finally {
-      setUploading(false);
-    }
+
+      xhr.onerror = () => reject(new Error("Network error"));
+      xhr.send(fd);
+    });
+
+    const cid = result?.IpfsHash as string;
+    if (!cid) throw new Error("Pinata response missing IpfsHash");
+
+    const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
+
+    setUploadStage("done");
+    setTimeout(() => setUploadPct(0), 800);
+
+    return {
+      cid,
+      url,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    };
+  } finally {
+    setUploading(false);
   }
+}
+
 
   async function uploadJSONToIPFS(json: any): Promise<{ cid: string; url: string }> {
     setUploading(true);
-    setUploadStage("upload_meta");
+    const stop = startFakeProgress("upload_meta");
+
     try {
       const res = await fetch("/api/ipfs/upload-json", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(json),
       });
-      const data = await res.json();
 
-      if (!res.ok || !data?.ok)
-        throw new Error(data?.error || "Upload metadata failed");
+      const data: any = await readApi(res);
+      if (!data?.ok) throw new Error(data?.error || "Upload metadata failed");
 
       setMetaCid(data.cid);
       setMetaUrl(data.url);
       setUploadStage("done");
+      finishProgress();
+
       return { cid: data.cid, url: data.url };
     } finally {
+      stop?.();
       setUploading(false);
     }
   }
@@ -290,12 +408,12 @@ export default function RegisterWorkPage() {
     if (!user?.id) throw new Error("Bạn cần đăng nhập.");
     if (!file) throw new Error("Bạn chưa chọn file tác phẩm.");
 
-    // 1) ensure file
+    // 1) ensure main file (audio)
     let fCid = fileCid;
     let fUrl = fileUrl;
 
     if (!fCid) {
-      const r = await uploadFileToIPFS(file);
+      const r = await uploadToIPFSFile(file, "audio");
       fCid = r.cid;
       fUrl = r.url;
       setFileCid(r.cid);
@@ -308,7 +426,7 @@ export default function RegisterWorkPage() {
     let cUrl = coverUrl;
 
     if (cover && !cCid) {
-      const r = await uploadCoverToIPFS(cover);
+      const r = await uploadToIPFSFile(cover, "cover");
       cCid = r.cid;
       cUrl = r.url;
       setCoverCid(r.cid);
@@ -327,23 +445,48 @@ export default function RegisterWorkPage() {
       throw new Error("Ngày sáng tác không hợp lệ. Định dạng đúng: dd/mm/yyyy");
     }
 
-    const metadata = {
-      name: title.trim(),
+    const safeTitle = title.trim();
+    const topImage = cUrl || (isImageMime(file.type) ? fUrl : "");
+
+    const metadata: any = {
+      name: safeTitle,
       description: "Chainstorm WorkNFT metadata",
+
+      ...(topImage ? { image: topImage } : {}),
+      animation_url: fUrl,
+
+      file: {
+        url: fUrl,
+        cid: fCid,
+        mime: file.type || "",
+        name: file.name,
+        size: file.size,
+      },
+
+      ...(cUrl
+        ? {
+            cover_image: cUrl,
+            cover: {
+              url: cUrl,
+              cid: cCid,
+              mime: cover?.type || "image/*",
+              name: cover?.name,
+              size: cover?.size,
+            },
+          }
+        : {}),
+
       attributes: [
         { trait_type: "sellType", value: sellType },
         { trait_type: "sell_type_u8", value: sellTypeU8 },
         { trait_type: "royalty_percent", value: royaltyNum },
-        ...(category.trim()
-          ? [{ trait_type: "category", value: category.trim() }]
-          : []),
-        ...(language.trim()
-          ? [{ trait_type: "language", value: language.trim() }]
-          : []),
+        ...(category.trim() ? [{ trait_type: "category", value: category.trim() }] : []),
+        ...(language.trim() ? [{ trait_type: "language", value: language.trim() }] : []),
         ...(createdDate.trim()
           ? [{ trait_type: "createdDate", value: createdDate.trim() }]
           : []),
       ],
+
       properties: {
         app: "Chainstorm",
         network: activeNet,
@@ -359,12 +502,16 @@ export default function RegisterWorkPage() {
           module: MODULE,
           mintFn: MINT_FN,
         },
+
         author: {
           userId: user.id,
           name: aName,
+          email: String(profile?.email || user.email || "").trim(),
+          avatar: String((profile as any)?.avatar || (user as any)?.avatar || "").trim(),
           phone: profile?.phone ?? "",
           walletAddress,
         },
+
         file: {
           cid: fCid,
           url: fUrl,
@@ -385,12 +532,6 @@ export default function RegisterWorkPage() {
           : {}),
         createdAt: new Date().toISOString(),
       },
-
-      // ✅ cover riêng ưu tiên
-      image: cUrl || fUrl,
-
-      // ✅ file gốc để preview audio/video/pdf
-      animation_url: fUrl,
     };
 
     const meta = await uploadJSONToIPFS(metadata);
@@ -457,10 +598,34 @@ export default function RegisterWorkPage() {
     try {
       const { metadataCid, hashBytes32 } = await ensureIPFSReady();
 
+      // ✅ đảm bảo profileStore có email/avatar (nếu Auth có mà profileStore chưa có)
+      try {
+        const current: any = loadProfile(user!.id);
+        const patch: any = {};
+
+        const e = String(current?.email || "").trim();
+        const a = String(current?.avatar || "").trim();
+
+        const authEmail = String(user?.email || "").trim();
+        const authAvatar = String((user as any)?.avatar || "").trim();
+
+        if (!e && authEmail) patch.email = authEmail;
+        if (!a && authAvatar) patch.avatar = authAvatar;
+
+        if (Object.keys(patch).length) saveProfile(user!.id, patch);
+      } catch {}
+
       // 1) off-chain store
       const workId = addWork({
         title: title.trim(),
         authorId: user!.id,
+
+        authorName: authorName || user!.id,
+        authorEmail: authorEmail || String(user?.email || ""),
+        authorAvatar: authorAvatar || String((user as any)?.avatar || ""),
+        authorPhone: authorPhone || "",
+        authorWallet: walletAddress || "",
+
         hash: metadataCid, // CID metadata
         category: category.trim() || undefined,
         language: language.trim() || undefined,
@@ -482,10 +647,7 @@ export default function RegisterWorkPage() {
         ],
       });
 
-      const result = await signAndExecuteTransaction({
-        transaction: tx,
-        execute: { options: { showObjectChanges: true, showEffects: true } },
-      });
+      const result = await signAndExecuteTransaction({ transaction: tx });
 
       const digest = (result as any)?.digest as string | undefined;
       if (!digest) throw new Error("Không nhận được digest từ giao dịch.");
@@ -505,9 +667,7 @@ export default function RegisterWorkPage() {
         createdObjectId = created?.objectId ?? null;
 
         if (!createdObjectId) {
-          const anyCreated = changes.find(
-            (c) => c?.type === "created" && c?.objectId
-          );
+          const anyCreated = changes.find((c) => c?.type === "created" && c?.objectId);
           createdObjectId = anyCreated?.objectId ?? null;
         }
       }
@@ -631,11 +791,24 @@ export default function RegisterWorkPage() {
 
         {err ? <div className={styles.error}>{err}</div> : null}
 
+        {/* ✅ upload progress */}
+        {uploading ? (
+          <div className={styles.uploadBarWrap}>
+            <div className={styles.uploadBarTop}>
+              <span className={styles.uploadStage}>{stageLabel(uploadStage)}</span>
+              <span className={styles.uploadPct}>{uploadPct}%</span>
+            </div>
+            <div className={styles.uploadTrack}>
+              <div className={styles.uploadFill} style={{ width: `${uploadPct}%` }} />
+            </div>
+          </div>
+        ) : null}
+
         {/* ===== Main Card ===== */}
         <div className={styles.card}>
           <div className={styles.cardTop}>
             <div className={styles.stepTitle}>
-              {step === 1 && "Step 1 — File, cover & thông tin"}
+              {step === 1 && "Step 1 — Audio/file, cover & thông tin"}
               {step === 2 && "Step 2 — Bán / License"}
               {step === 3 && "Step 3 — Xác nhận & Mint"}
             </div>
@@ -693,22 +866,18 @@ export default function RegisterWorkPage() {
                 </span>
               </label>
 
-              {/* FILE WORK */}
+              {/* AUDIO/FILE WORK */}
               <label className={styles.fieldFull}>
-                <span className={styles.label}>File tác phẩm</span>
+                <span className={styles.label}>Audio / File tác phẩm</span>
                 <div className={styles.fileRow}>
                   <input
                     className={styles.file}
                     type="file"
+                    accept="audio/*,video/*,application/pdf,image/*"
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
                       setFile(f);
-
-                      setFileCid("");
-                      setFileUrl("");
-                      setMetaCid("");
-                      setMetaUrl("");
-                      setUploadStage("idle");
+                      resetIpfsState();
                     }}
                   />
 
@@ -720,7 +889,7 @@ export default function RegisterWorkPage() {
                       try {
                         setErr(null);
                         if (!file) return;
-                        const r = await uploadFileToIPFS(file);
+                        const r = await uploadToIPFSFile(file, "audio");
                         setFileCid(r.cid);
                         setFileUrl(r.url);
                       } catch (e: any) {
@@ -728,9 +897,7 @@ export default function RegisterWorkPage() {
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_file"
-                      ? "Đang upload..."
-                      : "Upload IPFS"}
+                    {uploading && uploadStage === "upload_file" ? "Đang upload..." : "Upload IPFS"}
                   </button>
                 </div>
 
@@ -739,16 +906,9 @@ export default function RegisterWorkPage() {
                     <span className={styles.badge} data-ok={!!fileCid}>
                       File CID
                     </span>
-                    <span className={styles.mono}>
-                      {fileCid ? shortCid(fileCid) : "Chưa có"}
-                    </span>
+                    <span className={styles.mono}>{fileCid ? shortCid(fileCid) : "Chưa có"}</span>
                     {fileUrl ? (
-                      <a
-                        className={styles.link}
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a className={styles.link} href={fileUrl} target="_blank" rel="noreferrer">
                         Open
                       </a>
                     ) : null}
@@ -769,13 +929,22 @@ export default function RegisterWorkPage() {
                     accept="image/*"
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
-                      setCover(f);
 
+                      if (f && !f.type.startsWith("image/")) {
+                        setErr("Cover phải là ảnh (image/*).");
+                        e.currentTarget.value = "";
+                        return;
+                      }
+
+                      setCover(f);
+                      // chỉ reset cover/meta (giữ file nếu có)
+                      setErr(null);
                       setCoverCid("");
                       setCoverUrl("");
                       setMetaCid("");
                       setMetaUrl("");
                       setUploadStage("idle");
+                      setUploadPct(0);
                     }}
                   />
 
@@ -787,7 +956,7 @@ export default function RegisterWorkPage() {
                       try {
                         setErr(null);
                         if (!cover) return;
-                        const r = await uploadCoverToIPFS(cover);
+                        const r = await uploadToIPFSFile(cover, "cover");
                         setCoverCid(r.cid);
                         setCoverUrl(r.url);
                       } catch (e: any) {
@@ -795,9 +964,7 @@ export default function RegisterWorkPage() {
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_cover"
-                      ? "Đang upload..."
-                      : "Upload cover"}
+                    {uploading && uploadStage === "upload_cover" ? "Đang upload..." : "Upload cover"}
                   </button>
                 </div>
 
@@ -810,18 +977,14 @@ export default function RegisterWorkPage() {
                       {coverCid ? shortCid(coverCid) : "Chưa có"}
                     </span>
                     {coverUrl ? (
-                      <a
-                        className={styles.link}
-                        href={coverUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a className={styles.link} href={coverUrl} target="_blank" rel="noreferrer">
                         Open
                       </a>
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống, hệ thống dùng file gốc làm ảnh.
+                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống và file là ảnh thì
+                    dùng file làm image; còn không thì card có thể không có cover.
                   </div>
                 </div>
               </label>
@@ -870,6 +1033,7 @@ export default function RegisterWorkPage() {
               <Row label="Module" value={MODULE} />
               <Row label="Mint fn" value={MINT_FN} />
               <Row label="Tác giả" value={authorName} />
+              <Row label="Email" value={authorEmail || user?.email || "-"} />
               <Row label="Ví" value={walletAddress ? shortAddr(walletAddress) : "-"} mono />
               <Row label="Tiêu đề" value={title || "-"} />
               <Row label="Thể loại" value={category || "-"} />

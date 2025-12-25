@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "@/styles/profile.module.css";
 import { useAuth } from "@/context/AuthContext";
 
@@ -8,70 +8,120 @@ import MembershipTab from "@/components/profile/tabs/MembershipTab";
 import ProfileInfoPanel from "@/components/profile/tabs/InfoTab";
 import TradeHistoryPanel from "@/components/profile/tabs/HistoryTab";
 import SettingsPanel from "@/components/profile/tabs/SettingsTab";
-import WalletPanel from "@/components/profile/WalletPanel";
+
+import {
+  type Membership,
+  getCachedMembership,
+  getActiveMembership,
+  subscribeMembership,
+} from "@/lib/membershipStore";
 
 type Tab = "membership" | "info" | "history" | "settings";
 
-type Membership = {
-  type: "artist" | "creator" | "business";
-  plan?: "starter" | "pro" | "studio";
-  expireAt: number;
-  txHash: string;
-  block: number;
-};
+function formatLeft(ms: number) {
+  if (ms <= 0) return "Hết hạn";
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${d} ngày ${h}h ${m}m ${s}s`;
+}
 
 export default function ProfilePage() {
+  // ✅ hooks luôn được gọi (KHÔNG return sớm trước hooks)
   const { user } = useAuth();
+
   const [tab, setTab] = useState<Tab>("membership");
   const [membership, setMembership] = useState<Membership | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
 
-  /* ======================
-     LOAD MEMBERSHIP
-  ====================== */
-  useEffect(() => {
-    const raw = localStorage.getItem("membership");
-    if (raw) setMembership(JSON.parse(raw));
-  }, []);
+  // fallback an toàn khi user chưa có
+  const userId = user?.id ?? "";
+  const email = user?.email ?? "";
+  const role = user?.role ?? "user";
+  const membershipType = user?.membership ?? null;
 
-  /* ======================
-     REALTIME COUNTDOWN
-  ====================== */
+  // ======================
+  // LOAD MEMBERSHIP (cached -> verify)
+  // ======================
+  const loadMembership = async () => {
+    if (!userId) {
+      setMembership(null);
+      setTimeLeft("");
+      return;
+    }
+
+    const cached = getCachedMembership(userId, email);
+    if (cached) setMembership(cached);
+    else setMembership(null);
+
+    try {
+      const truth = await getActiveMembership({ userId, email });
+      setMembership(truth);
+    } catch {
+      // keep cached
+    }
+  };
+
   useEffect(() => {
-    if (!membership) return;
+    // user chưa có thì không load
+    if (!userId) return;
+    void loadMembership();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, email]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const unsub = subscribeMembership(() => {
+      void loadMembership();
+    });
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, email]);
+
+  // ======================
+  // REALTIME COUNTDOWN
+  // ======================
+  useEffect(() => {
+    if (!membership?.expireAt) {
+      setTimeLeft("");
+      return;
+    }
 
     const tick = () => {
       const diff = membership.expireAt - Date.now();
+      setTimeLeft(formatLeft(diff));
       if (diff <= 0) {
-        setTimeLeft("Hết hạn");
-        return;
+        setMembership(null);
       }
-
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-
-      setTimeLeft(`${d} ngày ${h}h ${m}m ${s}s`);
     };
 
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [membership]);
+  }, [membership?.expireAt]);
 
+  // ======================
+  // MENU ACCESS (đúng theo membershipType/role đã sync)
+  // ✅ useMemo luôn chạy dù user null -> không đổi thứ tự hooks
+  // ======================
+  const canAccess = useMemo(() => {
+    return (key: Tab) => {
+      if (key === "membership") return true;
+      if (key === "info") return true;
+      if (key === "settings") return true;
+
+      // ví dụ: history chỉ business
+      if (key === "history") return membershipType === "business";
+
+      return true;
+    };
+  }, [membershipType]);
+
+  // ✅ giờ mới được return sớm (sau khi gọi hết hooks)
   if (!user) return null;
-
-  /* ======================
-     MENU ACCESS (REAL)
-  ====================== */
-  const canAccess = (key: Tab) => {
-    if (!membership) return key === "membership";
-    if (key === "history") return membership.type === "business";
-    if (key === "settings") return true;
-    if (key === "info") return true;
-    return true;
-  };
 
   return (
     <main className={styles.profilePage}>
@@ -80,20 +130,37 @@ export default function ProfilePage() {
         <aside className={styles.sidebar}>
           <div className={styles.avatarBox}>
             <div className={styles.avatar}>
-              {user.avatar
-                ? <img src={user.avatar} />
-                : user.email[0].toUpperCase()}
+              {user.avatar ? (
+                <img
+                  className={styles.avatarImg}
+                  src={user.avatar}
+                  alt="avatar"
+                />
+              ) : (
+                user.email?.[0]?.toUpperCase()
+              )}
             </div>
 
             <div>
               <strong>{user.email}</strong>
+              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>
+                Role: <b>{role}</b>
+                {membershipType ? (
+                  <>
+                    {" "}
+                    · Membership: <b>{membershipType}</b>
+                  </>
+                ) : null}
+              </div>
             </div>
 
             {membership && (
               <div className={styles.currentMembership}>
                 <div>
-                  {membership.type.toUpperCase()}
-                  {membership.plan && ` (${membership.plan.toUpperCase()})`}
+                  <strong>{membership.type.toUpperCase()}</strong>
+                  {"plan" in membership && (membership as any).plan
+                    ? ` (${String((membership as any).plan).toUpperCase()})`
+                    : ""}
                 </div>
                 <small>Còn lại: {timeLeft}</small>
               </div>
