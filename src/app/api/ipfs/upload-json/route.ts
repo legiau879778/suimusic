@@ -1,3 +1,4 @@
+// src/app/api/ipfs/upload-json/route.ts
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -15,16 +16,23 @@ function mustEnv(key: string) {
   return v;
 }
 
+function json(ok: boolean, payload: any, status = 200) {
+  return NextResponse.json({ ok, ...payload }, { status });
+}
+
 export async function POST(req: Request) {
   try {
     const jwt = mustEnv("PINATA_JWT");
-    const body = await req.json();
+
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch {
+      return json(false, { error: "Invalid JSON body" }, 400);
+    }
 
     if (!body || typeof body !== "object") {
-      return NextResponse.json(
-        { ok: false, error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      return json(false, { error: "Invalid JSON body" }, 400);
     }
 
     const payload = {
@@ -46,22 +54,24 @@ export async function POST(req: Request) {
     });
 
     const text = await res.text();
+
     if (!res.ok) {
-      return NextResponse.json(
-        { ok: false, error: `Pinata error: ${text}` },
-        { status: 500 }
-      );
+      return json(false, { error: `Pinata error: ${text}` }, 502);
     }
 
-    const data = JSON.parse(text) as PinataJSONResp;
+    let data: PinataJSONResp;
+    try {
+      data = JSON.parse(text) as PinataJSONResp;
+    } catch {
+      return json(false, { error: `Pinata invalid JSON: ${text}` }, 502);
+    }
+
     const cid = data.IpfsHash;
     const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
 
-    return NextResponse.json({ ok: true, cid, url });
+    return json(true, { cid, url, pinSize: data.PinSize, timestamp: data.Timestamp });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || String(e) },
-      { status: 500 }
-    );
+    console.error("[api/ipfs/upload-json] error:", e);
+    return json(false, { error: e?.message || String(e) }, 500);
   }
 }

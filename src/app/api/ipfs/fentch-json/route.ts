@@ -1,3 +1,4 @@
+// src/app/api/ipfs/fetch-json/route.ts
 import { NextResponse } from "next/server";
 
 function toGatewayUrl(input: string) {
@@ -24,20 +25,26 @@ export async function GET(req: Request) {
   }
 
   try {
-    const r = await fetch(url, {
-      cache: "no-store",
-      headers: { accept: "application/json" },
-    });
+    const r = await fetch(url, { cache: "no-store" });
 
+    const text = await r.text();
     if (!r.ok) {
       return NextResponse.json(
-        { ok: false, error: `Upstream ${r.status}` },
+        { ok: false, error: `Upstream ${r.status}`, detail: text?.slice(0, 300) },
         { status: 502 }
       );
     }
 
-    const json = await r.json();
-    return NextResponse.json({ ok: true, data: json });
+    // cố parse json, fail thì trả text
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json({ ok: true, data });
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Upstream is not JSON", detail: text?.slice(0, 300) },
+        { status: 502 }
+      );
+    }
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Fetch failed" },
