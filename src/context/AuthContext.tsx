@@ -23,7 +23,8 @@ export type WalletInfo = {
   verified: boolean;
 };
 
-export type MembershipType = "artist" | "creator" | "business" | "ai" | null;
+// ✅ đồng bộ theo membershipStore (không còn "ai" ở đây)
+export type MembershipType = "artist" | "creator" | "business" | null;
 
 export type User = {
   id: string;
@@ -129,7 +130,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const u = loadUser();
     setUser(u);
-    // sync ngay khi mount để kéo wallet/membership đúng
     void syncAll(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -170,9 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userId) return;
 
-    // subscribeMembership() của bạn là cb-only (same-tab event + storage)
     const unsub = subscribeMembership(() => {
-      // mua xong / refresh tab khác / storage change -> sync lại role + membership ngay
       void syncAll(true);
     });
 
@@ -202,8 +200,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   /* ================= GOOGLE LOGIN ================= */
-
-    /* ================= GOOGLE LOGIN ================= */
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -244,15 +240,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithGoogle = () => {
     if (!googleClientId) {
-      showToast(
-        "Chưa cấu hình Google OAuth. Hãy thêm NEXT_PUBLIC_GOOGLE_CLIENT_ID trên Vercel hoặc .env.local.",
-        "warning"
-      );
+      showToast("Chưa cấu hình Google OAuth. Hãy thêm NEXT_PUBLIC_GOOGLE_CLIENT_ID trên Vercel hoặc .env.local.", "warning");
       return;
     }
     googleLoginFn();
   };
-
 
   /* ================= WALLET ================= */
 
@@ -262,10 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const address = await connectSuiWallet();
 
     if (!address) {
-      showToast(
-        "Không kết nối được ví. Hãy mở Suiet Wallet và đảm bảo popup không bị chặn.",
-        "warning"
-      );
+      showToast("Không kết nối được ví. Hãy mở Suiet Wallet và đảm bảo popup không bị chặn.", "warning");
       return;
     }
 
@@ -288,7 +277,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveProfile(updated.id, { walletAddress: address });
     } catch {}
 
-    // membership có thể map lại role (vd business/creator/artist policy của bạn)
     try {
       updated = await syncUserMembershipAndRole(updated);
     } catch {}
@@ -321,23 +309,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   /* ================= LOGOUT ================= */
+
   function logout() {
+    const prevId = user?.id || "";
+    const prevEmail = user?.email || "";
+
     // 1) đóng session ngay lập tức
     setUser(null);
-    clearUser(); // xóa authStorage (token/user)
+    clearUser();
 
     // 2) dọn các key “session-only”
     if (typeof window !== "undefined") {
       localStorage.removeItem("chainstorm_last_wallet");
-      // nếu bạn có redirect lưu tạm
       localStorage.removeItem("chainstorm_redirect");
     }
 
+    // 3) (khuyến nghị) clear cache theo user cũ để sạch UI nếu login user khác trong cùng tab
+    try {
+      if (prevId) {
+        clearMembership(prevId, prevEmail || undefined);
+        clearProfile(prevId);
+      }
+    } catch {}
+
     showToast("Đã đăng xuất", "warning");
 
-    // 3) hard redirect để reset toàn bộ client state + subscriptions
+    // 4) hard redirect để reset toàn bộ client state + subscriptions
     if (typeof window !== "undefined") {
-      window.location.replace("/"); // replace tránh back quay lại profile
+      window.location.replace("/");
     } else {
       router.replace("/");
     }
