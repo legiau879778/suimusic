@@ -203,7 +203,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /* ================= GOOGLE LOGIN ================= */
 
-  const loginWithGoogle = useGoogleLogin({
+    /* ================= GOOGLE LOGIN ================= */
+
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+  const googleLoginFn = useGoogleLogin({
     onSuccess: async (token) => {
       const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
         headers: { Authorization: `Bearer ${token.access_token}` },
@@ -219,14 +223,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: isAdmin ? "admin" : "user",
       };
 
-      // pull wallet from profileStore if any
       try {
         const p = loadProfile(u.id);
         const pAddr = (p.walletAddress || "").trim();
         if (pAddr) u.wallet = { address: pAddr, verified: false };
       } catch {}
 
-      // sync membership -> role
       try {
         u = await syncUserMembershipAndRole(u);
       } catch {}
@@ -237,7 +239,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       showToast("Đăng nhập thành công", isAdmin ? "admin" : "success");
       router.replace(consumeRedirect());
     },
+    onError: () => showToast("Đăng nhập Google thất bại", "warning"),
   });
+
+  const loginWithGoogle = () => {
+    if (!googleClientId) {
+      showToast(
+        "Chưa cấu hình Google OAuth. Hãy thêm NEXT_PUBLIC_GOOGLE_CLIENT_ID trên Vercel hoặc .env.local.",
+        "warning"
+      );
+      return;
+    }
+    googleLoginFn();
+  };
+
 
   /* ================= WALLET ================= */
 
