@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import styles from "@/styles/header.module.css";
+import styles from "@/styles/Header.module.css";
 
 import { useAuth } from "@/context/AuthContext";
 import { useModal } from "@/context/ModalContext";
