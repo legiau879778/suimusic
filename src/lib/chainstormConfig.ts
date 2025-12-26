@@ -12,7 +12,7 @@ export const CHAINSTORM_BY_NETWORK: Record<
 > = {
   devnet: {
     packageId: "0xbfade441b8bd0baa42261eb7e4529b1a77a98533e5371acbe6a692cdc68752c7",
-    registryId: "0xff6ce0d3ce9ae2523bb4f20e010f1365b139d4b60cd5ba878b8a43e69c082aa5",
+    registryId: "0x6247d94b63175966b378c9f7b901ec54c9d74a92c61c42150dc57c6d18a95f01",
     module: "chainstorm_nft", // 👈 đúng theo output publish
     mintFn: "mint", // 👈 giữ "mint" nếu function của bạn tên mint
   },
