@@ -37,5 +37,16 @@ export function normalizeSuiNet(net?: string): SuiNet {
   return "devnet";
 }
 export function getChainstormConfig(net: SuiNet) {
-  return CHAINSTORM_BY_NETWORK[net];
+  const base = CHAINSTORM_BY_NETWORK[net];
+  const envPackage = (process.env.NEXT_PUBLIC_CHAINSTORM_PACKAGE_ID || "").trim();
+  const envRegistry = (process.env.NEXT_PUBLIC_CHAINSTORM_REGISTRY_ID || "").trim();
+  const envModule = (process.env.NEXT_PUBLIC_CHAINSTORM_MODULE || "").trim();
+  const envMintFn = (process.env.NEXT_PUBLIC_CHAINSTORM_MINT_FN || "").trim();
+
+  return {
+    packageId: envPackage || base.packageId,
+    registryId: envRegistry || base.registryId,
+    module: envModule || base.module,
+    mintFn: envMintFn || base.mintFn,
+  };
 }

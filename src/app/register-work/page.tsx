@@ -12,6 +12,7 @@ import {
   bindNFTToWork,
   getWorkByProofId,
   patchWorkByProofId,
+  syncWorksFromChain,
 } from "@/lib/workStore";
 import { loadProfile, subscribeProfile, saveProfile } from "@/lib/profileStore";
 import { signWorkProofMessage } from "@/lib/signWorkProofMessage";
@@ -188,6 +189,7 @@ export default function RegisterWorkPage() {
   // metadata
   const [metaBlobId, setMetaBlobId] = useState("");
   const [metaUrl, setMetaUrl] = useState("");
+  const [metaHashHexState, setMetaHashHexState] = useState("");
 
   const [proofId, setProofId] = useState("");
   const [proofStatus, setProofStatus] = useState<
@@ -279,6 +281,7 @@ export default function RegisterWorkPage() {
     setCoverUrl("");
     setMetaBlobId("");
     setMetaUrl("");
+    setMetaHashHexState("");
     setUploadStage("idle");
     setUploadPct(0);
     setProofId("");
@@ -556,7 +559,15 @@ export default function RegisterWorkPage() {
 
       return normalized;
     } catch (e: any) {
-      showToast(e?.message || "Upload failed.", "error");
+      const status = e?.status ? ` (HTTP ${e.status})` : "";
+      const body =
+        e?.body && typeof e.body === "string"
+          ? e.body.slice(0, 180)
+          : "";
+      const msg =
+        `${e?.message || "Upload failed."}${status}` +
+        (body ? `: ${body}` : "");
+      showToast(msg, "error");
       throw e;
     } finally {
       setUploading(false);
@@ -608,8 +619,47 @@ export default function RegisterWorkPage() {
       .join("");
   }
 
+  function normalizeHex(input: string): string {
+    const raw = String(input || "").trim().toLowerCase();
+    const cleaned = raw.startsWith("0x") ? raw.slice(2) : raw;
+    return cleaned.replace(/[^0-9a-f]/g, "");
+  }
+
+  function hexToBytes32(hex: string): Uint8Array {
+    const cleaned = normalizeHex(hex);
+    if (cleaned.length !== 64) {
+      throw new Error("Hash must be 32 bytes (64 hex chars).");
+    }
+    const bytes = cleaned.match(/.{1,2}/g)?.map((b) => parseInt(b, 16)) || [];
+    return new Uint8Array(bytes);
+  }
+
   function strToBytes(s: string): Uint8Array {
     return new TextEncoder().encode(s);
+  }
+
+  function readDraft(userId: string) {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem("chainstorm_register_draft");
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || data.userId !== userId) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveDraft(userId: string, patch: Record<string, any>) {
+    if (typeof window === "undefined") return;
+    try {
+      const current = readDraft(userId) || { userId };
+      const next = { ...current, ...patch, updatedAt: Date.now() };
+      window.localStorage.setItem("chainstorm_register_draft", JSON.stringify(next));
+    } catch {
+      // ignore storage errors
+    }
   }
 
   function extractCreatedObjectId(changes: any[] | undefined): string | null {
@@ -792,15 +842,26 @@ export default function RegisterWorkPage() {
     const metaHashBytes = await sha256Bytes(metaBytes);
     const metaHashHex = bytesToHex(metaHashBytes);
 
-    const meta = await uploadJSONToWalrus(metadata);
-    if (!meta.blobId) throw new Error("Uploading metadata to Walrus failed.");
+    let metaBlob = metaBlobId;
+    let metaLink = metaUrl;
+
+    if (!metaBlob || metaHashHexState !== metaHashHex) {
+      const meta = await uploadJSONToWalrus(metadata);
+      if (!meta.blobId) throw new Error("Uploading metadata to Walrus failed.");
+      metaBlob = meta.blobId;
+      metaLink = meta.url;
+      setMetaHashHexState(metaHashHex);
+    } else if (!metaLink) {
+      metaLink = `/api/walrus/blob/${metaBlob}`;
+      setMetaUrl(metaLink);
+    }
 
     if (fileHashBytes.length !== 32 || metaHashBytes.length !== 32) {
       throw new Error("Hash bytes must be 32 bytes.");
     }
 
     return {
-      metadataBlobId: meta.blobId,
+      metadataBlobId: metaBlob,
       fileHashBytes32: fileHashBytes,
       metaHashBytes32: metaHashBytes,
       fileHashHex,
@@ -815,6 +876,107 @@ export default function RegisterWorkPage() {
       },
     };
   }
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const draft = readDraft(user.id);
+    if (!draft) return;
+
+    if (!title && draft.title) setTitle(draft.title);
+    if (!category && draft.category) setCategory(draft.category);
+    if (!language && draft.language) setLanguage(draft.language);
+    if (!createdDate && draft.createdDate) setCreatedDate(draft.createdDate);
+    if (royalty === "5" && draft.royalty) setRoyalty(draft.royalty);
+    if (sellType === "exclusive" && draft.sellType) setSellType(draft.sellType);
+
+    if (!fileBlobId && draft.fileBlobId) setFileBlobId(draft.fileBlobId);
+    if (!fileUrl && draft.fileUrl) setFileUrl(draft.fileUrl);
+    if (!coverBlobId && draft.coverBlobId) setCoverBlobId(draft.coverBlobId);
+    if (!coverUrl && draft.coverUrl) setCoverUrl(draft.coverUrl);
+    if (!metaBlobId && draft.metaBlobId) setMetaBlobId(draft.metaBlobId);
+    if (!metaUrl && draft.metaUrl) setMetaUrl(draft.metaUrl);
+    if (!metaHashHexState && draft.metaHashHexState) setMetaHashHexState(draft.metaHashHexState);
+    if (!proofId && draft.proofId) setProofId(draft.proofId);
+    if (proofStatus === "draft" && draft.proofStatus) setProofStatus(draft.proofStatus);
+  }, [
+    user?.id,
+    title,
+    category,
+    language,
+    createdDate,
+    royalty,
+    sellType,
+    fileBlobId,
+    fileUrl,
+    coverBlobId,
+    coverUrl,
+    metaBlobId,
+    metaUrl,
+    metaHashHexState,
+    proofId,
+    proofStatus,
+  ]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    saveDraft(user.id, {
+      title,
+      category,
+      language,
+      createdDate,
+      royalty,
+      sellType,
+      fileBlobId,
+      fileUrl,
+      coverBlobId,
+      coverUrl,
+      metaBlobId,
+      metaUrl,
+      metaHashHexState,
+      proofId,
+      proofStatus,
+    });
+  }, [
+    user?.id,
+    title,
+    category,
+    language,
+    createdDate,
+    royalty,
+    sellType,
+    fileBlobId,
+    fileUrl,
+    coverBlobId,
+    coverUrl,
+    metaBlobId,
+    metaUrl,
+    metaHashHexState,
+    proofId,
+    proofStatus,
+  ]);
+
+  useEffect(() => {
+    if (step !== 3 || !proofId) return;
+    if (proofStatus === "approved" || proofStatus === "rejected") return;
+    let alive = true;
+    const tick = async () => {
+      if (!alive) return;
+      try {
+        const res = await fetch(`/api/proof/${encodeURIComponent(proofId)}`);
+        const data: any = await readApi(res);
+        if (data?.ok && data?.proof?.status) {
+          setProofStatus(data.proof.status);
+        }
+      } catch {
+        // silent
+      }
+    };
+    const id = window.setInterval(tick, 8000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [step, proofId, proofStatus]);
 
   /* =======================
      ✅ step nav
@@ -849,9 +1011,9 @@ export default function RegisterWorkPage() {
 
       if (!configOk) {
         setErr(
-          `Missing on-chain config for "${activeNet}". Fill in packageId + registryId in chainstormConfig.ts`
+          `Missing on-chain config for "${activeNet}". Fill in packageId + registryId in chainstormConfig.ts or .env`
         );
-        showToast("Missing on-chain config. Check chainstormConfig.ts", "error");
+        showToast("Missing on-chain config. Check chainstormConfig.ts or .env", "error");
         return null;
       }
 
@@ -1004,9 +1166,9 @@ Time: ${new Date().toISOString()}
 
       if (!configOk) {
         setErr(
-          `Missing on-chain config for "${activeNet}". Fill in packageId + registryId in chainstormConfig.ts`
+          `Missing on-chain config for "${activeNet}". Fill in packageId + registryId in chainstormConfig.ts or .env`
         );
-        showToast("Missing on-chain config. Check chainstormConfig.ts", "error");
+        showToast("Missing on-chain config. Check chainstormConfig.ts or .env", "error");
         return;
       }
 
@@ -1054,16 +1216,8 @@ Time: ${new Date().toISOString()}
         const numDur = Number(rawDuration);
         durationSecFromProof =
           Number.isFinite(numDur) && numDur > 0 ? Math.floor(numDur) : undefined;
-        fileHashBytes32 = new Uint8Array(
-          String(proof?.fileHash || "")
-            .match(/.{1,2}/g)
-            ?.map((b: string) => parseInt(b, 16)) || []
-        );
-        metaHashBytes32 = new Uint8Array(
-          String(proof?.metaHash || "")
-            .match(/.{1,2}/g)
-            ?.map((b: string) => parseInt(b, 16)) || []
-        );
+        fileHashBytes32 = hexToBytes32(String(proof?.fileHash || ""));
+        metaHashBytes32 = hexToBytes32(String(proof?.metaHash || ""));
       } else {
         const submitted = await submitProof();
         if (!submitted?.proof) {
@@ -1220,6 +1374,7 @@ Time: ${new Date().toISOString()}
       });
 
       showToast("Mint successful.", "success");
+      syncWorksFromChain({ force: true });
       router.push("/manage");
     } catch (e: any) {
       const msg = String(e?.message || e);
@@ -1466,6 +1621,7 @@ Time: ${new Date().toISOString()}
                       setCoverUrl("");
                       setMetaBlobId("");
                       setMetaUrl("");
+                      setMetaHashHexState("");
                       setUploadStage("idle");
                       setUploadPct(0);
                       setProofId("");

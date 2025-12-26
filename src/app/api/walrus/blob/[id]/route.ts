@@ -9,16 +9,29 @@ const MOCK_DIR = path.join(
   process.env.WALRUS_MOCK_DIR || process.env.TMPDIR || "/tmp",
   "walrus_mock"
 );
-function getReadBase() {
-  const readEnv = process.env.WALRUS_READ_ENDPOINT;
-  if (readEnv) return readEnv;
+function getReadBases() {
+  const list: string[] = [];
+
+  const readEnv = process.env.WALRUS_READ_ENDPOINT || "";
+  const readList = process.env.WALRUS_READ_ENDPOINTS || "";
+  if (readEnv) list.push(readEnv);
+  if (readList) {
+    list.push(
+      ...readList
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean)
+    );
+  }
 
   const uploadEnv = process.env.WALRUS_ENDPOINT || "";
   if (uploadEnv.includes("upload-relay")) {
-    return uploadEnv.replace("upload-relay", "aggregator");
+    list.push(uploadEnv.replace("upload-relay", "aggregator"));
+  } else if (uploadEnv) {
+    list.push(uploadEnv);
   }
 
-  return uploadEnv;
+  return Array.from(new Set(list));
 }
 
 function buildReadCandidates(base: string, id: string) {
@@ -42,20 +55,22 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
   }
 
-  const READ_BASE = getReadBase();
-  const useMock = !READ_BASE || process.env.WALRUS_MOCK === "1";
+  const READ_BASES = getReadBases();
+  const useMock = READ_BASES.length === 0 || process.env.WALRUS_MOCK === "1";
 
   if (!useMock) {
-    const candidates = buildReadCandidates(READ_BASE, id);
-    for (const url of candidates) {
-      // eslint-disable-next-line no-await-in-loop
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const buf = Buffer.from(await res.arrayBuffer());
-      const contentType = res.headers.get("content-type") || "application/octet-stream";
-      return new NextResponse(buf, {
-        headers: { "Content-Type": contentType },
-      });
+    for (const base of READ_BASES) {
+      const candidates = buildReadCandidates(base, id);
+      for (const url of candidates) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const buf = Buffer.from(await res.arrayBuffer());
+        const contentType = res.headers.get("content-type") || "application/octet-stream";
+        return new NextResponse(buf, {
+          headers: { "Content-Type": contentType },
+        });
+      }
     }
   }
 

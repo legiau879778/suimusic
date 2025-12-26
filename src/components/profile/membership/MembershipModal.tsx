@@ -14,7 +14,9 @@ import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 
-const PACKAGE_ID = "0xe6d99ba66e3d2b197f6cbe878d442b89c561e35ba307e8000b6e4685964c04e9";
+const PACKAGE_ID =
+  (process.env.NEXT_PUBLIC_MEMBERSHIP_PACKAGE_ID || "").trim() ||
+  "0xe6d99ba66e3d2b197f6cbe878d442b89c561e35ba307e8000b6e4685964c04e9";
 
 export default function MembershipModal({ type, onClose, onSuccess }: any) {
   const { pushToast } = useToast();

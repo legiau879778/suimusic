@@ -56,6 +56,7 @@ export default function AuthorLeaderboardPage() {
 
     async function run() {
       if (!canUseWorkVote()) {
+        setLoading(false);
         // still show list without votes
         const byAuthor: Record<string, AuthorRow> = {};
         for (const w of works) {
@@ -78,6 +79,11 @@ export default function AuthorLeaderboardPage() {
         return;
       }
 
+      if (!suiClient) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       const voteMap: Record<string, number> = {};
 
@@ -90,8 +96,12 @@ export default function AuthorLeaderboardPage() {
           const idx = i++;
           if (idx >= ids.length) break;
           const id = ids[idx];
-          const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
-          voteMap[id] = n;
+          try {
+            const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
+            voteMap[id] = n;
+          } catch {
+            voteMap[id] = 0;
+          }
           await new Promise((r) => setTimeout(r, 40));
         }
       }

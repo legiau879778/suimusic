@@ -16,9 +16,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const proofId = mustString(body?.proofId, "proofId");
     const isReject = Boolean(body?.reject);
-    const adminWallet = String(body?.adminWallet || "").trim();
-    const signature = String(body?.signature || "").trim();
-    const message = String(body?.message || "").trim();
+    const adminWallet = mustString(body?.adminWallet, "adminWallet");
+    const signature = mustString(body?.signature, "signature");
+    const message = mustString(body?.message, "message");
 
     const allow = String(process.env.ADMIN_WALLET_ALLOWLIST || "")
       .split(",")
@@ -31,33 +31,26 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isReject) {
-      const needWallet = mustString(adminWallet, "adminWallet");
-      const needSig = mustString(signature, "signature");
-      const needMsg = mustString(message, "message");
-
-      const msgBytes = new TextEncoder().encode(needMsg);
-      const ok = await verifyPersonalMessageSignature(msgBytes, needSig, {
-        address: needWallet,
-      }).catch(() => false);
-      if (!ok) {
-        return NextResponse.json(
-          { ok: false, error: "Chữ ký admin không hợp lệ" },
-          { status: 400 }
-        );
-      }
+    const msgBytes = new TextEncoder().encode(message);
+    const ok = await verifyPersonalMessageSignature(msgBytes, signature, {
+      address: adminWallet,
+    }).catch(() => false);
+    if (!ok) {
+      return NextResponse.json(
+        { ok: false, error: "Chữ ký admin không hợp lệ" },
+        { status: 400 }
+      );
     }
 
     const updated = await updateProof(proofId, {
-      approval: adminWallet
-        ? {
+      approval: isReject
+        ? undefined
+        : {
             adminWallet,
             signature,
             time: new Date().toISOString(),
-          }
-        : undefined,
+          },
       status: isReject ? "rejected" : "approved",
-      signatureVerified: isReject ? undefined : true,
     });
 
     if (!updated) {

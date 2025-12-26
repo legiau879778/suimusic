@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./search.module.css";
-import { getVerifiedWorks } from "@/lib/workStore";
+import { getVerifiedWorks, syncWorksFromChain } from "@/lib/workStore";
 
 /* profileStore */
 import { loadProfile, type UserProfile, toGateway } from "@/lib/profileStore";
@@ -96,12 +96,31 @@ function sameVM(a: ViewModel, b: ViewModel) {
 type VmMap = Record<string, ViewModel>;
 
 export default function SearchPage() {
-  /** ✅ IMPORTANT: freeze works to not change reference every render */
-  const works = useMemo(() => getVerifiedWorks() as unknown as Work[], []);
+  const [works, setWorks] = useState<Work[]>([]);
 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const debouncedQ = useDebounce(q);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadWorks() {
+      await syncWorksFromChain();
+      if (!alive) return;
+      setWorks((getVerifiedWorks() as unknown as Work[]) || []);
+    }
+
+    loadWorks();
+    const onUpdate = () => {
+      setWorks((getVerifiedWorks() as unknown as Work[]) || []);
+    };
+    window.addEventListener("works_updated", onUpdate);
+    return () => {
+      alive = false;
+      window.removeEventListener("works_updated", onUpdate);
+    };
+  }, []);
 
   /* ===== group works -> authors ===== */
   const authorRows = useMemo<AuthorRow[]>(() => {
