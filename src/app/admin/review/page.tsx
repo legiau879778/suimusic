@@ -30,7 +30,7 @@ export default function AdminReviewPage() {
     const list = getPendingWorks();
     setWorks(list);
 
-    // init quorum input map (không overwrite nếu user đang gõ)
+    // init quorum input map (do not overwrite while user is typing)
     setQMap((prev) => {
       const next = { ...prev };
       for (const w of list) {
@@ -68,7 +68,7 @@ export default function AdminReviewPage() {
   const totalPending = works.length + proofs.length;
 
   const weightHint = useMemo(() => {
-    // phải khớp getReviewerWeightByRole() trong store
+    // must match getReviewerWeightByRole() in the store
     return reviewerRole === "admin" ? 2 : 1;
   }, [reviewerRole]);
 
@@ -80,7 +80,7 @@ export default function AdminReviewPage() {
     setBusyId(w.id);
     try {
       if (!w.proofId) {
-        throw new Error("Tác phẩm chưa có proofId để duyệt TSA");
+        throw new Error("This work does not have a proofId for TSA approval.");
       }
 
       const signed = await signApproveMessage(w.id, w.proofId);
@@ -98,20 +98,20 @@ export default function AdminReviewPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "Approve TSA thất bại");
+        throw new Error(data?.error || "TSA approval failed");
       }
 
       approveWork({
         workId: w.id,
         reviewerId,
         reviewerRole,
-        // không truyền weight => store tự suy ra theo role
+        // no weight passed => store infers from role
       });
-      // load() sẽ tự gọi qua works_updated (save() dispatch event), nhưng gọi luôn để UI mượt
+      // load() will be triggered via works_updated (save() dispatches event), but call now for smoother UI
       load();
-      showToast("Đã duyệt TSA + cập nhật trạng thái", "success");
+      showToast("Approved TSA and updated status", "success");
     } catch (e: any) {
-      showToast(e?.message || "Không thể duyệt TSA", "error");
+      showToast(e?.message || "Unable to approve TSA", "error");
     } finally {
       setBusyId(null);
     }
@@ -137,7 +137,7 @@ export default function AdminReviewPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "Approve TSA thất bại");
+        throw new Error(data?.error || "TSA approval failed");
       }
 
       const maybeWork = getWorkByProofId(p.id);
@@ -150,9 +150,9 @@ export default function AdminReviewPage() {
       }
 
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
-      showToast("Đã duyệt TSA cho hồ sơ", "success");
+      showToast("Approved TSA for profile", "success");
     } catch (e: any) {
-      showToast(e?.message || "Không thể duyệt TSA", "error");
+      showToast(e?.message || "Unable to approve TSA", "error");
     } finally {
       setBusyId(null);
     }
@@ -161,7 +161,7 @@ export default function AdminReviewPage() {
   const onRejectProof = async (p: ProofRecord) => {
     const reviewerIdLocal = reviewerId;
     if (!reviewerIdLocal) return;
-    const reason = prompt("Lý do từ chối (tuỳ chọn):") ?? "";
+    const reason = prompt("Reject reason (optional):") ?? "";
     setBusyId(p.id);
     try {
       const res = await fetch("/api/proof/approve", {
@@ -175,12 +175,12 @@ export default function AdminReviewPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "Reject thất bại");
+        throw new Error(data?.error || "Reject failed");
       }
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
-      showToast("Đã từ chối hồ sơ", "warning");
+      showToast("Profile rejected", "warning");
     } catch (e: any) {
-      showToast(e?.message || "Không thể từ chối", "error");
+      showToast(e?.message || "Unable to reject", "error");
     } finally {
       setBusyId(null);
     }
@@ -190,7 +190,7 @@ export default function AdminReviewPage() {
 
   const onReject = async (w: Work) => {
     if (!reviewerId) return;
-    const reason = prompt("Lý do từ chối (tuỳ chọn):") ?? "";
+    const reason = prompt("Reject reason (optional):") ?? "";
     setBusyId(w.id);
     try {
       rejectWork({
@@ -221,9 +221,9 @@ export default function AdminReviewPage() {
       <div className={styles.page}>
         <div className={styles.header}>
           <div>
-            <h1 className={styles.title}>Duyệt tác phẩm</h1>
+            <h1 className={styles.title}>Work review</h1>
             <p className={styles.sub}>
-              Pending: <b>{totalPending}</b> • Weight của bạn: <b>{weightHint}</b>
+              Pending: <b>{totalPending}</b> • Your weight: <b>{weightHint}</b>
             </p>
           </div>
         </div>
@@ -231,19 +231,19 @@ export default function AdminReviewPage() {
         {works.length === 0 && pendingProofs.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.emptyIcon}>✓</div>
-            <div className={styles.emptyTitle}>Không có tác phẩm chờ duyệt</div>
-            <div className={styles.emptySub}>Mọi tác phẩm pending đã được xử lý.</div>
+            <div className={styles.emptyTitle}>No works pending review</div>
+            <div className={styles.emptySub}>All pending works have been handled.</div>
           </div>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Tác phẩm</th>
+                  <th>Work</th>
                   <th>Sell</th>
                   <th>Quorum</th>
                   <th>Approvals</th>
-                  <th>Hành động</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
 
@@ -275,7 +275,7 @@ export default function AdminReviewPage() {
                       </td>
 
                       <td className={styles.quorumCell}>
-                        <div className={styles.quorumHint}>Chưa sync quorum</div>
+                        <div className={styles.quorumHint}>Quorum not synced yet</div>
                       </td>
 
                       <td>
@@ -285,7 +285,7 @@ export default function AdminReviewPage() {
                             <span className={`${styles.dot} ${styles.dotPending}`} />
                           </div>
                           <div className={styles.approvalList}>
-                            <span className={styles.muted}>Chưa có</span>
+                            <span className={styles.muted}>None yet</span>
                           </div>
                         </div>
                       </td>
@@ -296,14 +296,14 @@ export default function AdminReviewPage() {
                           onClick={() => onApproveProof(p)}
                           disabled={isBusy}
                         >
-                          Duyệt (+{weightHint})
+                          Approve (+{weightHint})
                         </button>
                         <button
                           className={styles.rejectBtn}
                           onClick={() => onRejectProof(p)}
                           disabled={isBusy}
                         >
-                          Từ chối
+                          Reject
                         </button>
                       </td>
                     </tr>
@@ -346,13 +346,13 @@ export default function AdminReviewPage() {
                             className={styles.smallBtn}
                             onClick={() => onSaveQuorum(w)}
                             disabled={isBusy}
-                            title="Lưu quorumWeight"
+                            title="Save quorumWeight"
                           >
-                            Lưu
+                            Save
                           </button>
                         </div>
                         <div className={styles.quorumHint}>
-                          Verified khi <b>tổng weight</b> ≥ <b>{quorum}</b>
+                          Verified when <b>total weight</b> &gt;= <b>{quorum}</b>
                         </div>
                       </td>
 
@@ -371,7 +371,7 @@ export default function AdminReviewPage() {
 
                           <div className={styles.approvalList}>
                             {Object.keys(w.approvalMap || {}).length === 0 ? (
-                              <span className={styles.muted}>Chưa có</span>
+                              <span className={styles.muted}>None yet</span>
                             ) : (
                               Object.entries(w.approvalMap).map(([k, v]) => (
                                 <span key={k} className={styles.approvalPill} title={k}>
@@ -389,14 +389,14 @@ export default function AdminReviewPage() {
                           onClick={() => onApprove(w)}
                           disabled={isBusy}
                         >
-                          Duyệt (+{weightHint})
+                          Approve (+{weightHint})
                         </button>
                         <button
                           className={styles.rejectBtn}
                           onClick={() => onReject(w)}
                           disabled={isBusy}
                         >
-                          Từ chối
+                          Reject
                         </button>
                       </td>
                     </tr>

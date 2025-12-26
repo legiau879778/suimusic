@@ -174,41 +174,41 @@ export default function Header() {
     const isActive = pathname === href;
     return (
       <div className={styles.navItemWrap}>
-      <button
-        className={`${styles.link} ${styles.linkBtn} ${isActive ? styles.active : ""}`}
-        onClick={() => {
-          if (!user) {
-            saveRedirect();
-            openLogin();
-            return;
-          }
-          if (!allowed) {
-            saveRedirect();
-            openPermission();
-            return;
-          }
-          setMenuOpen(false);
-          setUserMenuOpen(false);
-          router.push(href);
-        }}
-      >
-        {label}
-      </button>
-
-      {!allowed && (
-        <div
-          className={styles.lockWrap}
-          onClick={(e) => {
-            e.stopPropagation();
-            saveRedirect();
-            !user ? openLogin() : openPermission();
+        <button
+          className={`${styles.link} ${styles.linkBtn} ${isActive ? styles.active : ""}`}
+          onClick={() => {
+            if (!user) {
+              saveRedirect();
+              openLogin();
+              return;
+            }
+            if (!allowed) {
+              saveRedirect();
+              openPermission();
+              return;
+            }
+            setMenuOpen(false);
+            setUserMenuOpen(false);
+            router.push(href);
           }}
-          title="Yêu cầu Membership phù hợp"
         >
-          <LockIcon />
-          <div className={styles.tooltip}>Yêu cầu Membership phù hợp</div>
-        </div>
-      )}
+          {label}
+        </button>
+
+        {!allowed && (
+          <div
+            className={styles.lockWrap}
+            onClick={(e) => {
+              e.stopPropagation();
+              saveRedirect();
+              !user ? openLogin() : openPermission();
+            }}
+            title="Membership required"
+          >
+            <LockIcon />
+            <div className={styles.tooltip}>Membership required</div>
+          </div>
+        )}
       </div>
     );
   };
@@ -229,12 +229,12 @@ export default function Header() {
           </Link>
 
           <nav className={styles.nav}>
-            {navLink("/", "Trang chủ")}
-            {navLink("/search", "Tra cứu")}
-            {navLink("/leaderboard/authors", "Bảng xếp hạng")}
-            {navProtected("/manage", "Quản lý", !!ent.canManage)}
-            {navProtected("/register-work", "Đăng ký", !!ent.canRegister)}
-            {navProtected("/marketplace", "Giao dịch", !!ent.canTrade)}
+            {navLink("/", "Home")}
+            {navLink("/search", "Search")}
+            {navLink("/leaderboard/authors", "Leaderboard")}
+            {navProtected("/manage", "Manage", !!ent.canManage)}
+            {navProtected("/register-work", "Register", !!ent.canRegister)}
+            {navProtected("/marketplace", "Marketplace", !!ent.canTrade)}
             {user?.role === "admin" && navLink("/admin", "Admin")}
           </nav>
 
@@ -247,7 +247,7 @@ export default function Header() {
                   openLogin();
                 }}
               >
-                Đăng nhập
+                Sign in
               </button>
             ) : (
               <div className={styles.avatarWrap} ref={wrapRef}>
@@ -292,7 +292,7 @@ export default function Header() {
                       }}
                       className={styles.dropLink}
                     >
-                      Hồ sơ
+                      Profile
                     </Link>
 
                     <button
@@ -302,7 +302,7 @@ export default function Header() {
                         logout();
                       }}
                     >
-                      Đăng xuất
+                      Sign out
                     </button>
                   </div>
                 )}
@@ -322,12 +322,12 @@ export default function Header() {
 
       {/* MOBILE */}
       <div className={`${styles.mobileMenu} ${menuOpen ? styles.open : ""}`} ref={mobileRef}>
-        {navLink("/", "Trang chủ")}
-        {navLink("/search", "Tra cứu")}
-        {navLink("/leaderboard/authors", "Bảng xếp hạng")}
-        {navProtected("/manage", "Quản lý", !!ent.canManage)}
-        {navProtected("/register-work", "Đăng ký", !!ent.canRegister)}
-        {navProtected("/marketplace", "Giao dịch", !!ent.canTrade)}
+        {navLink("/", "Home")}
+        {navLink("/search", "Search")}
+        {navLink("/leaderboard/authors", "Leaderboard")}
+        {navProtected("/manage", "Manage", !!ent.canManage)}
+        {navProtected("/register-work", "Register", !!ent.canRegister)}
+        {navProtected("/marketplace", "Marketplace", !!ent.canTrade)}
         {user?.role === "admin" && navLink("/admin", "Admin")}
       </div>
     </>

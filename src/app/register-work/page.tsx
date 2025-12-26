@@ -65,7 +65,7 @@ async function readApi(res: Response) {
   const text = await res.text();
 
   if (!res.ok) {
-    // 413 / 502 / html/text đều không làm crash
+    // 413 / 502 / html/text will not crash
     throw new Error(text || `HTTP ${res.status}`);
   }
 
@@ -84,13 +84,13 @@ async function readApi(res: Response) {
   }
 }
 
-const MAX_MB = 4; // Vercel serverless thường ~4-5MB
+const MAX_MB = 4; // Vercel serverless is usually ~4-5MB
 function guardSize(f: File) {
   const mb = f.size / 1024 / 1024;
   if (mb > MAX_MB) {
     throw new Error(
-      `File quá lớn (${mb.toFixed(1)}MB). Giới hạn upload qua server ~${MAX_MB}MB. ` +
-        `Hãy dùng file nhỏ hơn hoặc chuyển sang direct upload.`
+      `File is too large (${mb.toFixed(1)}MB). Server upload limit is ~${MAX_MB}MB. ` +
+        `Use a smaller file or switch to direct upload.`
     );
   }
 }
@@ -209,7 +209,7 @@ export default function RegisterWorkPage() {
     }
   }
 
-  // fetch() không có upload progress chuẩn, dùng stage-progress giả lập cho UX
+  // fetch() has no standard upload progress, use staged progress for UX
   function startFakeProgress(stage: UploadStage) {
     setUploadStage(stage);
     setUploadPct(2);
@@ -294,16 +294,16 @@ export default function RegisterWorkPage() {
   async function refreshProofStatus() {
     if (step !== 3 || !proofId) return;
     try {
-      showToast("Đang làm mới trạng thái hồ sơ...", "info");
+      showToast("Refreshing profile status...", "info");
       const res = await fetch(`/api/proof/${encodeURIComponent(proofId)}`);
       const data: any = await readApi(res);
       if (data?.ok && data?.proof?.status) {
         setProofStatus(data.proof.status);
-        showToast("Đã cập nhật trạng thái hồ sơ.", "success");
+        showToast("Profile status updated.", "success");
       }
     } catch {
       // keep current status
-      showToast("Không thể refresh trạng thái hồ sơ.", "error");
+      showToast("Unable to refresh profile status.", "error");
     }
   }
 
@@ -370,7 +370,7 @@ export default function RegisterWorkPage() {
 
     try {
       showToast(
-        kind === "audio" ? "Đang upload file lên Walrus..." : "Đang upload cover lên Walrus...",
+        kind === "audio" ? "Uploading file to Walrus..." : "Uploading cover to Walrus...",
         "info"
       );
       const fd = new FormData();
@@ -408,7 +408,7 @@ export default function RegisterWorkPage() {
 
       setUploadStage("done");
       setTimeout(() => setUploadPct(0), 800);
-      showToast("Upload Walrus thành công.", "success");
+      showToast("Walrus upload successful.", "success");
 
       return {
         cid: blobId,
@@ -418,7 +418,7 @@ export default function RegisterWorkPage() {
         type: f.type,
       };
     } catch (e: any) {
-      showToast(e?.message || "Upload thất bại.", "error");
+      showToast(e?.message || "Upload failed.", "error");
       throw e;
     } finally {
       setUploading(false);
@@ -431,7 +431,7 @@ export default function RegisterWorkPage() {
     const stop = startFakeProgress("upload_meta");
 
     try {
-      showToast("Đang upload metadata lên Walrus...", "info");
+      showToast("Uploading metadata to Walrus...", "info");
       const res = await fetch("/api/walrus/upload-json", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -445,11 +445,11 @@ export default function RegisterWorkPage() {
       setMetaUrl(data.url);
       setUploadStage("done");
       finishProgress();
-      showToast("Upload metadata thành công.", "success");
+      showToast("Metadata upload successful.", "success");
 
       return { blobId: data.blobId, url: data.url };
     } catch (e: any) {
-      showToast(e?.message || "Upload metadata thất bại.", "error");
+      showToast(e?.message || "Metadata upload failed.", "error");
       throw e;
     } finally {
       stop?.();
@@ -504,8 +504,8 @@ export default function RegisterWorkPage() {
       coverUrl?: string;
     };
   }> {
-    if (!user?.id) throw new Error("Bạn cần đăng nhập.");
-    if (!file) throw new Error("Bạn chưa chọn file tác phẩm.");
+    if (!user?.id) throw new Error("You need to sign in.");
+    if (!file) throw new Error("You have not selected a work file.");
 
     // 1) hash file
     const fileBuf = await file.arrayBuffer();
@@ -523,7 +523,7 @@ export default function RegisterWorkPage() {
       setFileBlobId(r.cid);
       setFileUrl(r.url);
     }
-    if (!fBlobId) throw new Error("Upload file lên Walrus thất bại.");
+    if (!fBlobId) throw new Error("Uploading file to Walrus failed.");
 
     // 3) ensure cover (optional)
     let cBlobId = coverBlobId;
@@ -546,7 +546,7 @@ export default function RegisterWorkPage() {
       : null;
 
     if (createdDate.trim() && !createdISO) {
-      throw new Error("Ngày sáng tác không hợp lệ. Định dạng đúng: dd/mm/yyyy");
+      throw new Error("Invalid creation date. Correct format: dd/mm/yyyy");
     }
 
     const safeTitle = title.trim();
@@ -655,10 +655,10 @@ export default function RegisterWorkPage() {
     const metaHashHex = bytesToHex(metaHashBytes);
 
     const meta = await uploadJSONToWalrus(metadata);
-    if (!meta.blobId) throw new Error("Upload metadata lên Walrus thất bại.");
+    if (!meta.blobId) throw new Error("Uploading metadata to Walrus failed.");
 
     if (fileHashBytes.length !== 32 || metaHashBytes.length !== 32) {
-      throw new Error("Hash bytes không đúng 32 bytes.");
+      throw new Error("Hash bytes must be 32 bytes.");
     }
 
     return {
@@ -685,10 +685,10 @@ export default function RegisterWorkPage() {
     if (step === 1) {
       if (!canGoStep1) {
         setErr(
-          "Nhập tiêu đề (>=3 ký tự), chọn file, và kiểm tra ngày sáng tác (dd/mm/yyyy) trước khi tiếp tục."
+          "Enter a title (>=3 characters), choose a file, and check the creation date (dd/mm/yyyy) before continuing."
         );
         showToast(
-          "Thiếu thông tin ở Step 1. Kiểm tra tiêu đề/file/ngày sáng tác.",
+          "Missing info in Step 1. Check title/file/creation date.",
           "warning"
         );
         return;
@@ -711,17 +711,17 @@ export default function RegisterWorkPage() {
 
       if (!configOk) {
         setErr(
-          `Thiếu config on-chain cho "${activeNet}". Hãy điền đúng packageId + registryId trong chainstormConfig.ts`
+          `Missing on-chain config for "${activeNet}". Fill in packageId + registryId in chainstormConfig.ts`
         );
-        showToast("Thiếu config on-chain. Kiểm tra chainstormConfig.ts", "error");
+        showToast("Missing on-chain config. Check chainstormConfig.ts", "error");
         return null;
       }
 
       if (!canSubmit) {
         setErr(
-          "Vui lòng kiểm tra: đăng nhập, kết nối ví, file/tiêu đề hợp lệ, ngày sáng tác đúng (dd/mm/yyyy)."
+          "Please check: signed in, wallet connected, valid file/title, correct creation date (dd/mm/yyyy)."
         );
-        showToast("Thiếu điều kiện nộp hồ sơ.", "warning");
+        showToast("Submission requirements not met.", "warning");
         return null;
       }
 
@@ -756,7 +756,7 @@ Time: ${new Date().toISOString()}
         signedWallet &&
         walletAddress.toLowerCase() !== signedWallet.toLowerCase()
       ) {
-        throw new Error("Ví ký không khớp với ví đang kết nối.");
+        throw new Error("The signing wallet does not match the connected wallet.");
       }
 
       const proofRes = await fetch("/api/proof/submit", {
@@ -778,13 +778,13 @@ Time: ${new Date().toISOString()}
 
       const proofData: any = await readApi(proofRes);
       if (!proofData?.ok) {
-        throw new Error(proofData?.error || "Nộp hồ sơ pháp lý thất bại.");
+        throw new Error(proofData?.error || "Legal submission failed.");
       }
 
       const proof = proofData?.proof;
       setProofId(proof?.id || "");
       setProofStatus(proof?.status || "submitted");
-      showToast("Đã nộp hồ sơ. Chờ admin duyệt.", "success");
+      showToast("Submission sent. Waiting for admin review.", "success");
 
       const existing = getWorkByProofId(proof?.id);
       if (existing) {
@@ -866,17 +866,17 @@ Time: ${new Date().toISOString()}
 
       if (!configOk) {
         setErr(
-          `Thiếu config on-chain cho "${activeNet}". Hãy điền đúng packageId + registryId trong chainstormConfig.ts`
+          `Missing on-chain config for "${activeNet}". Fill in packageId + registryId in chainstormConfig.ts`
         );
-        showToast("Thiếu config on-chain. Kiểm tra chainstormConfig.ts", "error");
+        showToast("Missing on-chain config. Check chainstormConfig.ts", "error");
         return;
       }
 
       if (!canSubmit) {
         setErr(
-          "Vui lòng kiểm tra: đăng nhập, kết nối ví, file/tiêu đề hợp lệ, ngày sáng tác đúng (dd/mm/yyyy)."
+          "Please check: signed in, wallet connected, valid file/title, correct creation date (dd/mm/yyyy)."
         );
-        showToast("Thiếu điều kiện mint.", "warning");
+        showToast("Mint requirements not met.", "warning");
         return;
       }
 
@@ -894,13 +894,13 @@ Time: ${new Date().toISOString()}
         const res = await fetch(`/api/proof/${encodeURIComponent(proofId)}`);
         const data: any = await readApi(res);
         if (!data?.ok) {
-          throw new Error(data?.error || "Không lấy được hồ sơ pháp lý.");
+          throw new Error(data?.error || "Unable to fetch legal submission.");
         }
         proof = data?.proof;
         setProofStatus(proof?.status || "submitted");
         if (!proof?.approval || proof?.status !== "approved") {
-          setErr("Hồ sơ đã nộp. Hãy chờ admin duyệt trước khi mint.");
-          showToast("Hồ sơ chưa được duyệt.", "warning");
+          setErr("Submission sent. Wait for admin review before minting.");
+          showToast("Submission not approved yet.", "warning");
           return;
         }
         metadataBlobId = String(proof?.walrusMetaId || "").trim();
@@ -934,8 +934,8 @@ Time: ${new Date().toISOString()}
         proof = submitted.proof;
         setProofStatus(proof?.status || "submitted");
         if (!proof?.approval || proof?.status !== "approved") {
-          setErr("Hồ sơ đã nộp. Hãy chờ admin duyệt trước khi mint.");
-          showToast("Hồ sơ chưa được duyệt.", "warning");
+          setErr("Submission sent. Wait for admin review before minting.");
+          showToast("Submission not approved yet.", "warning");
           return;
         }
         metadataBlobId = submitted.metadataBlobId;
@@ -947,10 +947,10 @@ Time: ${new Date().toISOString()}
       }
 
       if (!fileHashBytes32 || !metaHashBytes32) {
-        throw new Error("Thiếu hash để mint. Vui lòng nộp hồ sơ lại.");
+        throw new Error("Missing hash for minting. Please resubmit.");
       }
 
-      // ✅ đảm bảo profileStore có email/avatar (nếu Auth có mà profileStore chưa có)
+      // ensure profileStore has email/avatar (if Auth has it but profileStore does not)
       try {
         const current: any = loadProfile(user!.id);
         const patch: any = {};
@@ -1039,7 +1039,7 @@ Time: ${new Date().toISOString()}
       const result = await signAndExecuteTransaction({ transaction: tx });
 
       const digest = (result as any)?.digest as string | undefined;
-      if (!digest) throw new Error("Không nhận được digest từ giao dịch.");
+      if (!digest) throw new Error("No digest received from transaction.");
 
       // 3) read created WorkNFT id
       let createdObjectId: string | null = null;
@@ -1068,7 +1068,7 @@ Time: ${new Date().toISOString()}
 
       if (!createdObjectId) {
         throw new Error(
-          "Mint thành công nhưng không đọc được objectId WorkNFT. Hãy mở lại giao dịch và thử lại."
+          "Mint succeeded but could not read WorkNFT objectId. Reopen the transaction and try again."
         );
       }
 
@@ -1081,24 +1081,24 @@ Time: ${new Date().toISOString()}
         authorWallet: walletAddress,
       });
 
-      showToast("Mint thành công.", "success");
+      showToast("Mint successful.", "success");
       router.push("/manage");
     } catch (e: any) {
       const msg = String(e?.message || e);
 
       if (msg.includes("Package object does not exist")) {
         setErr(
-          `PACKAGE_ID không tồn tại trên "${activeNet}". Kiểm tra Sui Wallet network + chainstormConfig.ts`
+          `PACKAGE_ID does not exist on "${activeNet}". Check Sui Wallet network + chainstormConfig.ts`
         );
-        showToast("PACKAGE_ID không tồn tại trên network.", "error");
+        showToast("PACKAGE_ID does not exist on network.", "error");
       } else if (msg.includes("Object does not exist") && msg.includes(REGISTRY_ID)) {
         setErr(
-          `REGISTRY_ID không tồn tại trên "${activeNet}". Bạn đã init_registry chưa? (registry phải là Shared object)`
+          `REGISTRY_ID does not exist on "${activeNet}". Did you init_registry? (registry must be a Shared object)`
         );
-        showToast("REGISTRY_ID không tồn tại trên network.", "error");
+        showToast("REGISTRY_ID does not exist on network.", "error");
       } else if (msg.includes("100") || msg.toLowerCase().includes("duplicate")) {
-        setErr("DUPLICATE_HASH (100): Hash bị trùng. Upload metadata mới hoặc đổi tác phẩm.");
-        showToast("Hash bị trùng. Hãy đổi tác phẩm.", "error");
+        setErr("DUPLICATE_HASH (100): Duplicate hash. Upload new metadata or change the work.");
+        showToast("Duplicate hash. Please change the work.", "error");
       } else {
         setErr(msg);
         showToast(msg, "error");
@@ -1115,8 +1115,8 @@ Time: ${new Date().toISOString()}
       <div className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.warn}>
-            <b>Chưa đăng nhập.</b>
-            <div className={styles.warnText}>Vui lòng đăng nhập để đăng ký tác phẩm.</div>
+            <b>Not signed in.</b>
+            <div className={styles.warnText}>Please sign in to register a work.</div>
           </div>
         </div>
       </div>
@@ -1129,7 +1129,7 @@ Time: ${new Date().toISOString()}
         {/* ===== Header ===== */}
         <div className={styles.header}>
           <div>
-            <h1 className={styles.title}>Đăng ký tác phẩm</h1>
+            <h1 className={styles.title}>Register work</h1>
             <p className={styles.subtitle}>
               Network: <b className={styles.net}>{activeNet}</b> • Module: <b>{MODULE}</b>
             </p>
@@ -1144,7 +1144,7 @@ Time: ${new Date().toISOString()}
               </div>
 
               <div className={styles.mono}>
-                {walletAddress ? shortAddr(walletAddress) : "Chưa kết nối ví"}
+                {walletAddress ? shortAddr(walletAddress) : "Wallet not connected"}
               </div>
 
               <div className={styles.monoSmall}>
@@ -1158,9 +1158,9 @@ Time: ${new Date().toISOString()}
 
         {!configOk ? (
           <div className={styles.warn}>
-            <b>Thiếu config on-chain.</b>
+            <b>Missing on-chain config.</b>
             <div className={styles.warnText}>
-              Điền <b>packageId</b> + <b>registryId</b> (Registry shared) trong{" "}
+              Fill in <b>packageId</b> + <b>registryId</b> (Registry shared) in{" "}
               <code>src/lib/chainstormConfig.ts</code>.
             </div>
           </div>
@@ -1185,9 +1185,9 @@ Time: ${new Date().toISOString()}
         <div className={styles.card}>
           <div className={styles.cardTop}>
             <div className={styles.stepTitle}>
-              {step === 1 && "Step 1 — Audio/file, cover & thông tin"}
-              {step === 2 && "Step 2 — Bán / License"}
-              {step === 3 && "Step 3 — Xác nhận & Mint"}
+              {step === 1 && "Step 1 - Audio/file, cover & info"}
+              {step === 2 && "Step 2 - Sale / License"}
+              {step === 3 && "Step 3 - Confirm & Mint"}
             </div>
             <div className={styles.progress}>
               <div className={styles.progressBar} style={{ width: `${(step / 3) * 100}%` }} />
@@ -1197,27 +1197,27 @@ Time: ${new Date().toISOString()}
           {step === 1 && (
             <div className={styles.grid}>
               <label className={styles.field}>
-                <span className={styles.label}>Tiêu đề</span>
+                <span className={styles.label}>Title</span>
                 <input
                   className={styles.input}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ví dụ: Bản nhạc / Tranh / Ảnh..."
+                  placeholder="Example: Music / Painting / Photo..."
                 />
               </label>
 
               <label className={styles.field}>
-                <span className={styles.label}>Thể loại</span>
+                <span className={styles.label}>Category</span>
                 <input
                   className={styles.input}
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  placeholder="Ví dụ: Music / Photo / Design..."
+                  placeholder="Example: Music / Photo / Design..."
                 />
               </label>
 
               <label className={styles.field}>
-                <span className={styles.label}>Ngôn ngữ (tuỳ chọn)</span>
+                <span className={styles.label}>Language (optional)</span>
                 <input
                   className={styles.input}
                   value={language}
@@ -1227,7 +1227,7 @@ Time: ${new Date().toISOString()}
               </label>
 
               <label className={styles.field}>
-                <span className={styles.label}>Ngày sáng tác (dd/mm/yyyy)</span>
+                <span className={styles.label}>Creation date (dd/mm/yyyy)</span>
                 <input
                   className={styles.input}
                   value={createdDate}
@@ -1237,15 +1237,15 @@ Time: ${new Date().toISOString()}
                 <span className={styles.help}>
                   {createdDate.trim()
                     ? createdDateOk
-                      ? "✅ Hợp lệ"
-                      : "❌ Sai định dạng hoặc ngày không hợp lệ"
-                    : "Tuỳ chọn"}
+                      ? "Valid"
+                      : "Invalid format or date"
+                    : "Optional"}
                 </span>
               </label>
 
               {/* AUDIO/FILE WORK */}
               <label className={styles.fieldFull}>
-                <span className={styles.label}>Audio / File tác phẩm</span>
+                <span className={styles.label}>Audio / Work file</span>
                 <div className={styles.fileRow}>
                   <input
                     className={styles.file}
@@ -1276,11 +1276,11 @@ Time: ${new Date().toISOString()}
                         setFileBlobId(r.cid);
                         setFileUrl(r.url);
                       } catch (e: any) {
-                        setErr(e?.message ?? "Upload thất bại.");
+                        setErr(e?.message ?? "Upload failed.");
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_file" ? "Đang upload..." : "Upload Walrus"}
+                    {uploading && uploadStage === "upload_file" ? "Uploading..." : "Upload Walrus"}
                   </button>
                 </div>
 
@@ -1290,7 +1290,7 @@ Time: ${new Date().toISOString()}
                       File Blob ID
                     </span>
                     <span className={styles.mono}>
-                      {fileBlobId ? shortCid(fileBlobId) : "Chưa có"}
+                      {fileBlobId ? shortCid(fileBlobId) : "Not set"}
                     </span>
                     {fileUrl ? (
                       <a className={styles.link} href={fileUrl} target="_blank" rel="noreferrer">
@@ -1299,14 +1299,14 @@ Time: ${new Date().toISOString()}
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Mint sẽ hash file + metadata → 32 bytes → chống trùng hash.
+                    Mint will hash file + metadata &rarr; 32 bytes &rarr; prevent duplicate hashes.
                   </div>
                 </div>
               </label>
 
               {/* COVER */}
               <label className={styles.fieldFull}>
-                <span className={styles.label}>Ảnh cover (khuyến nghị)</span>
+                <span className={styles.label}>Cover image (recommended)</span>
                 <div className={styles.fileRow}>
                   <input
                     className={styles.file}
@@ -1316,13 +1316,13 @@ Time: ${new Date().toISOString()}
                       const f = e.target.files?.[0] ?? null;
 
                       if (f && !f.type.startsWith("image/")) {
-                        setErr("Cover phải là ảnh (image/*).");
+                        setErr("Cover must be an image (image/*).");
                         e.currentTarget.value = "";
                         return;
                       }
 
                       setCover(f);
-                      // chỉ reset cover/meta (giữ file nếu có)
+                      // only reset cover/meta (keep file if present)
                       setErr(null);
                       setCoverBlobId("");
                       setCoverUrl("");
@@ -1346,11 +1346,11 @@ Time: ${new Date().toISOString()}
                         setCoverBlobId(r.cid);
                         setCoverUrl(r.url);
                       } catch (e: any) {
-                        setErr(e?.message ?? "Upload cover thất bại.");
+                        setErr(e?.message ?? "Cover upload failed.");
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_cover" ? "Đang upload..." : "Upload cover"}
+                    {uploading && uploadStage === "upload_cover" ? "Uploading..." : "Upload cover"}
                   </button>
                 </div>
 
@@ -1360,7 +1360,7 @@ Time: ${new Date().toISOString()}
                       Cover Blob ID
                     </span>
                     <span className={styles.mono}>
-                      {coverBlobId ? shortCid(coverBlobId) : "Chưa có"}
+                      {coverBlobId ? shortCid(coverBlobId) : "Not set"}
                     </span>
                     {coverUrl ? (
                       <a className={styles.link} href={coverUrl} target="_blank" rel="noreferrer">
@@ -1369,8 +1369,8 @@ Time: ${new Date().toISOString()}
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Cover sẽ được set vào <b>metadata.image</b>. Nếu bỏ trống và file là ảnh thì
-                    dùng file làm image; còn không thì card có thể không có cover.
+                    Cover will be set to <b>metadata.image</b>. If left empty and the file is an image,
+                    use the file as the image; otherwise the card may have no cover.
                   </div>
                 </div>
               </label>
@@ -1380,15 +1380,15 @@ Time: ${new Date().toISOString()}
           {step === 2 && (
             <div className={styles.grid}>
               <label className={styles.field}>
-                <span className={styles.label}>Hình thức</span>
+                <span className={styles.label}>Type</span>
                 <select
                   className={styles.input}
                   value={sellType}
                   onChange={(e) => setSellType(e.target.value as SellTypeUI)}
                 >
-                  <option value="exclusive">Bán đứt (exclusive)</option>
-                  <option value="license">Bán license</option>
-                  <option value="none">Không bán</option>
+                  <option value="exclusive">Exclusive</option>
+                  <option value="license">License</option>
+                  <option value="none">Not for sale</option>
                 </select>
               </label>
 
@@ -1398,15 +1398,15 @@ Time: ${new Date().toISOString()}
                   className={styles.input}
                   value={royalty}
                   onChange={(e) => setRoyalty(e.target.value)}
-                  placeholder="Ví dụ: 5"
+                  placeholder="Example: 5"
                 />
-                <span className={styles.help}>0–100% (lưu on-chain dạng u8)</span>
+                <span className={styles.help}>0-100% (stored on-chain as u8)</span>
               </label>
 
               <div className={styles.reviewCard}>
-                <div className={styles.reviewTitle}>🛡️ Quy trình duyệt</div>
+                <div className={styles.reviewTitle}>Review process</div>
                 <div className={styles.reviewText}>
-                  Tác phẩm sẽ vào trạng thái <b>pending</b> → đủ quorum thì <b>verified</b>.
+                  Work enters <b>pending</b> status &rarr; <b>verified</b> once quorum is met.
                 </div>
               </div>
             </div>
@@ -1419,26 +1419,26 @@ Time: ${new Date().toISOString()}
               <Row label="Registry" value={REGISTRY_ID || "-"} mono />
               <Row label="Module" value={MODULE} />
               <Row label="Mint fn" value={MINT_FN} />
-              <Row label="Tác giả" value={authorName} />
+              <Row label="Author" value={authorName} />
               <Row label="Email" value={authorEmail || user?.email || "-"} />
-              <Row label="Ví" value={walletAddress ? shortAddr(walletAddress) : "-"} mono />
-              <Row label="Tiêu đề" value={title || "-"} />
-              <Row label="Thể loại" value={category || "-"} />
-              <Row label="Ngôn ngữ" value={language || "-"} />
-              <Row label="Ngày sáng tác" value={createdDate || "-"} />
+              <Row label="Wallet" value={walletAddress ? shortAddr(walletAddress) : "-"} mono />
+              <Row label="Title" value={title || "-"} />
+              <Row label="Category" value={category || "-"} />
+              <Row label="Language" value={language || "-"} />
+              <Row label="Creation date" value={createdDate || "-"} />
               <Row label="SellType" value={`${sellType} (u8=${sellTypeU8})`} />
               <Row label="Royalty" value={`${royaltyNum}%`} />
-              <Row label="File Blob ID" value={fileBlobId ? shortCid(fileBlobId) : "Chưa có"} mono />
-              <Row label="Cover Blob ID" value={coverBlobId ? shortCid(coverBlobId) : "Chưa có"} mono />
+              <Row label="File Blob ID" value={fileBlobId ? shortCid(fileBlobId) : "Not set"} mono />
+              <Row label="Cover Blob ID" value={coverBlobId ? shortCid(coverBlobId) : "Not set"} mono />
               <Row
                 label="Metadata Blob ID"
-                value={metaBlobId ? shortCid(metaBlobId) : "Sẽ tạo khi Mint"}
+                value={metaBlobId ? shortCid(metaBlobId) : "Will be created on mint"}
                 mono
               />
-              <Row label="Proof ID" value={proofId || "Chưa có"} mono />
+              <Row label="Proof ID" value={proofId || "Not set"} mono />
               <Row
                 label="Proof status"
-                value={proofStatus === "draft" ? "Chưa nộp" : proofStatus}
+                value={proofStatus === "draft" ? "Not submitted" : proofStatus}
               />
               <div className={styles.metaLinkRow}>
                 <button
@@ -1446,7 +1446,7 @@ Time: ${new Date().toISOString()}
                   className={styles.btnGhost}
                   onClick={refreshProofStatus}
                   disabled={!proofId || submitting || isPending || uploading}
-                  title="Lấy trạng thái mới nhất"
+                  title="Fetch latest status"
                 >
                   Refresh status
                 </button>
@@ -1454,8 +1454,8 @@ Time: ${new Date().toISOString()}
 
               {proofStatus !== "approved" ? (
                 <div className={styles.callout}>
-                  Hồ sơ cần được admin duyệt trước khi mint. Vào trang{" "}
-                  <b>/admin/review</b> để duyệt.
+                  Submission must be reviewed by admin before minting. Go to{" "}
+                  <b>/admin/review</b> to review.
                 </div>
               ) : null}
 
@@ -1469,8 +1469,8 @@ Time: ${new Date().toISOString()}
               ) : null}
 
               <div className={styles.callout}>
-                Mint sẽ hash <b>file + metadata</b> (SHA-256) → <b>32 bytes</b> → Move để chống
-                duplicate.
+                Mint will hash <b>file + metadata</b> (SHA-256) &rarr; <b>32 bytes</b> &rarr; Move to
+                prevent duplicates.
               </div>
             </div>
           )}
@@ -1482,7 +1482,7 @@ Time: ${new Date().toISOString()}
               onClick={back}
               disabled={step === 1 || submitting || isPending || uploading}
             >
-              Quay lại
+              Back
             </button>
 
           <div className={styles.actionsRight}>
@@ -1492,7 +1492,7 @@ Time: ${new Date().toISOString()}
                   onClick={next}
                   disabled={(step === 1 && !canGoStep1) || submitting || isPending || uploading}
                 >
-                  Tiếp theo
+                  Next
                 </button>
               ) : (
                 <>
@@ -1500,9 +1500,9 @@ Time: ${new Date().toISOString()}
                     className={styles.btnGhost}
                     onClick={submitProof}
                     disabled={!canSubmit || submitting || isPending || uploading}
-                    title="Nộp hồ sơ pháp lý (off-chain)"
+                    title="Submit legal filing (off-chain)"
                   >
-                    Nộp hồ sơ
+                    Submit filing
                   </button>
                   <button
                     className={styles.btnPrimary}
@@ -1516,7 +1516,7 @@ Time: ${new Date().toISOString()}
                     }
                     title={
                       proofStatus !== "approved"
-                        ? "Hồ sơ chưa được duyệt"
+                        ? "Submission not approved"
                         : "Mint on-chain"
                     }
                   >
@@ -1527,7 +1527,7 @@ Time: ${new Date().toISOString()}
                         ? "Uploading cover..."
                         : uploadStage === "upload_meta"
                         ? "Uploading metadata..."
-                        : "Đang mint..."
+                        : "Minting..."
                       : "Mint"}
                   </button>
                 </>
@@ -1537,7 +1537,7 @@ Time: ${new Date().toISOString()}
         </div>
 
         <div className={styles.footerNote}>
-          Tip: Upload file + cover trước sẽ mint nhanh hơn (Step 3 không phải chờ upload).
+          Tip: Upload file + cover first to mint faster (Step 3 will not wait for upload).
         </div>
       </div>
     </div>

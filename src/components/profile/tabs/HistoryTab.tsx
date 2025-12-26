@@ -31,7 +31,7 @@ function shortHash(h: string) {
 }
 
 function formatTime(ts: number) {
-  return new Date(ts).toLocaleString("vi-VN");
+  return new Date(ts).toLocaleString("en-US");
 }
 
 type Filter = "all" | TradeType;
@@ -46,15 +46,15 @@ function getSuiNetwork(): "mainnet" | "testnet" | "devnet" {
 function explorerTxUrl(digest: string) {
   const net = getSuiNetwork();
   // Sui Explorer pattern: https://suiscan.xyz/<network>/tx/<digest>
-  // Mình dùng suiscan vì phổ biến, ổn định cho demo đồ án.
-  // Nếu bạn muốn explorer khác (official), mình đổi 1 dòng này.
+  // Use suiscan because it is popular and stable for demos.
+  // If you want another explorer (official), change this line.
   return `https://suiscan.xyz/${net}/tx/${digest}`;
 }
 
 function statusText(s: TradeStatus) {
-  if (s === "success") return "Thành công";
-  if (s === "failed") return "Thất bại";
-  return "Đang xử lý";
+  if (s === "success") return "Success";
+  if (s === "failed") return "Failed";
+  return "Processing";
 }
 
 /* ================= COMPONENT ================= */
@@ -107,9 +107,9 @@ export default function TradeHistory() {
   }, [trades]);
 
   /* ================= REALTIME ON-CHAIN POLLING =================
-     - mỗi 8s check tất cả tx pending
-     - nếu tx not found => vẫn pending
-     - nếu success => success, nếu fail => failed
+     - every 8s check all pending tx
+     - if tx not found => keep pending
+     - if success => success, if fail => failed
   =============================================================== */
 
   useEffect(() => {
@@ -125,7 +125,7 @@ export default function TradeHistory() {
 
         if (!pendings.length) return;
 
-        // poll tuần tự (an toàn rate-limit). Nếu bạn muốn nhanh hơn, mình đổi sang Promise.all với limit.
+        // sequential poll (safe rate-limit). If you want faster, use Promise.all with limits.
         for (const t of pendings) {
           try {
             const tx = await suiClient.getTransactionBlock({
@@ -140,7 +140,7 @@ export default function TradeHistory() {
               updateTradeStatus(userId, t.txHash, "failed");
             }
           } catch (e: any) {
-            // digest chưa index / chưa thấy -> keep pending
+            // digest not indexed / not found -> keep pending
           }
         }
       } finally {
@@ -148,7 +148,7 @@ export default function TradeHistory() {
       }
     };
 
-    // gọi ngay 1 lần
+    // call once immediately
     void tick();
 
     const id = window.setInterval(() => void tick(), 8000);
@@ -161,13 +161,13 @@ export default function TradeHistory() {
     return (
       <div className={styles.card}>
         <div className={styles.historyHeader}>
-          <h2>Lịch sử giao dịch</h2>
-          <span className={styles.historySub}>Vui lòng đăng nhập để xem</span>
+          <h2>Transaction history</h2>
+          <span className={styles.historySub}>Please sign in to view</span>
         </div>
 
         <div className={styles.emptyState}>
           <Clock size={36} />
-          <p>Chưa đăng nhập</p>
+          <p>Not signed in</p>
         </div>
       </div>
     );
@@ -178,8 +178,8 @@ export default function TradeHistory() {
       {/* HEADER */}
       <div className={styles.historyHeader}>
         <div>
-          <h2 className={styles.historyTitle}>Lịch sử giao dịch</h2>
-          <div className={styles.historySub}>Giao dịch on-chain của chính bạn (auto cập nhật trạng thái)</div>
+          <h2 className={styles.historyTitle}>Transaction history</h2>
+          <div className={styles.historySub}>Your on-chain transactions (auto status updates)</div>
         </div>
 
         <div className={styles.historyFilters}>
@@ -192,7 +192,7 @@ export default function TradeHistory() {
             onClick={() => setFilter("all")}
             className={`${styles.filterPill} ${filter === "all" ? styles.filterActive : ""}`}
           >
-            Tất cả
+            All
           </button>
 
           <button
@@ -224,7 +224,7 @@ export default function TradeHistory() {
       {/* STATS */}
       <div className={styles.historyStats}>
         <div className={styles.statBox}>
-          <div className={styles.statLabel}>Tổng</div>
+          <div className={styles.statLabel}>Total</div>
           <div className={styles.statValue}>{stats.total}</div>
         </div>
         <div className={styles.statBox}>
@@ -240,7 +240,7 @@ export default function TradeHistory() {
           <div className={styles.statValue}>{stats.failed}</div>
         </div>
         <div className={styles.statBox}>
-          <div className={styles.statLabel}>Chi (ước tính)</div>
+          <div className={styles.statLabel}>Spent (est.)</div>
           <div className={styles.statValue}>{stats.spent.toFixed(2)} SUI</div>
         </div>
       </div>
@@ -249,7 +249,7 @@ export default function TradeHistory() {
       {!filtered.length && (
         <div className={styles.emptyState}>
           <Clock size={36} />
-          <p>Chưa có giao dịch nào theo bộ lọc này</p>
+          <p>No transactions for this filter</p>
         </div>
       )}
 
@@ -283,7 +283,7 @@ export default function TradeHistory() {
                       href={explorerTxUrl(t.txHash)}
                       target="_blank"
                       rel="noreferrer"
-                      title="Mở trên Sui Explorer"
+                      title="Open in Sui Explorer"
                     >
                       {shortHash(t.txHash)}
                     </a>
@@ -330,7 +330,7 @@ export default function TradeHistory() {
 
       {/* HINT */}
       <div className={styles.historyHint}>
-        Tip: giao dịch <b>Pending</b> sẽ tự đổi sang <b>Success/Failed</b> khi RPC index xong (poll mỗi 8 giây).
+        Tip: <b>Pending</b> transactions will auto-update to <b>Success/Failed</b> after RPC indexing (polls every 8 seconds).
       </div>
     </div>
   );

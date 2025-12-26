@@ -1487,5 +1487,115 @@
       "signature": "AC9tWxysd0ECWKVDpzjsvKNBmGOgCvJ+O4QtxbgI4mDrHhGwdlNDe1xH5gmTlKsdZaOAyYxEfdtHDXMURT55NAtuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
       "time": "2025-12-26T05:49:27.999Z"
     }
+  },
+  {
+    "id": "3edb96cb-0c70-4fad-8b0d-c1bf142d73e9",
+    "createdAt": "2025-12-26T09:26:00.221Z",
+    "status": "approved",
+    "authorId": "102810016170476988916",
+    "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
+    "fileHash": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+    "metaHash": "22e52b36e1fbfec5f59ccd79dadd616ac0da30a818dcda9d38b60c7f9f4b0395",
+    "walrusFileId": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+    "walrusMetaId": "22e52b36e1fbfec5f59ccd79dadd616ac0da30a818dcda9d38b60c7f9f4b0395",
+    "walrusCoverId": "f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+    "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120\nMetaHash: 22e52b36e1fbfec5f59ccd79dadd616ac0da30a818dcda9d38b60c7f9f4b0395\nWalrusFileId: 331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120\nWalrusMetaId: 22e52b36e1fbfec5f59ccd79dadd616ac0da30a818dcda9d38b60c7f9f4b0395\nTime: 2025-12-26T09:25:45.898Z",
+    "authorSignature": "AOkaIB8eu99AG58jwC//hqqKgGoLmcCvwcxvfey/+RmcKf5bCkXqD+029TfbvUpLIPQhul57DFSno6aeneDFuApuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
+    "signatureVerified": true,
+    "signatureVerifyReason": "OK",
+    "metadata": {
+      "name": "Westside Squad (Remix)",
+      "description": "Chainstorm WorkNFT metadata (Walrus)",
+      "image": "/api/walrus/blob/f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+      "animation_url": "/api/walrus/blob/331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+      "duration": 198,
+      "file": {
+        "walrusId": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+        "url": "/api/walrus/blob/331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+        "mime": "audio/mpeg",
+        "name": "Westside Squad (Remix).mp3",
+        "size": 3424681,
+        "sha256": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+        "duration": 198
+      },
+      "cover_image": "/api/walrus/blob/f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+      "cover": {
+        "walrusId": "f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+        "url": "/api/walrus/blob/f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+        "mime": "image/jpeg",
+        "name": "1654862615588_300.jpg",
+        "size": 11341
+      },
+      "attributes": [
+        {
+          "trait_type": "sellType",
+          "value": "exclusive"
+        },
+        {
+          "trait_type": "sell_type_u8",
+          "value": 1
+        },
+        {
+          "trait_type": "royalty_percent",
+          "value": 5
+        },
+        {
+          "trait_type": "category",
+          "value": "Music"
+        },
+        {
+          "trait_type": "language",
+          "value": "vi"
+        },
+        {
+          "trait_type": "createdDate",
+          "value": "16/04/2026"
+        }
+      ],
+      "properties": {
+        "app": "Chainstorm",
+        "network": "devnet",
+        "category": "Music",
+        "language": "vi",
+        "createdDate": "16/04/2026",
+        "createdAtISO": "2026-04-16T00:00:00.000Z",
+        "chainstorm": {
+          "packageId": "0xbfade441b8bd0baa42261eb7e4529b1a77a98533e5371acbe6a692cdc68752c7",
+          "registryId": "0xff6ce0d3ce9ae2523bb4f20e010f1365b139d4b60cd5ba878b8a43e69c082aa5",
+          "module": "chainstorm_nft",
+          "mintFn": "mint"
+        },
+        "author": {
+          "userId": "102810016170476988916",
+          "name": "Unknown",
+          "email": "lifufu.2004@gmail.com",
+          "avatar": "https://lh3.googleusercontent.com/a/ACg8ocJpuLp5SY7lP-yBoTISlx5n-2aqD121nvmL724cwcIkf114iOLB=s96-c",
+          "phone": "",
+          "walletAddress": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a"
+        },
+        "file": {
+          "walrusId": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+          "url": "/api/walrus/blob/331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
+          "name": "Westside Squad (Remix).mp3",
+          "size": 3424681,
+          "type": "audio/mpeg",
+          "sha256": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120"
+        },
+        "cover": {
+          "walrusId": "f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+          "url": "/api/walrus/blob/f5626582656ad3b2887e56d53d16bd216ff16c6800122c1d1531feb5d226baa3",
+          "name": "1654862615588_300.jpg",
+          "size": 11341,
+          "type": "image/jpeg"
+        },
+        "createdAt": "2025-12-26T09:25:45.668Z",
+        "duration": 198
+      }
+    },
+    "approval": {
+      "adminWallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
+      "signature": "ANGcc1JKH8EQF9XuHZzZk5GfvHKE5CPQvjsAxLFPdHBSOVaG/KgKvtiWDrvg5YUCCCiBjsGCwSFj0aiJ3kdr7wduiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
+      "time": "2025-12-26T09:26:18.748Z"
+    }
   }
 ]

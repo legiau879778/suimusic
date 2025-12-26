@@ -23,7 +23,7 @@ export default function WorkDetailPage() {
   if (!work) {
     return (
       <p style={{ padding: 40 }}>
-        Không tìm thấy tác phẩm
+        Work not found
       </p>
     );
   }
@@ -34,7 +34,7 @@ export default function WorkDetailPage() {
         <h1 className={styles.title}>{work.title}</h1>
 
         <p className={styles.meta}>
-          <strong>Trạng thái:</strong>{" "}
+          <strong>Status:</strong>{" "}
           {work.status}
         </p>
 
@@ -46,11 +46,11 @@ export default function WorkDetailPage() {
 
         <hr className={styles.divider} />
 
-        <h2>Lịch sử duyệt</h2>
+        <h2>Review history</h2>
 
         {reviewLogs.length === 0 && (
           <p className={styles.empty}>
-            Chưa có lịch sử duyệt
+            No review history yet.
           </p>
         )}
 
@@ -60,8 +60,8 @@ export default function WorkDetailPage() {
               <div>
                 <strong>{log.adminEmail}</strong>{" "}
                 {log.action === "approved"
-                  ? "đã duyệt"
-                  : "đã từ chối"}
+                  ? "approved"
+                  : "rejected"}
               </div>
 
               <div className={styles.time}>
@@ -70,7 +70,7 @@ export default function WorkDetailPage() {
 
               {log.reason && (
                 <div className={styles.reason}>
-                  <strong>Lý do:</strong>{" "}
+                  <strong>Reason:</strong>{" "}
                   {log.reason}
                 </div>
               )}

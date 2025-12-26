@@ -32,8 +32,8 @@ export default function UserMenu() {
 
   const isAdmin = user.role === "admin";
 
-  // ✅ FIX QUAN TRỌNG:
-  // isAdminWallet chỉ nhận string (address), KHÔNG nhận WalletInfo
+  // IMPORTANT FIX:
+  // isAdminWallet only accepts string (address), NOT WalletInfo
   const hasAdminWallet =
     !!user.wallet && isAdminWallet(user.wallet.address);
 
@@ -61,7 +61,7 @@ export default function UserMenu() {
 
           <hr />
 
-          <Link href="/profile">Hồ sơ</Link>
+          <Link href="/profile">Profile</Link>
 
           {isAdmin && hasAdminWallet && (
             <Link href="/admin">Admin Dashboard</Link>
@@ -71,7 +71,7 @@ export default function UserMenu() {
             className={styles.logout}
             onClick={logout}
           >
-            Đăng xuất
+            Sign out
           </button>
         </div>
       )}

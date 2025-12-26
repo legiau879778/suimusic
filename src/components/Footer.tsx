@@ -40,8 +40,8 @@ export default function Footer() {
             </div>
 
             <p className={styles.tagline}>
-              Membership Music Copyright Model — đăng ký, xác thực và giao dịch bản quyền minh bạch
-              trên blockchain.
+              Membership Music Copyright Model — register, verify, and trade copyrights
+              transparently on blockchain.
             </p>
 
             <div className={styles.badges}>
@@ -54,13 +54,13 @@ export default function Footer() {
 
           {/* CONTACT */}
           <div className={styles.col}>
-            <h4 className={styles.heading}>Liên hệ</h4>
+            <h4 className={styles.heading}>Contact</h4>
             <ul className={styles.list}>
               <li className={styles.item}>
                 <span className={styles.itemIcon} aria-hidden="true">
                   <MapPin weight="duotone" size={16} />
                 </span>
-                <span className={styles.itemText}>613 Âu Cơ, Phú Trung</span>
+                <span className={styles.itemText}>613 Au Co, Phu Trung</span>
               </li>
 
               <li className={styles.item}>
@@ -111,7 +111,7 @@ export default function Footer() {
               </a>
 
               <div className={styles.hint}>
-                Theo dõi để cập nhật sản phẩm, marketplace và các bản phát hành mới.
+                Follow for product updates, marketplace news, and new releases.
               </div>
             </div>
           </div>

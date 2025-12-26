@@ -41,7 +41,7 @@ export default function SettingsTab() {
     <div className={styles.settingsWrap}>
       {/* ===== SOCIAL ===== */}
       <section className={styles.card}>
-        <h2>Mạng xã hội</h2>
+        <h2>Social</h2>
 
         <div className={styles.socialGrid}>
           <SocialField
@@ -77,32 +77,32 @@ export default function SettingsTab() {
 
       {/* ===== OPTIONS ===== */}
       <section className={styles.card}>
-        <h2>Tùy chọn hồ sơ</h2>
+        <h2>Profile options</h2>
 
         <div className={styles.optionList}>
           <OptionRow
-            label="Hiển thị hồ sơ công khai"
-            desc="Cho phép người khác xem hồ sơ của bạn"
+            label="Show public profile"
+            desc="Allow others to view your profile"
             checked={!!options.publicProfile}
             onToggle={() => toggleOption("publicProfile")}
           />
 
           <OptionRow
-            label="Hiển thị mạng xã hội"
-            desc="Hiển thị link mạng xã hội trên hồ sơ"
+            label="Show social links"
+            desc="Display social links on your profile"
             checked={!!options.showSocials}
             onToggle={() => toggleOption("showSocials")}
           />
 
           <OptionRow
-            label="Cho phép liên hệ qua email"
-            desc="Người khác có thể liên hệ bạn qua email"
+            label="Allow email contact"
+            desc="Others can contact you via email"
             checked={!!options.allowEmailContact}
             onToggle={() => toggleOption("allowEmailContact")}
           />
         </div>
 
-        <div className={styles.autoSaveHint}>✔ Cài đặt được lưu tự động</div>
+        <div className={styles.autoSaveHint}>✔ Settings are saved automatically</div>
       </section>
     </div>
   );
@@ -131,9 +131,9 @@ function SocialField({
   }, [v]);
 
   const helperText = useMemo(() => {
-    if (status === "empty") return "Để trống nếu bạn không muốn hiển thị";
-    if (status === "ok") return "Hợp lệ";
-    return "Link chưa đúng định dạng (nên có https://)";
+    if (status === "empty") return "Leave blank if you do not want to show it";
+    if (status === "ok") return "Valid";
+    return "Invalid link format (should include https://)";
   }, [status]);
 
   const normalizeOnBlur = () => {
@@ -155,7 +155,7 @@ function SocialField({
 
         <input
           value={v}
-          placeholder={placeholder || `Nhập link ${label}`}
+          placeholder={placeholder || `Enter ${label} link`}
           onChange={(e) => onChange(e.target.value)}
           onBlur={normalizeOnBlur}
           className={`${styles.socialInput} ${
@@ -207,7 +207,7 @@ function OptionRow({
       <button
         className={`${styles.toggle} ${checked ? styles.on : ""}`}
         onClick={onToggle}
-        aria-label={checked ? "Bật" : "Tắt"}
+        aria-label={checked ? "On" : "Off"}
         type="button"
       >
         <span />
@@ -222,7 +222,7 @@ function normalizeUrl(input: string) {
   const s = (input || "").trim();
   if (!s) return "";
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  // nếu user nhập dạng "twitter.com/abc" -> tự thêm https://
+  // if user enters "twitter.com/abc" -> add https:// automatically
   if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/?.*/.test(s)) return `https://${s}`;
   return s;
 }

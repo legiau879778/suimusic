@@ -44,7 +44,7 @@ export default function AdminNFTDashboard() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
             <h1>Admin NFT Dashboard</h1>
-            <p style={{ opacity: 0.75 }}>Theo dõi NFT object + owner + tx</p>
+            <p style={{ opacity: 0.75 }}>Track NFT object + owner + tx</p>
           </div>
 
           <button

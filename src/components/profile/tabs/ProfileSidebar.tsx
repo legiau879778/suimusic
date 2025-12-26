@@ -26,15 +26,15 @@ export default function ProfileSidebar({ active, onChange }: Props) {
     <aside className={styles.sidebar}>
       <div className={styles.sidebarTop}>
         <div className={styles.avatarCircle}>👤</div>
-        <div className={styles.sidebarName}>Tài khoản</div>
-        <div className={styles.sidebarSub}>Quản lý hồ sơ</div>
+        <div className={styles.sidebarName}>Account</div>
+        <div className={styles.sidebarSub}>Manage profile</div>
       </div>
 
       <nav className={styles.nav}>
-        <Item id="info" label="Thông tin" icon="👤" />
+        <Item id="info" label="Info" icon="👤" />
         <Item id="membership" label="Membership" icon="💎" />
-        <Item id="history" label="Lịch sử" icon="🧾" />
-        <Item id="settings" label="Cài đặt" icon="⚙️" />
+        <Item id="history" label="History" icon="🧾" />
+        <Item id="settings" label="Settings" icon="⚙️" />
       </nav>
     </aside>
   );

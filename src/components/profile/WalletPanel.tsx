@@ -64,7 +64,7 @@ export default function WalletPanel() {
     setLoading(true);
     try {
       await connectWallet();
-      // Sau khi user click connect, re-check status
+      // After user clicks connect, re-check status
       const s = await detectSuietStatus();
       setStatus(s);
     } finally {
@@ -77,10 +77,10 @@ export default function WalletPanel() {
   ========================= */
   return (
     <div className={styles.walletCard}>
-      <h2>Ví SUI</h2>
+      <h2>SUI Wallet</h2>
 
       {/* =====================
-          CHƯA CONNECT
+          NOT CONNECTED
       ===================== */}
       {!user.wallet && (
         <>
@@ -89,21 +89,21 @@ export default function WalletPanel() {
             onClick={handleConnect}
             disabled={loading}
           >
-            {loading ? "Đang kết nối..." : "Kết nối ví SUI"}
+            {loading ? "Connecting..." : "Connect SUI wallet"}
           </button>
 
           {/* ===== STATUS MESSAGE ===== */}
 
           {status === "not-installed" && (
             <div className={styles.walletHint}>
-              <p>❌ Chưa phát hiện ví SUI</p>
+              <p>❌ SUI wallet not detected</p>
 
               <a
                 href="https://chromewebstore.google.com/detail/suiet-wallet/khmnhcnbpipfhdldjhnadmgkgbhkjpph"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                👉 Cài Suiet Wallet (Chrome)
+                👉 Install Suiet Wallet (Chrome)
               </a>
 
               <a
@@ -111,7 +111,7 @@ export default function WalletPanel() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                👉 Cài Sui Wallet chính thức
+                👉 Install official Sui Wallet
               </a>
 
               <a
@@ -119,24 +119,24 @@ export default function WalletPanel() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                👉 Cài Martian Wallet
+                👉 Install Martian Wallet
               </a>
             </div>
           )}
 
           {status === "locked" && (
             <div className={styles.walletHintWarn}>
-              <p>🔒 Suiet đang bị khóa</p>
-              <p>👉 Mở Suiet Wallet và nhập mật khẩu để unlock</p>
+              <p>🔒 Suiet is locked</p>
+              <p>👉 Open Suiet Wallet and enter your password to unlock</p>
             </div>
           )}
 
           {status === "ready" && (
             <div className={styles.walletHint}>
-              <p>✅ Suiet đã sẵn sàng</p>
+              <p>✅ Suiet is ready</p>
               <p>
-                👉 Nếu bấm mà không thấy popup, hãy nhìn góc phải
-                thanh địa chỉ Chrome và cho phép popup
+                👉 If you click and do not see a popup, check the right side
+                of the Chrome address bar and allow popups
               </p>
             </div>
           )}
@@ -144,17 +144,17 @@ export default function WalletPanel() {
       )}
 
       {/* =====================
-          ĐÃ CONNECT
+          CONNECTED
       ===================== */}
       {user.wallet && (
         <>
           <div className={styles.walletField}>
-            <label>Địa chỉ ví</label>
+            <label>Wallet address</label>
             <input value={user.wallet.address} disabled />
           </div>
 
           <div className={styles.balanceBox}>
-            <span>Số dư</span>
+            <span>Balance</span>
             <strong>{balance.toFixed(4)} SUI</strong>
           </div>
 
@@ -162,7 +162,7 @@ export default function WalletPanel() {
             className={styles.revokeBtn}
             onClick={revokeWallet}
           >
-            Gỡ ví
+            Disconnect wallet
           </button>
         </>
       )}

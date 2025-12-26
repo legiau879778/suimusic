@@ -7,9 +7,9 @@ export default function StatsPage() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Thống kê duyệt</h1>
+        <h1 className={styles.title}>Review stats</h1>
         <p className={styles.sub}>
-          Biểu đồ cập nhật realtime khi admin duyệt/từ chối (works_updated + storage)
+          Chart updates in realtime when admins approve/reject (works_updated + storage)
         </p>
       </header>
 

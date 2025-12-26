@@ -19,7 +19,7 @@ export default function AuditLogPage() {
       <div style={{ marginTop: 24 }}>
         {logs.length === 0 && (
           <p style={{ opacity: 0.6 }}>
-            Chưa có hoạt động nào
+            No activity yet.
           </p>
         )}
 

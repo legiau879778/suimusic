@@ -31,7 +31,7 @@ export default function MarketplacePage() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Marketplace</h1>
-          <p className={styles.subtitle}>Tác phẩm đã duyệt + NFT ownership realtime</p>
+          <p className={styles.subtitle}>Verified works + realtime NFT ownership</p>
         </div>
 
         <div className={styles.filters}>
@@ -41,7 +41,7 @@ export default function MarketplacePage() {
               className={`${styles.filterBtn} ${filter === f ? styles.active : ""}`}
               onClick={() => setFilter(f)}
             >
-              {f === "all" ? "Tất cả" : f === "exclusive" ? "Bán đứt" : "License"}
+              {f === "all" ? "All" : f === "exclusive" ? "Exclusive" : "License"}
             </button>
           ))}
         </div>
@@ -89,7 +89,7 @@ function MarketCard({ work }: { work: any }) {
 
       <div className={styles.actions}>
         <Link className={styles.primaryBtn} href={`/marketplace/${work.id}`}>
-          Xem chi tiết
+          View details
         </Link>
       </div>
     </div>

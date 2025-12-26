@@ -16,8 +16,8 @@ export default function AdminUsersPage() {
             <UsersThree size={18} weight="duotone" />
           </div>
           <div>
-            <h1 className={styles.title}>Quản lý người dùng</h1>
-            <p className={styles.sub}>Danh sách lấy từ localStorage key: <b>chainstorm_users</b></p>
+            <h1 className={styles.title}>User management</h1>
+            <p className={styles.sub}>List loaded from localStorage key: <b>chainstorm_users</b></p>
           </div>
         </div>
 
@@ -26,7 +26,7 @@ export default function AdminUsersPage() {
             className={styles.search}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm email / role / wallet…"
+            placeholder="Search email / role / wallet..."
           />
         </div>
       </div>

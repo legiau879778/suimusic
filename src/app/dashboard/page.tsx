@@ -20,14 +20,14 @@ export default function DashboardPage() {
 
   return (
     <div className={styles.page}>
-      <h1>Dashboard tác giả</h1>
+      <h1>Author dashboard</h1>
 
       <div className={styles.stats}>
         <div>
-          <b>Tác phẩm:</b> {works.length}
+          <b>Works:</b> {works.length}
         </div>
         <div>
-          <b>License đã cấp:</b> {totalLicenses}
+          <b>Licenses issued:</b> {totalLicenses}
         </div>
       </div>
 

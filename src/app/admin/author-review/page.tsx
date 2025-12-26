@@ -43,7 +43,7 @@ export default function AdminAuthorReviewPage() {
   return (
     <AdminGuard>
       <main style={{ padding: 32 }}>
-        <h1>Duyệt Author</h1>
+        <h1>Author review</h1>
 
         {authors.map(a => (
           <div key={a.id} style={{ marginTop: 16 }}>
@@ -53,7 +53,7 @@ export default function AdminAuthorReviewPage() {
               disabled={loadingId === a.id}
             >
               {loadingId === a.id
-                ? "Đang ký ví..."
+                ? "Signing wallet..."
                 : "Approve"}
             </button>
           </div>

@@ -142,24 +142,24 @@ export default function AuthorLeaderboardPage() {
       <div className={styles.shell}>
         <header className={styles.header}>
           <div>
-            <h1 className={styles.title}>Bảng xếp hạng tác giả</h1>
+            <h1 className={styles.title}>Author leaderboard</h1>
             <p className={styles.subtitle}>
-              Xếp hạng theo tổng vote on-chain của tác phẩm đã duyệt.
+              Ranked by total on-chain votes for verified works.
             </p>
             {!canUseWorkVote() && (
-              <p className={styles.warn}>⚠️ Chưa cấu hình WORK_VOTE env → vote = 0</p>
+              <p className={styles.warn}>⚠️ WORK_VOTE env not configured -&gt; votes = 0</p>
             )}
           </div>
-          {loading ? <span className={styles.loading}>Đang tải...</span> : null}
+          {loading ? <span className={styles.loading}>Loading...</span> : null}
         </header>
 
         {rows.length === 0 ? (
-          <div className={styles.empty}>Chưa có dữ liệu xếp hạng.</div>
+          <div className={styles.empty}>No leaderboard data yet.</div>
         ) : (
           <div className={styles.table}>
             <div className={styles.thead}>
               <div>#</div>
-              <div>Tác giả</div>
+              <div>Author</div>
               <div>Works</div>
               <div>Total votes</div>
               <div>Top work</div>

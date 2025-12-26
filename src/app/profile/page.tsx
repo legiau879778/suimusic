@@ -19,23 +19,23 @@ import {
 type Tab = "membership" | "info" | "history" | "settings";
 
 function formatLeft(ms: number) {
-  if (ms <= 0) return "Hết hạn";
+  if (ms <= 0) return "Expired";
   const d = Math.floor(ms / 86400000);
   const h = Math.floor((ms % 86400000) / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
-  return `${d} ngày ${h}h ${m}m ${s}s`;
+  return `${d} days ${h}h ${m}m ${s}s`;
 }
 
 export default function ProfilePage() {
-  // ✅ hooks luôn được gọi (KHÔNG return sớm trước hooks)
+  // hooks are always called (do not return early before hooks)
   const { user } = useAuth();
 
   const [tab, setTab] = useState<Tab>("membership");
   const [membership, setMembership] = useState<Membership | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // fallback an toàn khi user chưa có
+  // safe fallback when user is not available
   const userId = user?.id ?? "";
   const email = user?.email ?? "";
   const role = user?.role ?? "user";
@@ -64,7 +64,7 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
-    // user chưa có thì không load
+    // do not load if user is missing
     if (!userId) return;
     void loadMembership();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,8 +104,8 @@ export default function ProfilePage() {
   }, [membership?.expireAt]);
 
   // ======================
-  // MENU ACCESS (đúng theo membershipType/role đã sync)
-  // ✅ useMemo luôn chạy dù user null -> không đổi thứ tự hooks
+  // MENU ACCESS (matches synced membershipType/role)
+  // useMemo runs even if user is null to keep hook order stable
   // ======================
   const canAccess = useMemo(() => {
     return (key: Tab) => {
@@ -113,14 +113,14 @@ export default function ProfilePage() {
       if (key === "info") return true;
       if (key === "settings") return true;
 
-      // ví dụ: history chỉ business
+      // example: history is business only
       if (key === "history") return membershipType === "business";
 
       return true;
     };
   }, [membershipType]);
 
-  // ✅ giờ mới được return sớm (sau khi gọi hết hooks)
+  // safe to return early now (after all hooks)
   if (!user) return null;
 
   return (
@@ -162,7 +162,7 @@ export default function ProfilePage() {
                     ? ` (${String((membership as any).plan).toUpperCase()})`
                     : ""}
                 </div>
-                <small>Còn lại: {timeLeft}</small>
+                <small>Remaining: {timeLeft}</small>
               </div>
             )}
           </div>
@@ -180,7 +180,7 @@ export default function ProfilePage() {
               className={tab === "info" ? styles.active : ""}
               onClick={() => setTab("info")}
             >
-              Thông tin cá nhân
+              Personal info
             </button>
 
             <button
@@ -188,7 +188,7 @@ export default function ProfilePage() {
               className={tab === "history" ? styles.active : ""}
               onClick={() => setTab("history")}
             >
-              Lịch sử giao dịch
+              Transaction history
             </button>
 
             <button
@@ -196,7 +196,7 @@ export default function ProfilePage() {
               className={tab === "settings" ? styles.active : ""}
               onClick={() => setTab("settings")}
             >
-              Cài đặt
+              Settings
             </button>
           </nav>
         </aside>

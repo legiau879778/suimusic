@@ -47,18 +47,18 @@ export default function HomePage() {
             <span className={styles.badge}>SUIMUSIC: Membership Music Copyright</span>
 
             <h1 className={styles.title}>
-              Bảo vệ &amp; Giao dịch <br />
-              <span>Bản quyền âm nhạc số</span>
+              Protect &amp; Trade <br />
+              <span>Digital music copyrights</span>
             </h1>
 
-            <p className={styles.subtitle}>Bảo vệ âm nhạc của bạn bằng sức mạnh Blockchain.</p>
+            <p className={styles.subtitle}>Protect your music with the power of blockchain.</p>
 
             <div className={styles.heroActions}>
               <Link href="/register-work" className={styles.primaryBtn}>
-                Đăng ký tác phẩm
+                Register work
               </Link>
               <Link href="/search" className={styles.secondaryBtn}>
-                Tra cứu tác phẩm
+                Search works
               </Link>
             </div>
 
@@ -68,7 +68,7 @@ export default function HomePage() {
                 <div className={styles.infoIcon}>🔒</div>
                 <div className={styles.infoText}>
                   <div className={styles.infoTop}>On-chain Proof</div>
-                  <div className={styles.infoBot}>Hash + Ownership minh bạch</div>
+                  <div className={styles.infoBot}>Transparent hash + ownership</div>
                 </div>
               </div>
 
@@ -76,7 +76,7 @@ export default function HomePage() {
                 <div className={styles.infoIcon}>⚡</div>
                 <div className={styles.infoText}>
                   <div className={styles.infoTop}>Fast Verify</div>
-                  <div className={styles.infoBot}>Tra cứu &amp; xác thực tức thì</div>
+                  <div className={styles.infoBot}>Instant search &amp; verification</div>
                 </div>
               </div>
             </div>
@@ -103,7 +103,7 @@ export default function HomePage() {
                 <span className={styles.chainBadge}>Sui</span>
               </div>
 
-              <div className={styles.nftHoverCta}>View NFT →</div>
+              <div className={styles.nftHoverCta}>View NFT -&gt;</div>
             </div>
 
             <div className={styles.nftBody}>
@@ -134,9 +134,9 @@ export default function HomePage() {
       {/* FEATURES (PHOSPHOR) */}
       <section className={styles.features}>
         <div className={styles.sectionHead}>
-          <h2 className={styles.sectionTitle}>Tính năng cốt lõi</h2>
+          <h2 className={styles.sectionTitle}>Core features</h2>
           <p className={styles.sectionSub}>
-            Những chức năng trọng tâm giúp bảo vệ và giao dịch của bạn trở nên an toàn.
+            Key features to keep your protection and trading safe.
           </p>
         </div>
 
@@ -147,8 +147,8 @@ export default function HomePage() {
             </div>
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
-              <div className={styles.featureTitleV2}>Đăng ký tác phẩm</div>
-              <div className={styles.featureSubV2}>Ghi nhận quyền sở hữu tác phẩm on-chain</div>
+              <div className={styles.featureTitleV2}>Register work</div>
+              <div className={styles.featureSubV2}>Record on-chain ownership of works</div>
             </div>
           </Link>
 
@@ -158,8 +158,8 @@ export default function HomePage() {
             </div>
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
-              <div className={styles.featureTitleV2}>Quản lý bản quyền</div>
-              <div className={styles.featureSubV2}>Theo dõi trạng thái, ownership và license</div>
+              <div className={styles.featureTitleV2}>Rights management</div>
+              <div className={styles.featureSubV2}>Track status, ownership, and licenses</div>
             </div>
           </Link>
 
@@ -169,8 +169,8 @@ export default function HomePage() {
             </div>
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
-              <div className={styles.featureTitleV2}>Tra cứu tác phẩm</div>
-              <div className={styles.featureSubV2}>Xác thực nguồn gốc &amp; quyền sở hữu tức thì</div>
+              <div className={styles.featureTitleV2}>Search works</div>
+              <div className={styles.featureSubV2}>Verify origin and ownership instantly</div>
             </div>
           </Link>
 
@@ -180,8 +180,8 @@ export default function HomePage() {
             </div>
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
-              <div className={styles.featureTitleV2}>Giao dịch bản quyền</div>
-              <div className={styles.featureSubV2}>Mua bán &amp; cấp license minh bạch on-chain</div>
+              <div className={styles.featureTitleV2}>Rights trading</div>
+              <div className={styles.featureSubV2}>Buy/sell and issue licenses transparently on-chain</div>
             </div>
           </Link>
         </div>
@@ -191,15 +191,15 @@ export default function HomePage() {
       <section className={styles.stats}>
         <div className={styles.stat}>
           <strong>8,000+</strong>
-          <span>Tác phẩm được bảo vệ</span>
+          <span>Works protected</span>
         </div>
         <div className={styles.stat}>
           <strong>700+</strong>
-          <span>Tác phẩm được giao dịch</span>
+          <span>Works traded</span>
         </div>
         <div className={styles.stat}>
           <strong>98%</strong>
-          <span>Độ tin cậy</span>
+          <span>Trust score</span>
         </div>
       </section>
 
@@ -211,15 +211,15 @@ export default function HomePage() {
               <span className={styles.infoHeadIcon}>
                 <Info weight="duotone" size={18} />
               </span>
-              <h3 className={styles.infoBlockTitle}>Website Chainstorm dùng để làm gì?</h3>
+              <h3 className={styles.infoBlockTitle}>What does Chainstorm do?</h3>
             </div>
 
             <ul className={styles.infoList}>
-              <li className={styles.infoLine}>Ghi nhận quyền sở hữu tác phẩm âm nhạc</li>
-              <li className={styles.infoLine}>Xác thực bản quyền minh bạch, rõ ràng</li>
-              <li className={styles.infoLine}>Theo dõi và quản lý việc sử dụng âm nhạc</li>
-              <li className={styles.infoLine}>Ngăn chặn sao chép và sử dụng trái phép</li>
-              <li className={styles.infoLine}>Hỗ trợ cấp phép và thu phí bản quyền</li>
+              <li className={styles.infoLine}>Record music work ownership</li>
+              <li className={styles.infoLine}>Verify copyright transparently</li>
+              <li className={styles.infoLine}>Track and manage music usage</li>
+              <li className={styles.infoLine}>Prevent unauthorized copying and use</li>
+              <li className={styles.infoLine}>Support licensing and royalty collection</li>
             </ul>
           </div>
 
@@ -228,15 +228,15 @@ export default function HomePage() {
               <span className={styles.infoHeadIcon}>
                 <Sparkle weight="duotone" size={18} />
               </span>
-              <h3 className={styles.infoBlockTitle}>Lợi ích khi sử dụng Chainstorm?</h3>
+              <h3 className={styles.infoBlockTitle}>Benefits of using Chainstorm?</h3>
             </div>
 
             <ul className={styles.infoList}>
-              <li className={styles.infoLine}>Bảo vệ quyền lợi hợp pháp của nghệ sĩ và nhà sản xuất</li>
-              <li className={styles.infoLine}>Giảm thiểu vi phạm bản quyền và sao chép trái phép</li>
-              <li className={styles.infoLine}>Tăng tính minh bạch trong quản lý và sử dụng âm nhạc</li>
-              <li className={styles.infoLine}>Tạo nguồn thu ổn định từ bản quyền cho người sáng tạo</li>
-              <li className={styles.infoLine}>Nâng cao ý thức tôn trọng bản quyền trong cộng đồng</li>
+              <li className={styles.infoLine}>Protect legal rights of artists and producers</li>
+              <li className={styles.infoLine}>Reduce infringement and unauthorized copying</li>
+              <li className={styles.infoLine}>Increase transparency in music management and usage</li>
+              <li className={styles.infoLine}>Create stable copyright revenue for creators</li>
+              <li className={styles.infoLine}>Raise community awareness of copyright</li>
             </ul>
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function HomePage() {
         className={`${styles.backToTop} ${showTop ? styles.backToTopShow : ""}`}
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Back to top"
-        title="Lên đầu trang"
+        title="Back to top"
       >
         <svg className={styles.progressRing} viewBox="0 0 44 44" aria-hidden="true">
           <circle className={styles.progressTrack} cx="22" cy="22" r="18" />

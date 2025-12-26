@@ -98,13 +98,13 @@ export default function MarketplaceDetailPage() {
       }
     } catch (e) {
       console.error(e);
-      showToast("Không đọc được owner từ chain", "warning");
+      showToast("Unable to read owner from chain", "warning");
     } finally {
       setSyncing(false);
     }
   }
 
-  // poll owner mỗi 10s
+  // poll owner every 10s
   useEffect(() => {
     if (!work?.nftObjectId) return;
     const t = setInterval(syncOwner, 10_000);
@@ -118,22 +118,22 @@ export default function MarketplaceDetailPage() {
     if (!work) return;
 
     if (!currentAccount) {
-      showToast("Bạn cần kết nối ví để mua license", "warning");
+      showToast("Connect a wallet to buy a license", "warning");
       return;
     }
 
     if (!PACKAGE_ID?.startsWith("0x")) {
-      showToast(`Thiếu packageId cho network ${activeNet}`, "error");
+      showToast(`Missing packageId for network ${activeNet}`, "error");
       return;
     }
 
     if (work.sellType !== "license") {
-      showToast("Tác phẩm này không bán theo license", "warning");
+      showToast("This work is not sold as a license", "warning");
       return;
     }
 
     if (!work.nftObjectId) {
-      showToast("Tác phẩm chưa có WorkNFT", "error");
+      showToast("This work does not have a WorkNFT", "error");
       return;
     }
 
@@ -141,7 +141,7 @@ export default function MarketplaceDetailPage() {
 
     try {
       setBuying(true);
-      showToast("Đang tạo giao dịch mua license...", "info");
+      showToast("Creating license purchase transaction...", "info");
 
       const tx = new Transaction();
 
@@ -180,10 +180,10 @@ export default function MarketplaceDetailPage() {
         ],
       }));
 
-      showToast("✅ Mua license thành công", "success");
+      showToast("License purchase successful", "success");
     } catch (e) {
       console.error(e);
-      showToast("Mua license thất bại", "error");
+      showToast("License purchase failed", "error");
     } finally {
       setBuying(false);
     }
@@ -194,7 +194,7 @@ export default function MarketplaceDetailPage() {
   if (!work) {
     return (
       <main style={{ padding: 28, maxWidth: 900, margin: "0 auto", opacity: 0.8 }}>
-        Đang tải...
+        Loading...
       </main>
     );
   }
@@ -227,7 +227,7 @@ export default function MarketplaceDetailPage() {
               {shortAddr(work.nftObjectId)}
             </a>
           ) : (
-            "Chưa mint"
+            "Not minted"
           )}
         </p>
 
@@ -252,13 +252,13 @@ export default function MarketplaceDetailPage() {
                 opacity: buying || isPending ? 0.7 : 1,
               }}
             >
-              {buying ? "Đang mua..." : "Mua license"}
+              {buying ? "Purchasing..." : "Buy license"}
             </button>
 
             <h3 style={{ marginTop: 20 }}>License history</h3>
 
             {licenses.length === 0 ? (
-              <div style={{ opacity: 0.7 }}>Chưa có license nào</div>
+              <div style={{ opacity: 0.7 }}>No licenses yet.</div>
             ) : (
               licenses
                 .slice()

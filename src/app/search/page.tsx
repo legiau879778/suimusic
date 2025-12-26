@@ -167,16 +167,16 @@ function guessKindFromFile(meta: any): "image" | "audio" | "video" | "pdf" | "ot
 }
 
 function statusLabel(s?: string) {
-  if (s === "verified") return "Đã duyệt";
-  if (s === "pending") return "Chờ duyệt";
-  if (s === "rejected") return "Từ chối";
+  if (s === "verified") return "Verified";
+  if (s === "pending") return "Pending";
+  if (s === "rejected") return "Rejected";
   return "—";
 }
 
 function sellTypeLabel(t?: string) {
-  if (t === "exclusive") return "Bán đứt";
+  if (t === "exclusive") return "Exclusive";
   if (t === "license") return "License";
-  if (t === "none") return "Không bán";
+  if (t === "none") return "Not for sale";
   return t || "—";
 }
 
@@ -265,22 +265,22 @@ export default function SearchPage() {
     });
   }, [works, debouncedQ, category, language]);
 
-  /** ✅ Fetch votes on-chain cho list đang lọc (giới hạn để nhanh) */
+  /** Fetch on-chain votes for the filtered list (limited for speed) */
   useEffect(() => {
     let alive = true;
 
     async function run() {
       if (!canUseWorkVote()) return;
 
-      // giới hạn để không spam RPC: lấy tối đa 120 work trong filtered
+      // limit to avoid spamming RPC: max 120 works in filtered
       const list = filtered.slice(0, 120);
       const ids = list.map((w: any) => String(w?.id || "").trim()).filter(Boolean);
 
-      // fetch những id chưa có trong voteMap
+      // fetch ids not in voteMap yet
       const missing = ids.filter((id) => voteMapRef.current[id] === undefined);
       if (missing.length === 0) return;
 
-      // concurrency nhẹ
+      // light concurrency
       const CONC = 6;
       let i = 0;
       const nextMap: Record<string, number> = {};
@@ -295,7 +295,7 @@ export default function SearchPage() {
           if (!alive) return;
           nextMap[id] = n;
 
-          // delay nhỏ cho RPC
+          // small delay for RPC
           await new Promise((r) => setTimeout(r, 40));
         }
       }
@@ -303,7 +303,7 @@ export default function SearchPage() {
       await Promise.all(Array.from({ length: Math.min(CONC, missing.length) }, () => worker()));
       if (!alive) return;
 
-      // merge vào state
+      // merge into state
       setVoteMap((prev) => ({ ...prev, ...nextMap }));
     }
 
@@ -313,7 +313,7 @@ export default function SearchPage() {
     };
   }, [filtered, suiClient]);
 
-  /** ✅ Featured: sort theo vote ON-CHAIN (workId) desc, tie-break by newest */
+  /** Featured: sort by on-chain votes (workId) desc, tie-break by newest */
   const featured = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a: any, b: any) => {
@@ -450,7 +450,7 @@ export default function SearchPage() {
   async function voteWork(workId: string) {
     if (!account?.address) return;
     if (!canUseWorkVote()) {
-      alert("Chưa cấu hình NEXT_PUBLIC_WORK_VOTE_PACKAGE_ID / BOARD_ID");
+      alert("NEXT_PUBLIC_WORK_VOTE_PACKAGE_ID / BOARD_ID not configured");
       return;
     }
 
@@ -467,10 +467,10 @@ export default function SearchPage() {
 
       const result = await signAndExecute({ transaction: tx });
 
-      // Optimistic update: +1 ngay để sort đổi liền
+      // Optimistic update: +1 immediately for sorting
       setVoteMap((prev) => ({ ...prev, [wid]: Number(prev[wid] ?? 0) + 1 }));
 
-      // (optional) confirm & re-fetch đúng số
+      // (optional) confirm and re-fetch the exact count
       try {
         await (suiClient as any).waitForTransaction({ digest: result.digest });
         const truth = await getVoteCountForWork({ suiClient: suiClient as any, workId: wid });
@@ -478,7 +478,7 @@ export default function SearchPage() {
       } catch {}
     } catch (e: any) {
       const msg = String(e?.message || e || "");
-      alert(msg.includes("E_ALREADY_VOTED") ? "Bạn đã vote tác phẩm này rồi." : "Vote thất bại.");
+      alert(msg.includes("E_ALREADY_VOTED") ? "You already voted for this work." : "Vote failed.");
     } finally {
       setVotingWorkId(null);
     }
@@ -568,10 +568,10 @@ export default function SearchPage() {
             className={styles.voteBtn}
             onClick={() => voteWork(workId)}
             disabled={!account?.address || votingWorkId === workId || !workId}
-            title={!account?.address ? "Kết nối ví để vote" : "Vote tác phẩm"}
+            title={!account?.address ? "Connect wallet to vote" : "Vote for work"}
           >
             <ThumbsUp size={16} weight="fill" />
-            {votingWorkId === workId ? "Đang vote..." : "Vote tác phẩm"}
+            {votingWorkId === workId ? "Voting..." : "Vote for work"}
           </button>
         </div>
 
@@ -707,15 +707,15 @@ export default function SearchPage() {
 
             <div className={styles.modalGrid}>
               <div className={styles.kv}>
-                <div className={styles.k}>Thời lượng</div>
+                <div className={styles.k}>Duration</div>
                 <div className={styles.v}>{duration}</div>
               </div>
               <div className={styles.kv}>
-                <div className={styles.k}>Thể loại</div>
+                <div className={styles.k}>Category</div>
                 <div className={styles.v}>{safeText((work as any)?.category)}</div>
               </div>
               <div className={styles.kv}>
-                <div className={styles.k}>Ngôn ngữ</div>
+                <div className={styles.k}>Language</div>
                 <div className={styles.v}>{safeText((work as any)?.language)}</div>
               </div>
               <div className={styles.kv}>
@@ -752,7 +752,7 @@ export default function SearchPage() {
             </div>
             {!mediaUrl ? (
               <div className={styles.mediaEmpty}>
-                Không có file preview (metadata thiếu animation_url / file.url).
+                No preview file (metadata missing animation_url / file.url).
               </div>
             ) : displayKind === "audio" ? (
               <audio className={styles.audio} controls src={mediaUrl} />
@@ -765,9 +765,9 @@ export default function SearchPage() {
               <img className={styles.modalImg} src={mediaUrl} alt="preview" />
             ) : (
               <div className={styles.mediaEmpty}>
-                Không nhận diện được type.{" "}
+                Unable to detect type.{" "}
                 <a className={styles.link} href={mediaUrl} target="_blank" rel="noreferrer">
-                  Mở file
+                  Open file
                 </a>
               </div>
             )}
@@ -778,7 +778,7 @@ export default function SearchPage() {
               className={styles.actionLink}
               href={`/marketplace/${encodeURIComponent(String(work.id || ""))}`}
             >
-              Mở trang giao dịch
+              Open marketplace page
             </Link>
           </div>
         </div>
@@ -852,19 +852,19 @@ export default function SearchPage() {
       <div className={styles.shell}>
         <header className={styles.top}>
           <div>
-            <h1 className={styles.h1}>Tra cứu tác phẩm</h1>
+            <h1 className={styles.h1}>Search works</h1>
             <p className={styles.hint}>
-              Sort “Nổi bật nhất” theo <b>vote on-chain</b> (workId). Hover để xem preview metadata.
+              Sort "Featured" by <b>on-chain votes</b> (workId). Hover to preview metadata.
             </p>
             {!canUseWorkVote() && (
               <p className={styles.hint} style={{ marginTop: 8 }}>
-                ⚠️ Chưa cấu hình WORK_VOTE env → featured sẽ vẫn hiển thị nhưng vote count = 0.
+                ⚠️ WORK_VOTE env not configured -&gt; featured still shows but vote count = 0.
               </p>
             )}
           </div>
 
           <div className={styles.walletPill} data-on={String(!!account?.address)}>
-            {account?.address ? `Ví: ${account.address.slice(0, 6)}…${account.address.slice(-4)}` : "Chưa kết nối ví"}
+            {account?.address ? `Wallet: ${account.address.slice(0, 6)}...${account.address.slice(-4)}` : "Wallet not connected"}
           </div>
         </header>
 
@@ -873,7 +873,7 @@ export default function SearchPage() {
             <MagnifyingGlass size={18} weight="bold" className={styles.searchIcon} />
             <input
               className={styles.searchInput}
-              placeholder="Tìm theo tên tác phẩm / tác giả / thể loại / ngôn ngữ…"
+              placeholder="Search by title / author / category / language..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -885,7 +885,7 @@ export default function SearchPage() {
               <select value={category} onChange={(e) => setCategory(e.target.value)} className={styles.select}>
                 {categories.map((c) => (
                   <option key={c} value={c}>
-                    {c === "all" ? "Tất cả thể loại" : c}
+                    {c === "all" ? "All categories" : c}
                   </option>
                 ))}
               </select>
@@ -896,7 +896,7 @@ export default function SearchPage() {
               <select value={language} onChange={(e) => setLanguage(e.target.value)} className={styles.select}>
                 {languages.map((l) => (
                   <option key={l} value={l}>
-                    {l === "all" ? "Tất cả ngôn ngữ" : l}
+                    {l === "all" ? "All languages" : l}
                   </option>
                 ))}
               </select>
@@ -905,21 +905,21 @@ export default function SearchPage() {
         </section>
 
         <CarouselBlock
-          title="Nổi bật nhất"
-          subtitle="Sắp xếp theo vote (on-chain) ↓, tie-break theo mới nhất."
+          title="Featured"
+          subtitle="Sorted by on-chain votes (desc), tie-break by newest."
           pages={featuredPages}
           index={featuredIdx}
           setIndex={setFeaturedIdx}
-          emptyText="Không có tác phẩm nào"
+          emptyText="No works found"
         />
 
         <CarouselBlock
-          title="Mới nhất"
-          subtitle="Sắp xếp theo created/minted/reviewed/verified."
+          title="Newest"
+          subtitle="Sorted by created/minted/reviewed/verified."
           pages={newestPages}
           index={newestIdx}
           setIndex={setNewestIdx}
-          emptyText="Không có tác phẩm nào"
+          emptyText="No works found"
         />
       </div>
       {detailWork ? <WorkDetailModal work={detailWork} /> : null}

@@ -60,11 +60,11 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
 
   async function confirm() {
     if (!currentAccount?.address) {
-      pushToast("error", "Vui lòng kết nối ví SUI");
+      pushToast("error", "Please connect a SUI wallet");
       return;
     }
     if (!memberKey) {
-      pushToast("error", "Chưa xác định người dùng");
+      pushToast("error", "User not identified");
       return;
     }
 
@@ -83,11 +83,11 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
 
       saveMembership(memberKey, membership);
 
-      pushToast("success", "🎉 Kích hoạt Membership thành công");
+      pushToast("success", "Membership activated successfully");
       onSuccess(membership);
       onClose();
     } catch (e: any) {
-      pushToast("error", e?.message || "Có lỗi xảy ra");
+      pushToast("error", e?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
     <div className={styles.modalOverlay} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <h3>Mua Membership</h3>
+          <h3>Purchase Membership</h3>
           <button className={styles.modalClose} onClick={onClose} disabled={loading} type="button">
             ✕
           </button>
@@ -106,7 +106,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
         <div className={styles.modalBody}>
           <div className={styles.modalSummary}>
             <div className={styles.modalLine}>
-              Bạn đang mua gói <strong>{type.toUpperCase()}</strong>
+              You are purchasing <strong>{type.toUpperCase()}</strong>
               {type === "creator" ? (
                 <>
                   {" "}
@@ -117,7 +117,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                   {" "}
                   ·{" "}
                   <strong>
-                    {artistPlan === "1m" ? "1 THÁNG" : artistPlan === "3m" ? "3 THÁNG" : "1 NĂM"}
+                    {artistPlan === "1m" ? "1 MONTH" : artistPlan === "3m" ? "3 MONTHS" : "1 YEAR"}
                   </strong>
                 </>
               ) : null}
@@ -125,10 +125,10 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
 
             <div className={styles.modalMeta}>
               <span>
-                Phí dự kiến: <strong>{priceSui} SUI</strong>
+                Estimated fee: <strong>{priceSui} SUI</strong>
               </span>
               <span>
-                Thời hạn: <strong>{days} ngày</strong>
+                Duration: <strong>{days} days</strong>
               </span>
             </div>
           </div>
@@ -146,10 +146,10 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                   <div className={styles.pickTitle}>{p.toUpperCase()}</div>
                   <div className={styles.pickSub}>
                     {p === "starter"
-                      ? "5 SUI/tháng · có giới hạn"
+                      ? "5 SUI/month · limited"
                       : p === "pro"
-                      ? "15 SUI/tháng · không giới hạn"
-                      : "40 SUI/tháng · team"}
+                      ? "15 SUI/month · unlimited"
+                      : "40 SUI/month · team"}
                   </div>
                 </button>
               ))}
@@ -166,9 +166,9 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                   onClick={() => setArtistPlan(p)}
                   disabled={loading}
                 >
-                  <div className={styles.pickTitle}>{p === "1m" ? "1 THÁNG" : p === "3m" ? "3 THÁNG" : "1 NĂM"}</div>
+                  <div className={styles.pickTitle}>{p === "1m" ? "1 MONTH" : p === "3m" ? "3 MONTHS" : "1 YEAR"}</div>
                   <div className={styles.pickSub}>
-                    {p === "1m" ? "2.5 SUI · ~30 ngày" : p === "3m" ? "7.5 SUI · ~90 ngày" : "30 SUI · ~365 ngày"}
+                    {p === "1m" ? "2.5 SUI · ~30 days" : p === "3m" ? "7.5 SUI · ~90 days" : "30 SUI · ~365 days"}
                   </div>
                 </button>
               ))}
@@ -176,16 +176,16 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
           )}
 
           <div className={styles.modalHint}>
-            * Cần ví SUI để xác nhận. (Lưu ý: ví extension là dùng chung, nhưng membership sẽ lưu theo tài khoản Gmail của bạn.)
+            * SUI wallet required to confirm. (Note: extension wallet is shared, but membership is saved to your Gmail account.)
           </div>
         </div>
 
         <div className={styles.modalActions}>
           <button className={styles.secondaryBtn} onClick={onClose} disabled={loading} type="button">
-            Huỷ
+            Cancel
           </button>
           <button className={styles.primaryBtn} onClick={confirm} disabled={loading} type="button">
-            {loading ? "Đang xử lý..." : "Xác nhận"}
+            {loading ? "Processing..." : "Confirm"}
           </button>
         </div>
       </div>

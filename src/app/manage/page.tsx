@@ -55,8 +55,8 @@ function explorerTxUrl(net: "devnet" | "testnet" | "mainnet", digest: string) {
 }
 
 /**
- * ✅ FIX: toGateway phải accept CIDv0 + CIDv1 phổ biến (bafy/bafk/baf...).
- * Tránh tình trạng cover/preview bị "" => No cover
+ * FIX: toGateway must accept common CIDv0 + CIDv1 (bafy/bafk/baf...).
+ * Avoid cover/preview being "" => No cover
  */
 function toGateway(input?: string) {
   if (!input) return "";
@@ -94,7 +94,7 @@ function toDDMMYYYY(iso?: string) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-/** createdDate display for UI (work.createdDate ưu tiên) */
+/** createdDate display for UI (prefer work.createdDate) */
 function pickCreatedDate(work: Work, meta: any | null) {
   const w = String(work.createdDate || "").trim();
   if (w) return w;
@@ -119,7 +119,7 @@ async function cidToAddressHex(cid: string): Promise<string> {
   return hex;
 }
 
-/** ✅ FIX: đọc mime/name từ nhiều nơi (top-level + properties) */
+/** FIX: read mime/name from multiple places (top-level + properties) */
 function guessKindFromFile(meta: any): "image" | "audio" | "video" | "pdf" | "other" {
   const t: string =
     meta?.file?.mime ||
@@ -201,7 +201,7 @@ export default function ManagePage() {
   const [works, setWorks] = useState<Work[]>([]);
   const [page, setPage] = useState(1);
 
-  /** ✅ FIX TS: cho phép string luôn (fallback "") */
+  /** FIX TS: always allow string (fallback "") */
   const prevStatus = useRef<Record<string, string>>({});
 
   const [syncingOwners, setSyncingOwners] = useState<Record<string, boolean>>({});
@@ -244,12 +244,12 @@ export default function ManagePage() {
       const prev = prevStatus.current[id];
       if (prev && prev !== cur) {
         showToast(
-          `Tác phẩm "${w.title}" ${cur === "verified" ? "đã được duyệt" : "bị từ chối"}`,
+          `Work "${w.title}" ${cur === "verified" ? "was verified" : "was rejected"}`,
           cur === "verified" ? "success" : "warning"
         );
       }
 
-      // ✅ FIX TS: luôn là string
+      // FIX TS: always a string
       prevStatus.current[id] = cur;
     });
 
@@ -284,7 +284,7 @@ export default function ManagePage() {
     async (w: Work) => {
       if (!PACKAGE_ID?.startsWith("0x")) return;
 
-      // Case 1: đã có nftObjectId => sync owner
+      // Case 1: nftObjectId exists => sync owner
       if (w.nftObjectId) {
         const obj = await suiClient.getObject({
           id: w.nftObjectId,
@@ -297,7 +297,7 @@ export default function ManagePage() {
         return;
       }
 
-      // Case 2: chưa có nftObjectId => scan theo content_hash
+      // Case 2: no nftObjectId => scan by content_hash
       const cid = String(w.hash || "").trim();
       if (!cid) return;
 
@@ -344,17 +344,17 @@ export default function ManagePage() {
 
   async function handleSyncAll(reason?: string) {
     if (!currentAccount?.address) {
-      showToast("Vui lòng kết nối ví để sync", "warning");
+      showToast("Please connect a wallet to sync", "warning");
       return;
     }
     if (!PACKAGE_ID?.startsWith("0x")) {
-      showToast(`Thiếu packageId cho network ${activeNet}`, "error");
+      showToast(`Missing packageId for network ${activeNet}`, "error");
       return;
     }
 
     try {
       setSyncingAll(true);
-      showToast(reason || "Đang auto-sync NFT từ chain...", "info");
+      showToast(reason || "Auto-syncing NFTs from chain...", "info");
 
       const base = getActiveWorks();
       const list = userRole === "admin" ? base : base.filter((x) => x.authorId === userId);
@@ -367,10 +367,10 @@ export default function ManagePage() {
         await syncOneWorkFromChain(w);
       }
 
-      showToast("✅ Sync xong (nếu có NFT sẽ tự bind / sync owner)", "success");
+      showToast("Sync completed (NFTs will auto-bind / sync owner if available)", "success");
     } catch (e) {
       console.error(e);
-      showToast("Sync thất bại", "error");
+      showToast("Sync failed", "error");
     } finally {
       setSyncingAll(false);
     }
@@ -429,15 +429,15 @@ export default function ManagePage() {
 
       const owner = (obj as any)?.data?.owner?.AddressOwner as string | undefined;
       if (!owner) {
-        showToast("Không đọc được owner từ chain", "warning");
+        showToast("Unable to read owner from chain", "warning");
         return;
       }
 
       updateNFTOwner({ workId: work.id, newOwner: owner });
-      showToast(`Đã sync owner: ${shortAddr(owner)}`, "success");
+      showToast(`Owner synced: ${shortAddr(owner)}`, "success");
     } catch (e) {
       console.error(e);
-      showToast("Sync owner thất bại", "error");
+      showToast("Owner sync failed", "error");
     } finally {
       setSyncingOwners((m) => ({ ...m, [work.id]: false }));
     }
@@ -445,33 +445,33 @@ export default function ManagePage() {
 
   async function handleSellNFT(work: Work) {
     if (!currentAccount) {
-      showToast("Vui lòng kết nối ví", "warning");
+      showToast("Please connect a wallet", "warning");
       return;
     }
     if (!PACKAGE_ID?.startsWith("0x")) {
-      showToast(`Thiếu packageId cho network ${activeNet}`, "error");
+      showToast(`Missing packageId for network ${activeNet}`, "error");
       return;
     }
     if (!work.nftObjectId) {
-      showToast("Tác phẩm chưa bind NFT (bấm Auto-sync NFT)", "warning");
+      showToast("Work has not bound NFT yet (click Auto-sync NFT)", "warning");
       return;
     }
 
-    const buyer = prompt("Nhập ví người mua (0x...):");
+    const buyer = prompt("Enter buyer wallet (0x...):");
     if (!buyer) return;
 
-    const priceStr = prompt("Nhập giá (SUI)", "1");
+    const priceStr = prompt("Enter price (SUI)", "1");
     if (!priceStr) return;
 
     const priceMist = BigInt(Math.floor(Number(priceStr) * 1_000_000_000));
     if (priceMist <= BigInt(0)) {
-      showToast("Giá không hợp lệ", "warning");
+      showToast("Invalid price", "warning");
       return;
     }
 
     try {
       setSellingId(work.id);
-      showToast("Đang xử lý giao dịch bán NFT...", "info");
+      showToast("Processing NFT sale transaction...", "info");
 
       const tx = new Transaction();
       const [payment] = tx.splitCoins(tx.gas, [tx.pure.u64(priceMist)]);
@@ -495,10 +495,10 @@ export default function ManagePage() {
         priceMist: priceMist.toString(),
       });
 
-      showToast("🎉 Bán NFT thành công", "success");
+      showToast("NFT sale successful", "success");
     } catch (e) {
       console.error(e);
-      showToast("Giao dịch thất bại", "error");
+      showToast("Transaction failed", "error");
     } finally {
       setSellingId(null);
     }
@@ -506,30 +506,30 @@ export default function ManagePage() {
 
   async function handleIssueLicense(work: Work) {
     if (!currentAccount) {
-      showToast("Vui lòng kết nối ví", "warning");
+      showToast("Please connect a wallet", "warning");
       return;
     }
     if (!PACKAGE_ID?.startsWith("0x")) {
-      showToast(`Thiếu packageId cho network ${activeNet}`, "error");
+      showToast(`Missing packageId for network ${activeNet}`, "error");
       return;
     }
     if (!work.nftObjectId) {
-      showToast("Tác phẩm chưa bind WorkNFT (bấm Auto-sync NFT)", "warning");
+      showToast("Work has not bound WorkNFT (click Auto-sync NFT)", "warning");
       return;
     }
 
-    const licensee = prompt("Nhập ví người mua license (0x...):");
+    const licensee = prompt("Enter license buyer wallet (0x...):");
     if (!licensee) return;
 
     const royalty = Number(prompt("Royalty % (0-100)", String(work.royalty ?? 10)));
     if (Number.isNaN(royalty) || royalty < 0 || royalty > 100) {
-      showToast("Royalty không hợp lệ", "warning");
+      showToast("Invalid royalty", "warning");
       return;
     }
 
     try {
       setLicensingId(work.id);
-      showToast("Đang cấp license...", "info");
+      showToast("Issuing license...", "info");
 
       const tx = new Transaction();
       tx.moveCall({
@@ -550,10 +550,10 @@ export default function ManagePage() {
         txDigest: (result as any).digest,
       });
 
-      showToast("✅ Cấp license thành công", "success");
+      showToast("License issued successfully", "success");
     } catch (e) {
       console.error(e);
-      showToast("Cấp license thất bại", "error");
+      showToast("License issuance failed", "error");
     } finally {
       setLicensingId(null);
     }
@@ -562,7 +562,7 @@ export default function ManagePage() {
   function handleSoftDelete(work: Work) {
     if (!userId) return;
 
-    const ok = confirm(`Đưa "${work.title}" vào thùng rác?`);
+    const ok = confirm(`Move "${work.title}" to trash?`);
     if (!ok) return;
 
     try {
@@ -574,13 +574,13 @@ export default function ManagePage() {
       if (selected?.id === work.id) {
         setSelected(null);
       }
-      showToast("🗑️ Đã chuyển vào thùng rác", "success");
+      showToast("Moved to trash", "success");
     } catch (e: any) {
       console.error(e);
       if (String(e?.message).includes("FORBIDDEN")) {
-        showToast("Bạn không có quyền xoá tác phẩm này", "error");
+        showToast("You do not have permission to delete this work", "error");
       } else {
-        showToast("Xoá thất bại", "error");
+        showToast("Delete failed", "error");
       }
     }
   }
@@ -589,19 +589,19 @@ export default function ManagePage() {
     if (!userId) return;
 
     if (userRole !== "admin") {
-      showToast("Chỉ admin mới được khôi phục", "warning");
+      showToast("Only admins can restore", "warning");
       return;
     }
 
-    const ok = confirm(`Khôi phục "${work.title}"?`);
+    const ok = confirm(`Restore "${work.title}"?`);
     if (!ok) return;
 
     try {
       restoreWork({ workId: work.id, actor: { id: userId, role: userRole as any } });
-      showToast("♻️ Đã khôi phục tác phẩm", "success");
+      showToast("Work restored", "success");
     } catch (e: any) {
       console.error(e);
-      showToast("Khôi phục thất bại", "error");
+      showToast("Restore failed", "error");
     }
   }
 
@@ -611,8 +611,8 @@ export default function ManagePage() {
     return (
       <div className={styles.page}>
         <div className={styles.locked}>
-          <h2>Chưa đăng nhập</h2>
-          <p>Vui lòng đăng nhập để quản lý tác phẩm.</p>
+          <h2>Not signed in</h2>
+          <p>Please sign in to manage works.</p>
         </div>
       </div>
     );
@@ -623,7 +623,7 @@ export default function ManagePage() {
       {/* ===== Header ===== */}
       <div className={styles.header}>
         <div className={styles.headLeft}>
-          <h1 className={styles.headTitle}>Quản lý tác phẩm</h1>
+          <h1 className={styles.headTitle}>Manage works</h1>
           <div className={styles.headSub}>
             Network: <b>{activeNet}</b> • pkg:{" "}
             <b className={styles.mono}>{PACKAGE_ID ? shortAddr(PACKAGE_ID) : "missing"}</b>
@@ -632,14 +632,14 @@ export default function ManagePage() {
 
         <div className={styles.headRight}>
           <button className={styles.btnPrimary} onClick={() => router.push("/register-work")}>
-            + Đăng ký tác phẩm
+            + Register work
           </button>
 
           <button
             className={styles.btnSecondary}
-            onClick={() => handleSyncAll("Đang auto-sync NFT từ chain...")}
+            onClick={() => handleSyncAll("Auto-syncing NFTs from chain...")}
             disabled={syncingAll || isPending}
-            title="Quét WorkNFT trong ví theo content_hash = sha256(metadataCid)"
+            title="Scan WorkNFTs in wallet by content_hash = sha256(metadataCid)"
           >
             {syncingAll ? "Syncing..." : "Auto-sync NFT"}
           </button>
@@ -650,10 +650,10 @@ export default function ManagePage() {
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
             >
-              <option value="all">Tất cả</option>
-              <option value="sell">Bán đứt</option>
+              <option value="all">All</option>
+              <option value="sell">Exclusive</option>
               <option value="license">License</option>
-              <option value="none">Không bán</option>
+              <option value="none">Not for sale</option>
             </select>
 
             <select
@@ -661,8 +661,8 @@ export default function ManagePage() {
               value={view}
               onChange={(e) => setView(e.target.value as any)}
             >
-              <option value="active">Đang hoạt động</option>
-              <option value="trash">Thùng rác</option>
+              <option value="active">Active</option>
+              <option value="trash">Trash</option>
             </select>
           </div>
         </div>
@@ -672,8 +672,8 @@ export default function ManagePage() {
       {works.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>🎵</div>
-          <div className={styles.emptyTitle}>Chưa có tác phẩm</div>
-          <div className={styles.emptySub}>Hãy đăng ký tác phẩm đầu tiên để mint NFT.</div>
+          <div className={styles.emptyTitle}>No works yet</div>
+          <div className={styles.emptySub}>Register your first work to mint an NFT.</div>
         </div>
       ) : null}
 
@@ -707,11 +707,11 @@ export default function ManagePage() {
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            ← Trước
+            Prev
           </button>
 
           <div className={styles.pagerInfo}>
-            Trang <b>{page}</b>/<b>{totalPages}</b> •{" "}
+            Page <b>{page}</b>/<b>{totalPages}</b> •{" "}
             <span className={styles.muted}>{works.length} items</span>
           </div>
 
@@ -720,7 +720,7 @@ export default function ManagePage() {
             disabled={page >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
-            Sau →
+            Next
           </button>
         </div>
       ) : null}
@@ -830,15 +830,15 @@ function WorkCard(props: {
 
   // ✅ FIX TS: s?: string
   function statusLabel(s?: string) {
-    if (s === "verified") return "Đã duyệt";
-    if (s === "pending") return "Chờ duyệt";
-    if (s === "rejected") return "Từ chối";
+    if (s === "verified") return "Verified";
+    if (s === "pending") return "Pending";
+    if (s === "rejected") return "Rejected";
     return "—";
   }
   function sellTypeLabel(t?: string) {
-    if (t === "exclusive") return "Bán đứt";
+    if (t === "exclusive") return "Exclusive";
     if (t === "license") return "License";
-    if (t === "none") return "Không bán";
+    if (t === "none") return "Not for sale";
     return t || "—";
   }
 
@@ -852,9 +852,9 @@ function WorkCard(props: {
         sellType: sellTypeEdit as any,
         royalty: royaltyNum,
       });
-      showToast("Đã cập nhật sellType/royalty.", "success");
+      showToast("Updated sellType/royalty.", "success");
     } catch (e: any) {
-      showToast(e?.message || "Cập nhật thất bại", "error");
+      showToast(e?.message || "Update failed", "error");
     } finally {
       setSavingEdit(false);
     }
@@ -906,13 +906,13 @@ function WorkCard(props: {
 
         <div
           className={`${styles.dateBadge} ${createdText === "—" ? styles.dateBadgeMuted : ""}`}
-          title="Ngày sáng tác"
+          title="Creation date"
         >
           {createdText}
         </div>
 
         <div className={styles.previewOverlay}>
-          <span className={styles.previewCta}>Xem chi tiết →</span>
+          <span className={styles.previewCta}>View details -&gt;</span>
         </div>
       </div>
 
@@ -931,7 +931,7 @@ function WorkCard(props: {
                 {shortAddr(work.nftObjectId)}
               </a>
             ) : (
-              <span className={styles.warnText}>— chưa bind</span>
+              <span className={styles.warnText}>— not bound</span>
             )}
           </span>
         </div>
@@ -956,36 +956,36 @@ function WorkCard(props: {
           className={styles.actionPrimary}
           onClick={onSell}
           disabled={view === "trash" || selling || disableGlobal}
-          title={view === "trash" ? "Khôi phục trước khi thao tác" : "Bán NFT"}
+          title={view === "trash" ? "Restore before action" : "Sell NFT"}
         >
-          {selling ? "Đang bán…" : "Bán"}
+          {selling ? "Selling..." : "Sell"}
         </button>
 
         <button
           className={styles.actionPrimary}
           onClick={onIssueLicense}
           disabled={view === "trash" || licensing || disableGlobal}
-          title={view === "trash" ? "Khôi phục trước khi thao tác" : "Cấp license"}
+          title={view === "trash" ? "Restore before action" : "Issue license"}
         >
-          {licensing ? "Đang cấp…" : "License"}
+          {licensing ? "Issuing..." : "License"}
         </button>
 
         <button
           className={styles.actionGhost}
           onClick={onSyncOwner}
           disabled={!work.nftObjectId || syncingOwner || disableGlobal}
-          title={!work.nftObjectId ? "Chưa có NFT" : "Đọc owner từ chain"}
+          title={!work.nftObjectId ? "No NFT yet" : "Read owner from chain"}
         >
           {syncingOwner ? "Sync…" : "Sync"}
         </button>
 
         {view === "active" ? (
           <button className={styles.actionDanger} onClick={onDelete} disabled={disableGlobal}>
-            Xoá
+            Delete
           </button>
         ) : (
           <button className={styles.actionGhost} onClick={onRestore} disabled={disableGlobal}>
-            Khôi phục
+            Restore
           </button>
         )}
       </div>
@@ -1082,15 +1082,15 @@ function WorkDetailModal(props: {
   }
 
   function statusLabel(s?: string) {
-    if (s === "verified") return "Đã duyệt";
-    if (s === "pending") return "Chờ duyệt";
-    if (s === "rejected") return "Từ chối";
+    if (s === "verified") return "Verified";
+    if (s === "pending") return "Pending";
+    if (s === "rejected") return "Rejected";
     return "—";
   }
   function sellTypeLabel(t?: string) {
-    if (t === "exclusive") return "Bán đứt";
+    if (t === "exclusive") return "Exclusive";
     if (t === "license") return "License";
-    if (t === "none") return "Không bán";
+    if (t === "none") return "Not for sale";
     return t || "—";
   }
 
@@ -1104,9 +1104,9 @@ function WorkDetailModal(props: {
         sellType: sellTypeEdit as any,
         royalty: royaltyNum,
       });
-      showToast("Đã cập nhật sellType/royalty.", "success");
+      showToast("Updated sellType/royalty.", "success");
     } catch (e: any) {
-      showToast(e?.message || "Cập nhật thất bại", "error");
+      showToast(e?.message || "Update failed", "error");
     } finally {
       setSavingEdit(false);
     }
@@ -1163,7 +1163,7 @@ function WorkDetailModal(props: {
 
           {!mediaUrl ? (
             <div className={styles.mediaEmpty}>
-              Không có file preview (metadata thiếu animation_url / file.url).
+              No preview file (metadata missing animation_url / file.url).
             </div>
           ) : kind === "audio" ? (
             <audio className={styles.audio} controls src={mediaUrl} />
@@ -1176,16 +1176,16 @@ function WorkDetailModal(props: {
             <img className={styles.modalImg2} src={mediaUrl} alt="preview" />
           ) : (
             <div className={styles.mediaEmpty}>
-              Không nhận diện được type.{" "}
+              Unable to detect type.{" "}
               <a className={styles.link} href={mediaUrl} target="_blank" rel="noreferrer">
-                Mở file
+                Open file
               </a>
             </div>
           )}
         </div>
 
         <div className={styles.modalGridPro}>
-          <KV label="Ngày sáng tác" value={createdText} />
+          <KV label="Creation date" value={createdText} />
           <KV label="Owner" value={work.authorWallet ? shortAddr(work.authorWallet) : "—"} mono />
           <KV label="Royalty" value={`${work.royalty ?? 0}%`} />
 
@@ -1242,7 +1242,7 @@ function WorkDetailModal(props: {
           />
 
           <KV
-            label="Tác giả"
+            label="Author"
             value={`${work.authorName || work.authorId || "—"}${
               work.authorPhone ? ` • ${work.authorPhone}` : ""
             }`}
@@ -1252,18 +1252,18 @@ function WorkDetailModal(props: {
         {meta?.description ? <div className={styles.metaDesc}>{meta.description}</div> : null}
 
         <div className={styles.editBox}>
-          <div className={styles.editTitle}>Cập nhật bán & royalty</div>
+          <div className={styles.editTitle}>Update sales & royalty</div>
           <div className={styles.editRow}>
-            <label className={styles.editLabel}>Hình thức</label>
+            <label className={styles.editLabel}>Type</label>
             <select
               className={styles.editSelect}
               value={sellTypeEdit}
               onChange={(e) => setSellTypeEdit(e.target.value)}
               disabled={view === "trash" || disableGlobal || savingEdit}
             >
-              <option value="exclusive">Bán đứt</option>
+              <option value="exclusive">Exclusive</option>
               <option value="license">License</option>
-              <option value="none">Không bán</option>
+              <option value="none">Not for sale</option>
             </select>
           </div>
 
@@ -1284,7 +1284,7 @@ function WorkDetailModal(props: {
               onClick={saveEdit}
               disabled={view === "trash" || disableGlobal || savingEdit}
             >
-              {savingEdit ? "Đang lưu..." : "Lưu thay đổi"}
+              {savingEdit ? "Saving..." : "Save changes"}
             </button>
           </div>
         </div>
@@ -1293,7 +1293,7 @@ function WorkDetailModal(props: {
           <div className={styles.licenseHead}>
             <div className={styles.licenseTitle}>License history</div>
             <div className={styles.licenseHint}>
-              {work.sellType === "license" ? "Bán theo license" : "Không phải license mode"}
+              {work.sellType === "license" ? "Sold as license" : "Not in license mode"}
             </div>
           </div>
 
@@ -1325,7 +1325,7 @@ function WorkDetailModal(props: {
                 ))}
             </div>
           ) : (
-            <div className={styles.licenseEmpty}>Chưa có license nào.</div>
+            <div className={styles.licenseEmpty}>No licenses yet.</div>
           )}
         </div>
 
@@ -1335,7 +1335,7 @@ function WorkDetailModal(props: {
             onClick={onSell}
             disabled={view === "trash" || selling || disableGlobal}
           >
-            {selling ? "Đang bán…" : "Bán NFT"}
+            {selling ? "Selling..." : "Sell NFT"}
           </button>
 
           <button
@@ -1343,7 +1343,7 @@ function WorkDetailModal(props: {
             onClick={onIssueLicense}
             disabled={view === "trash" || licensing || disableGlobal}
           >
-            {licensing ? "Đang cấp…" : "Cấp License"}
+            {licensing ? "Issuing..." : "Issue license"}
           </button>
 
           <button
@@ -1356,11 +1356,11 @@ function WorkDetailModal(props: {
 
           {view === "active" ? (
             <button className={styles.actionDanger} onClick={onDelete} disabled={disableGlobal}>
-              Xoá
+              Delete
             </button>
           ) : (
             <button className={styles.actionGhost} onClick={onRestore} disabled={disableGlobal}>
-              Khôi phục
+              Restore
             </button>
           )}
         </div>

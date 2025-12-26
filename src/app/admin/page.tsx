@@ -85,7 +85,7 @@ export default function DashboardStats() {
 
         <div className={styles.sparkCard}>
           <div className={styles.sparkTop}>
-            <div className={styles.sparkTitle}>Xu hướng 7 ngày</div>
+            <div className={styles.sparkTitle}>7-day trend</div>
             <div className={styles.sparkLegend}>
               <span className={styles.legendItem}>
                 <span className={`${styles.legendDot} ${styles.dotOk}`} />
@@ -109,15 +109,15 @@ export default function DashboardStats() {
   return (
     <section className={styles.block}>
       <HeaderLine
-        subtitle="Tổng quan duyệt tác phẩm (realtime theo local storage / on-chain sync)."
+        subtitle="Work review overview (realtime from local storage / on-chain sync)."
         lastUpdated={lastUpdated}
       />
 
       <div className={styles.grid}>
-        <StatCard title="Tổng tác phẩm" value={totals.total} icon={<Files size={18} weight="duotone" />} tone="muted" />
-        <StatCard title="Đã duyệt" value={totals.verified} icon={<CheckCircle size={18} weight="fill" />} tone="ok" />
-        <StatCard title="Bị từ chối" value={totals.rejected} icon={<XCircle size={18} weight="fill" />} tone="bad" />
-        <StatCard title="Đang chờ" value={totals.pending} icon={<Clock size={18} weight="duotone" />} tone="info" />
+        <StatCard title="Total works" value={totals.total} icon={<Files size={18} weight="duotone" />} tone="muted" />
+        <StatCard title="Verified" value={totals.verified} icon={<CheckCircle size={18} weight="fill" />} tone="ok" />
+        <StatCard title="Rejected" value={totals.rejected} icon={<XCircle size={18} weight="fill" />} tone="bad" />
+        <StatCard title="Pending" value={totals.pending} icon={<Clock size={18} weight="duotone" />} tone="info" />
       </div>
 
       <div className={styles.quickRow}>
@@ -126,13 +126,13 @@ export default function DashboardStats() {
         <QuickPill label="Reject rate" value={hasData ? `${Math.round((totals.rejected / totals.total) * 100)}%` : "—"} />
       </div>
 
-      {/* ✅ Mini sparkline 7 ngày */}
+      {/* Mini 7-day sparkline */}
       <div className={styles.sparkCard}>
         <div className={styles.sparkTop}>
           <div>
-            <div className={styles.sparkTitle}>Xu hướng 7 ngày</div>
+            <div className={styles.sparkTitle}>7-day trend</div>
             <div className={styles.sparkSub}>
-              {last7.length ? `Từ ${last7[0].date} → ${last7[last7.length - 1].date}` : "Chưa đủ dữ liệu theo ngày"}
+              {last7.length ? `From ${last7[0].date} to ${last7[last7.length - 1].date}` : "Not enough daily data"}
             </div>
           </div>
 
@@ -162,8 +162,8 @@ export default function DashboardStats() {
 
       {!hasData && (
         <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>Chưa có dữ liệu</div>
-          <div className={styles.emptySub}>Khi có tác phẩm được tạo/duyệt, dashboard sẽ tự cập nhật realtime.</div>
+          <div className={styles.emptyTitle}>No data yet</div>
+          <div className={styles.emptySub}>When works are created/approved, the dashboard updates in realtime.</div>
         </div>
       )}
     </section>
@@ -256,7 +256,7 @@ function MiniSparkline({
   pendingTotal,
 }: {
   days: DayPoint[];
-  pendingTotal: number; // chỉ hiển thị “badge” nhỏ, không phải line
+  pendingTotal: number; // only show a small badge, not a line
 }) {
   const width = 860;
   const height = 140;
@@ -302,7 +302,7 @@ function MiniSparkline({
   if (!days.length) {
     return (
       <div className={styles.sparkEmpty}>
-        Chưa có dữ liệu theo ngày. Hãy duyệt/ từ chối vài tác phẩm để tạo xu hướng.
+        No daily data yet. Approve/reject a few works to build a trend.
       </div>
     );
   }

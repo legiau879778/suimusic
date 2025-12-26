@@ -33,7 +33,7 @@ export default function AdminLogsPage() {
 
   return (
     <AdminGuard>
-      <h1>Lịch sử duyệt</h1>
+      <h1>Review history</h1>
       <ReviewLogTable logs={logs} />
     </AdminGuard>
   );
