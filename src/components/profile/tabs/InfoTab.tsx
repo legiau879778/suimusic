@@ -12,6 +12,7 @@ import {
 } from "@mysten/dapp-kit";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { loadProfile, saveProfile } from "@/lib/profileStore";
+import { mapWalletToEmail } from "@/lib/walletMapStore";
 import QRCode from "qrcode";
 
 /* ================= TYPES ================= */
@@ -200,7 +201,10 @@ export default function InfoTab() {
     if (currentWallet?.name) {
       localStorage.setItem(lastWalletKey(userId), currentWallet.name);
     }
-  }, [currentAccount, currentWallet]);
+    if (user?.email) {
+      mapWalletToEmail(user.email, currentAccount.address);
+    }
+  }, [currentAccount, currentWallet, user?.email, userId]);
 
   /* =====================================================
      LOAD BALANCE

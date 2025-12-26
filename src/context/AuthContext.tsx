@@ -10,6 +10,7 @@ import { ADMIN_EMAILS } from "@/lib/adminConfig";
 import { useToast } from "@/context/ToastContext";
 
 import { connectSuiWallet, signSuiMessage } from "@/lib/suiWallet";
+import { mapWalletToEmail } from "@/lib/walletMapStore";
 
 import { clearMembership, subscribeMembership } from "@/lib/membershipStore";
 import { clearProfile, loadProfile, subscribeProfile } from "@/lib/profileStore";
@@ -320,6 +321,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       wallet: { address, verified: true },
       role: user.role === "admin" ? "admin" : "author",
     };
+
+    if (user.email) {
+      mapWalletToEmail(user.email, address);
+    }
 
     try {
       const { saveProfile } = await import("@/lib/profileStore");

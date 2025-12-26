@@ -13,6 +13,7 @@ import { ToastProvider } from "@/context/ToastContext";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer"; // ✅ THÊM DÒNG NÀY
 import AppBootstrap from "@/components/AppBootstrap";
+import WalletSessionGate from "@/components/WalletSessionGate";
 
 const networks = {
   devnet: { url: getFullnodeUrl("devnet") },
@@ -31,6 +32,7 @@ export default function Providers({ children }: { children: ReactNode }) {
             <AuthProvider>
               <ModalProvider>
                 <AppBootstrap />
+                <WalletSessionGate />
 
                 <Header />
                 {children}
