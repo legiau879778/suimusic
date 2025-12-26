@@ -252,17 +252,17 @@ export default function AuthorNFTCard(props: {
         <div className={s.nftShimmer} />
 
         {/* hover CTA */}
-        <div className={s.nftHoverCta}>Xem hồ sơ →</div>
+        <div className={s.nftHoverCta}>View profile →</div>
 
         {/* createdDate pill (reuse name like manage) */}
-        <div className={s.dateBadge} title="Ngày tác phẩm đại diện">
+        <div className={s.dateBadge} title="Representative work date">
           {createdText}
         </div>
       </div>
 
       <div className={s.info}>
         <div className={s.kv}>
-          <span className={s.k}>Tác phẩm</span>
+          <span className={s.k}>Works</span>
           <span className={s.v}>
             <b>{worksCount}</b>
           </span>

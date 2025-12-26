@@ -41,7 +41,7 @@ export default function SettingsTab() {
     <div className={styles.settingsWrap}>
       {/* ===== SOCIAL ===== */}
       <section className={styles.card}>
-        <h2>Social</h2>
+        <h2>Social Media</h2>
 
         <div className={styles.socialGrid}>
           <SocialField
@@ -77,7 +77,7 @@ export default function SettingsTab() {
 
       {/* ===== OPTIONS ===== */}
       <section className={styles.card}>
-        <h2>Profile options</h2>
+        <h2>Profile Options</h2>
 
         <div className={styles.optionList}>
           <OptionRow
@@ -88,8 +88,8 @@ export default function SettingsTab() {
           />
 
           <OptionRow
-            label="Show social links"
-            desc="Display social links on your profile"
+            label="Show social media"
+            desc="Show social media links on profile"
             checked={!!options.showSocials}
             onToggle={() => toggleOption("showSocials")}
           />
@@ -131,9 +131,9 @@ function SocialField({
   }, [v]);
 
   const helperText = useMemo(() => {
-    if (status === "empty") return "Leave blank if you do not want to show it";
+    if (status === "empty") return "Leave blank if you don't want to display";
     if (status === "ok") return "Valid";
-    return "Invalid link format (should include https://)";
+    return "Link is not in correct format (should have https://)";
   }, [status]);
 
   const normalizeOnBlur = () => {
@@ -222,7 +222,7 @@ function normalizeUrl(input: string) {
   const s = (input || "").trim();
   if (!s) return "";
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  // if user enters "twitter.com/abc" -> add https:// automatically
+  // nếu user nhập dạng "twitter.com/abc" -> tự thêm https://
   if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/?.*/.test(s)) return `https://${s}`;
   return s;
 }

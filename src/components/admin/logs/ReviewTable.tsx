@@ -47,7 +47,7 @@ export default function ReviewTable() {
       setWorks(getPendingWorks());
     } catch (e) {
       console.error(e);
-      alert("Không thể duyệt tác phẩm");
+      alert("Cannot approve work");
     } finally {
       setProcessingId(null);
     }
@@ -69,7 +69,7 @@ export default function ReviewTable() {
       setWorks(getPendingWorks());
     } catch (e) {
       console.error(e);
-      alert("Không thể từ chối tác phẩm");
+      alert("Cannot reject work");
     } finally {
       setProcessingId(null);
     }
@@ -107,7 +107,7 @@ export default function ReviewTable() {
                     onClick={() => handleApprove(w.id)}
                   >
                     {processingId === w.id
-                      ? "Đang xử lý..."
+                      ? "Processing..."
                       : "Approve"}
                   </button>
 
@@ -119,7 +119,7 @@ export default function ReviewTable() {
                     onClick={() => handleReject(w.id)}
                   >
                     {processingId === w.id
-                      ? "Đang xử lý..."
+                      ? "Processing..."
                       : "Reject"}
                   </button>
                 </div>
@@ -130,7 +130,7 @@ export default function ReviewTable() {
           {works.length === 0 && (
             <tr>
               <td colSpan={3} className={styles.empty}>
-                Không có tác phẩm chờ duyệt
+                No works pending review
               </td>
             </tr>
           )}

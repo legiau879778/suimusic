@@ -3,18 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "@/styles/profile.module.css";
 import { useAuth } from "@/context/AuthContext";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 
 import MembershipTab from "@/components/profile/tabs/MembershipTab";
 import ProfileInfoPanel from "@/components/profile/tabs/InfoTab";
 import TradeHistoryPanel from "@/components/profile/tabs/HistoryTab";
 import SettingsPanel from "@/components/profile/tabs/SettingsTab";
 
-import {
-  type Membership,
-  getCachedMembership,
-  getActiveMembership,
-  subscribeMembership,
-} from "@/lib/membershipStore";
+import { type Membership, getMembershipBadgeLabel } from "@/lib/membershipStore";
 
 type Tab = "membership" | "info" | "history" | "settings";
 
@@ -28,99 +25,61 @@ function formatLeft(ms: number) {
 }
 
 export default function ProfilePage() {
-  // hooks are always called (do not return early before hooks)
   const { user } = useAuth();
 
   const [tab, setTab] = useState<Tab>("membership");
-  const [membership, setMembership] = useState<Membership | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
+  const [dbMembership, setDbMembership] = useState<Membership | null>(null);
 
-  // safe fallback when user is not available
-  const userId = user?.id ?? "";
-  const email = user?.email ?? "";
-  const role = user?.role ?? "user";
-  const membershipType = user?.membership ?? null;
-
-  // ======================
-  // LOAD MEMBERSHIP (cached -> verify)
-  // ======================
-  const loadMembership = async () => {
-    if (!userId) {
-      setMembership(null);
-      setTimeLeft("");
-      return;
-    }
-
-    const cached = getCachedMembership(userId, email);
-    if (cached) setMembership(cached);
-    else setMembership(null);
-
-    try {
-      const truth = await getActiveMembership({ userId, email });
-      setMembership(truth);
-    } catch {
-      // keep cached
-    }
-  };
-
+  // 1. Listen to Realtime from Firebase to update Role/Membership immediately
   useEffect(() => {
-    // do not load if user is missing
-    if (!userId) return;
-    void loadMembership();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, email]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const unsub = subscribeMembership(() => {
-      void loadMembership();
+    if (!user?.id) return;
+    const unsub = onSnapshot(doc(db, "users", user.id), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setDbMembership((data.membership as Membership) || null);
+      }
     });
-
     return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, email]);
+  }, [user?.id]);
 
-  // ======================
-  // REALTIME COUNTDOWN
-  // ======================
+  // Prioritize Realtime data
+  const membership = useMemo(() => {
+    return dbMembership || (user?.membership as Membership) || null;
+  }, [dbMembership, user?.membership]);
+
+  // Display Role based on membership type
+  const displayRole = useMemo(() => {
+    if (user?.role === "admin") return "ADMIN";
+    if (membership?.type) return membership.type.toUpperCase();
+    return "MEMBER"; // Default if no package
+  }, [user?.role, membership?.type]);
+
+  const membershipType = membership?.type ?? null;
+
+  // Realtime Countdown
   useEffect(() => {
     if (!membership?.expireAt) {
       setTimeLeft("");
       return;
     }
-
     const tick = () => {
       const diff = membership.expireAt - Date.now();
       setTimeLeft(formatLeft(diff));
-      if (diff <= 0) {
-        setMembership(null);
-      }
     };
-
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [membership?.expireAt]);
 
-  // ======================
-  // MENU ACCESS (matches synced membershipType/role)
-  // useMemo runs even if user is null to keep hook order stable
-  // ======================
   const canAccess = useMemo(() => {
     return (key: Tab) => {
-      if (key === "membership") return true;
-      if (key === "info") return true;
-      if (key === "settings") return true;
-
-      // example: history is business only
-      if (key === "history") return membershipType === "business";
-
+      if (key === "membership" || key === "info" || key === "settings") return true;
+      if (key === "history") return !!membershipType;
       return true;
     };
   }, [membershipType]);
 
-  // safe to return early now (after all hooks)
   if (!user) return null;
 
   return (
@@ -131,36 +90,29 @@ export default function ProfilePage() {
           <div className={styles.avatarBox}>
             <div className={styles.avatar}>
               {user.avatar ? (
-                <img
-                  className={styles.avatarImg}
-                  src={user.avatar}
-                  alt="avatar"
-                />
+                <img className={styles.avatarImg} src={user.avatar} alt="avatar" />
               ) : (
                 user.email?.[0]?.toUpperCase()
               )}
             </div>
 
             <div>
-              <strong>{user.email}</strong>
+              <strong className={styles.userEmailText}>{user.email}</strong>
               <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>
-                Role: <b>{role}</b>
-                {membershipType ? (
+                Role: <b style={{ color: membership ? "#f59e0b" : "inherit" }}>{displayRole}</b>
+                {/* {membershipType && (
                   <>
-                    {" "}
-                    · Membership: <b>{membershipType}</b>
+                    {" "} · Membership: <b>{getMembershipBadgeLabel(membership)}</b>
                   </>
-                ) : null}
+                )} */}
               </div>
             </div>
 
             {membership && (
-              <div className={styles.currentMembership}>
+              <div className={`${styles.currentMembership} ${styles[membership.type]}`}>
                 <div>
                   <strong>{membership.type.toUpperCase()}</strong>
-                  {"plan" in membership && (membership as any).plan
-                    ? ` (${String((membership as any).plan).toUpperCase()})`
-                    : ""}
+                  {membership.plan ? ` (${String(membership.plan).toUpperCase()})` : ""}
                 </div>
                 <small>Remaining: {timeLeft}</small>
               </div>
@@ -168,34 +120,16 @@ export default function ProfilePage() {
           </div>
 
           <nav className={styles.sideNav}>
-            <button
-              className={tab === "membership" ? styles.active : ""}
-              onClick={() => setTab("membership")}
-            >
+            <button className={tab === "membership" ? styles.active : ""} onClick={() => setTab("membership")}>
               Membership
             </button>
-
-            <button
-              disabled={!canAccess("info")}
-              className={tab === "info" ? styles.active : ""}
-              onClick={() => setTab("info")}
-            >
-              Personal info
+            <button disabled={!canAccess("info")} className={tab === "info" ? styles.active : ""} onClick={() => setTab("info")}>
+              Personal Information
             </button>
-
-            <button
-              disabled={!canAccess("history")}
-              className={tab === "history" ? styles.active : ""}
-              onClick={() => setTab("history")}
-            >
-              Transaction history
+            <button disabled={!canAccess("history")} className={tab === "history" ? styles.active : ""} onClick={() => setTab("history")}>
+              Transaction History
             </button>
-
-            <button
-              disabled={!canAccess("settings")}
-              className={tab === "settings" ? styles.active : ""}
-              onClick={() => setTab("settings")}
-            >
+            <button disabled={!canAccess("settings")} className={tab === "settings" ? styles.active : ""} onClick={() => setTab("settings")}>
               Settings
             </button>
           </nav>

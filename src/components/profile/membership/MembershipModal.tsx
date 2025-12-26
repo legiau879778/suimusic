@@ -3,49 +3,28 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "@/styles/profile.module.css";
 import { useToast } from "@/context/ToastContext";
-import {
-  saveMembership,
-  type Membership,
-  type MembershipType,
-  type CreatorPlan,
-  type ArtistPlan,
-  getMembershipDurationMs,
-  getMembershipPriceSui,
+import { 
+  type Membership, type MembershipType, type CreatorPlan, type ArtistPlan,
+  getMembershipDurationMs, getMembershipPriceSui 
 } from "@/lib/membershipStore";
-import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { useAuth } from "@/context/AuthContext";
+import { Transaction } from "@mysten/sui/transactions"; 
+import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
-type Props = {
-  type: MembershipType;
-  onClose: () => void;
-  onSuccess: (m: Membership) => void;
-};
+const PACKAGE_ID = "0xe6d99ba66e3d2b197f6cbe878d442b89c561e35ba307e8000b6e4685964c04e9";
 
-export default function MembershipModal({ type, onClose, onSuccess }: Props) {
+export default function MembershipModal({ type, onClose, onSuccess }: any) {
   const { pushToast } = useToast();
   const currentAccount = useCurrentAccount();
   const { user } = useAuth();
-
-  const memberKey = (user?.id || user?.email || "").trim();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   const [loading, setLoading] = useState(false);
-
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [creatorPlan, setCreatorPlan] = useState<CreatorPlan>("starter");
   const [artistPlan, setArtistPlan] = useState<ArtistPlan>("1y");
-
-  useEffect(() => {
-    if (type === "creator") setCreatorPlan("starter");
-    if (type === "artist") setArtistPlan("1y");
-  }, [type]);
-
-  // ✅ lock scroll when modal open
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
 
   const base = useMemo(() => {
     if (type === "creator") return { type, plan: creatorPlan } as const;
@@ -53,86 +32,88 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
     return { type } as const;
   }, [type, creatorPlan, artistPlan]);
 
-  const priceSui = useMemo(() => getMembershipPriceSui(base), [base]);
-  const durationMs = useMemo(() => getMembershipDurationMs(base), [base]);
-
+  const priceSui = getMembershipPriceSui(base);
+  const durationMs = getMembershipDurationMs(base);
   const days = Math.max(1, Math.round(durationMs / (24 * 60 * 60 * 1000)));
 
   async function confirm() {
-    if (!currentAccount?.address) {
-      pushToast("error", "Please connect a SUI wallet");
-      return;
-    }
-    if (!memberKey) {
-      pushToast("error", "User not identified");
-      return;
-    }
+    setErrorMsg(null);
+    if (!currentAccount?.address) return setErrorMsg("Vui lòng kết nối ví SUI!");
 
     setLoading(true);
     try {
-      const txHash = "demo_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
-      const expireAt = Date.now() + durationMs;
+      const txb = new Transaction(); 
+      const mistAmount = BigInt(Math.round(priceSui * 1_000_000_000));
+      const [paymentCoin] = txb.splitCoins(txb.gas, [txb.pure.u64(mistAmount)]);
+      
+      txb.moveCall({
+        target: `${PACKAGE_ID}::package::buy_membership`,
+        arguments: [paymentCoin, txb.pure.u8(type === "artist" ? 1 : type === "creator" ? 2 : 3)],
+      });
 
-      const membership: Membership = {
-        type: base.type,
-        plan: "plan" in base ? base.plan : undefined,
-        expireAt,
-        txHash,
-        paidAmountSui: priceSui,
-      };
+      signAndExecute({ transaction: txb }, {
+        onSuccess: async (txResult) => {
+          try {
+            const membership: Membership = {
+              type: base.type,
+              plan: "plan" in base ? base.plan : undefined,
+              expireAt: Date.now() + durationMs,
+              txHash: txResult.digest,
+              paidAmountSui: priceSui,
+            };
 
-      saveMembership(memberKey, membership);
+            if (user?.id) {
+              await updateDoc(doc(db, "users", user.id), {
+                membership: { ...membership, active: true }
+              });
+            }
 
-      pushToast("success", "Membership activated successfully");
-      onSuccess(membership);
-      onClose();
+            pushToast("success", "Kích hoạt thành công!");
+            onSuccess(membership);
+            onClose();
+          } catch (e: any) {
+            setErrorMsg("Lỗi Firebase: " + e.message);
+            setLoading(false);
+          }
+        },
+        onError: (err) => {
+          setErrorMsg(err.message);
+          setLoading(false);
+        },
+      });
     } catch (e: any) {
-      pushToast("error", e?.message || "Something went wrong");
-    } finally {
+      setErrorMsg("Lỗi hệ thống: " + e.message);
       setLoading(false);
     }
   }
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose} role="dialog" aria-modal="true">
+    <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <h3>Purchase Membership</h3>
-          <button className={styles.modalClose} onClick={onClose} disabled={loading} type="button">
-            ✕
-          </button>
+          <h3>Mua Membership</h3>
+          <button className={styles.modalClose} onClick={onClose} disabled={loading} type="button">✕</button>
         </div>
 
         <div className={styles.modalBody}>
+          {errorMsg && (
+            <div style={{ background: "rgba(255, 77, 79, 0.1)", border: "1px solid #ff4d4f", color: "#ff4d4f", padding: "10px", borderRadius: "8px", marginBottom: "15px", fontSize: "14px" }}>
+              <strong>Thông báo:</strong> {errorMsg}
+            </div>
+          )}
+
           <div className={styles.modalSummary}>
             <div className={styles.modalLine}>
-              You are purchasing <strong>{type.toUpperCase()}</strong>
-              {type === "creator" ? (
-                <>
-                  {" "}
-                  · <strong>{creatorPlan.toUpperCase()}</strong>
-                </>
-              ) : type === "artist" ? (
-                <>
-                  {" "}
-                  ·{" "}
-                  <strong>
-                    {artistPlan === "1m" ? "1 MONTH" : artistPlan === "3m" ? "3 MONTHS" : "1 YEAR"}
-                  </strong>
-                </>
-              ) : null}
+              Bạn đang mua gói <strong>{type.toUpperCase()} - {
+                type === "creator" ? creatorPlan.toUpperCase() : 
+                type === "artist" ? (artistPlan === "1y" ? "1 NĂM" : artistPlan === "3m" ? "3 THÁNG" : "1 THÁNG") : ""
+              }</strong>
             </div>
-
             <div className={styles.modalMeta}>
-              <span>
-                Estimated fee: <strong>{priceSui} SUI</strong>
-              </span>
-              <span>
-                Duration: <strong>{days} days</strong>
-              </span>
+              <span className={styles.metaPill}>Phí: <strong>{priceSui} SUI</strong></span>
+              <span className={styles.metaPill}>Thời hạn: <strong>{days} ngày</strong></span>
             </div>
           </div>
-
           {type === "creator" && (
             <div className={styles.planGrid}>
               {(["starter", "pro", "studio"] as CreatorPlan[]).map((p) => (
@@ -140,17 +121,11 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                   key={p}
                   type="button"
                   className={`${styles.pickBtn} ${creatorPlan === p ? styles.pickActive : ""}`}
-                  onClick={() => setCreatorPlan(p)}
+                  onClick={() => { setCreatorPlan(p); setErrorMsg(null); }}
                   disabled={loading}
                 >
                   <div className={styles.pickTitle}>{p.toUpperCase()}</div>
-                  <div className={styles.pickSub}>
-                    {p === "starter"
-                      ? "5 SUI/month · limited"
-                      : p === "pro"
-                      ? "15 SUI/month · unlimited"
-                      : "40 SUI/month · team"}
-                  </div>
+                  <div className={styles.pickSub}>{p === "starter" ? "0.01 SUI" : p === "pro" ? "0.02 SUI" : "0.05 SUI"}/tháng</div>
                 </button>
               ))}
             </div>
@@ -163,29 +138,25 @@ export default function MembershipModal({ type, onClose, onSuccess }: Props) {
                   key={p}
                   type="button"
                   className={`${styles.pickBtn} ${artistPlan === p ? styles.pickActive : ""}`}
-                  onClick={() => setArtistPlan(p)}
+                  onClick={() => { setArtistPlan(p); setErrorMsg(null); }}
                   disabled={loading}
                 >
-                  <div className={styles.pickTitle}>{p === "1m" ? "1 MONTH" : p === "3m" ? "3 MONTHS" : "1 YEAR"}</div>
-                  <div className={styles.pickSub}>
-                    {p === "1m" ? "2.5 SUI · ~30 days" : p === "3m" ? "7.5 SUI · ~90 days" : "30 SUI · ~365 days"}
-                  </div>
+                  <div className={styles.pickTitle}>{p === "1m" ? "1 THÁNG" : p === "3m" ? "3 THÁNG" : "1 NĂM"}</div>
+                  <div className={styles.pickSub}>{p === "1m" ? "0.01 SUI" : p === "3m" ? "0.02 SUI" : "0.03 SUI"}</div>
                 </button>
               ))}
             </div>
           )}
 
           <div className={styles.modalHint}>
-            * SUI wallet required to confirm. (Note: extension wallet is shared, but membership is saved to your Gmail account.)
+            * Vui lòng đảm bảo số dư SUI đủ để thanh toán phí gói và phí gas mạng lưới.
           </div>
         </div>
 
         <div className={styles.modalActions}>
-          <button className={styles.secondaryBtn} onClick={onClose} disabled={loading} type="button">
-            Cancel
-          </button>
+          <button className={styles.secondaryBtn} onClick={onClose} disabled={loading} type="button">Huỷ</button>
           <button className={styles.primaryBtn} onClick={confirm} disabled={loading} type="button">
-            {loading ? "Processing..." : "Confirm"}
+            {loading ? "Đang xử lý..." : "Xác nhận"}
           </button>
         </div>
       </div>

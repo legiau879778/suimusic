@@ -16,20 +16,18 @@ export default function PermissionModal() {
           <LockIcon />
         </div>
 
-        <h2>Yêu cầu quyền tác giả</h2>
+        <h2>Author Permission Required</h2>
 
         <p>
-          Chức năng này chỉ dành cho <b>Tác giả</b> đã
-          đăng ký.
+          This feature is only for registered <b>Authors</b>.
         </p>
 
         <p className={styles.sub}>
-          Vui lòng kết nối ví và đăng ký tác giả để tiếp
-          tục.
+          Please connect your wallet and register as an author to continue.
         </p>
 
         <button onClick={closePermission}>
-          Đã hiểu
+          Understood
         </button>
       </div>
     </div>

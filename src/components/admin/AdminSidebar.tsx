@@ -7,10 +7,10 @@ export default function AdminSidebar() {
 
   const nav = [
     { href: "/admin", label: "Dashboard" },
-    { href: "/admin/review", label: "Work review" },
-    { href: "/admin/logs", label: "Review logs" },
+    { href: "/admin/review", label: "Review works" },
+    { href: "/admin/logs", label: "Review history" },
     { href: "/admin/users", label: "Users" },
-    { href: "/admin/stats", label: "Stats" },
+    { href: "/admin/stats", label: "Statistics" },
   ];
 
   return (
