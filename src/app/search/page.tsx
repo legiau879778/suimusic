@@ -11,7 +11,7 @@ import { loadProfile, type UserProfile, toGateway } from "@/lib/profileStore";
 /* membershipStore */
 import {
   type Membership,
-  // getActiveMembership,
+  getActiveMembership,
   getCachedMembership,
   getMembershipBadgeLabel,
 } from "@/lib/membershipStore";

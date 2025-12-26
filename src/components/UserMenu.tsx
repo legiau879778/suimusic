@@ -35,7 +35,7 @@ export default function UserMenu() {
   // IMPORTANT FIX:
   // isAdminWallet only accepts string (address), NOT WalletInfo
   const hasAdminWallet =
-    !!user.wallet && isAdminWallet(user.wallet.address);
+    !!user.wallet && isAdminWallet(user.wallet.address || "");
 
   return (
     <div className={styles.wrapper} ref={ref}>

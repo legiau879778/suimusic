@@ -25,10 +25,15 @@ export type User = {
   avatar?: string;
   role: UserRole;
   walletAddress?: string;      
+  wallet?: {
+    address?: string;
+    verified?: boolean;
+  };
   internalWallet?: {        
     address: string;
     mnemonic: string;          
   };
+  membership?: any;
 };
 
 type AuthContextType = {
@@ -37,6 +42,8 @@ type AuthContextType = {
   loginWithGoogle: () => Promise<void>;
   connectWallet: () => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
+  revokeWallet: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -47,50 +54,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { showToast } = useToast();
 
+  async function hydrateUser(firebaseUser: any) {
+    if (!firebaseUser) {
+      setUser(null);
+      return;
+    }
+    const userRef = doc(db, "users", firebaseUser.uid);
+    const userDoc = await getDoc(userRef);
+
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      setUser({
+        id: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        avatar: firebaseUser.photoURL || "",
+        role: data.role || "user",
+        walletAddress: data.walletAddress,
+        wallet: data.wallet,
+        internalWallet: data.internalWallet,
+        membership: data.membership,
+      });
+    } else {
+      const mnemonic = bip39.generateMnemonic();
+      const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
+      const internalAddress = keypair.getPublicKey().toSuiAddress();
+
+      const newUser: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        avatar: firebaseUser.photoURL || "",
+        role: "user",
+        internalWallet: {
+          address: internalAddress,
+          mnemonic: mnemonic,
+        },
+      };
+
+      await setDoc(userRef, {
+        email: newUser.email,
+        role: "user",
+        internalWallet: newUser.internalWallet,
+        createdAt: new Date(),
+      });
+
+      setUser(newUser);
+    }
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userDoc = await getDoc(userRef);
-        
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email || "",
-            avatar: firebaseUser.photoURL || "",
-            role: data.role || "user",
-            walletAddress: data.walletAddress,
-            internalWallet: data.internalWallet,
-          });
-        } else {
-          const mnemonic = bip39.generateMnemonic(); 
-          const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
-          const internalAddress = keypair.getPublicKey().toSuiAddress();
-
-          const newUser: User = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email || "",
-            avatar: firebaseUser.photoURL || "",
-            role: "user",
-            internalWallet: {
-              address: internalAddress,
-              mnemonic: mnemonic,
-            }
-          };
-
-          await setDoc(userRef, {
-            email: newUser.email,
-            role: "user",
-            internalWallet: newUser.internalWallet,
-            createdAt: new Date(),
-          });
-          
-          setUser(newUser);
-        }
-      } else {
-        setUser(null);
-      }
+      await hydrateUser(firebaseUser);
       setLoading(false);
     });
 
@@ -134,8 +147,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/");
   };
 
+  const revokeWallet = async () => {
+    if (!user?.id) return;
+    try {
+      const userRef = doc(db, "users", user.id);
+      await setDoc(
+        userRef,
+        { wallet: null, walletAddress: "", role: "user" },
+        { merge: true }
+      );
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              wallet: undefined,
+              walletAddress: undefined,
+              role: prev.role === "admin" ? "admin" : "user",
+            }
+          : prev
+      );
+      showToast("Đã gỡ ví", "success");
+    } catch {
+      showToast("Gỡ ví thất bại", "warning");
+    }
+  };
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      // auth.currentUser may be available in firebase auth
+      // @ts-ignore
+      const current = auth?.currentUser || null;
+      await hydrateUser(current);
+    } catch {
+      // keep existing user if refresh fails
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value = useMemo(() => ({
-    user, loading, loginWithGoogle, connectWallet, logout
+    user, loading, loginWithGoogle, connectWallet, logout, refresh, revokeWallet
   }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

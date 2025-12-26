@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import type { Membership } from "@/lib/membershipStore";
-import { getActiveMembership } from "@/lib/membershipStore";
+import { getActiveMembership, getCachedMembership } from "@/lib/membershipStore";
 
-export function useUserMembership(userId: string) {
+export function useUserMembership(userId: string, email?: string) {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -16,9 +16,16 @@ export function useUserMembership(userId: string) {
         setMembership(null);
         return;
       }
+      const mail = String(email || "").trim();
+      if (!mail) {
+        setMembership(null);
+        return;
+      }
       setLoading(true);
       try {
-        const m = await getActiveMembership(userId);
+        const cached = getCachedMembership(userId, mail);
+        if (alive && cached) setMembership(cached);
+        const m = await getActiveMembership({ userId, email: mail });
         if (alive) setMembership(m);
       } finally {
         if (alive) setLoading(false);
@@ -32,8 +39,9 @@ export function useUserMembership(userId: string) {
   }, [userId]);
 
   return { membership, loading, refresh: async () => {
-    if (!userId) return;
-    const m = await getActiveMembership(userId);
+    const mail = String(email || "").trim();
+    if (!userId || !mail) return;
+    const m = await getActiveMembership({ userId, email: mail });
     setMembership(m);
   }};
 }

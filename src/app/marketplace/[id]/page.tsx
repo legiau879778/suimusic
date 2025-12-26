@@ -390,7 +390,6 @@ export default function MarketplaceDetailPage() {
             </div>
           </div>
 
-<<<<<<< HEAD
           <div
             style={{
               border: "1px solid rgba(255,255,255,.10)",
@@ -419,26 +418,6 @@ export default function MarketplaceDetailPage() {
             )}
           </div>
         </div>
-=======
-        <p>
-          <b>Mode:</b> {work.sellType}
-        </p>
-
-        <p>
-          <b>NFT:</b>{" "}
-          {work.nftObjectId ? (
-            <a href={explorerObjUrl(activeNet, work.nftObjectId)} target="_blank" rel="noreferrer">
-              {shortAddr(work.nftObjectId)}
-            </a>
-          ) : (
-            "Chưa mint"
-          )}
-        </p>
-
-        <p>
-          <b>Owner:</b> {work.authorWallet ? shortAddr(work.authorWallet) : "—"}
-        </p>
->>>>>>> 8b993c19dcc9070a886ccffb57e432b0cb92b012
 
         {work.sellType === "license" && (
           <>

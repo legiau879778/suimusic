@@ -68,10 +68,20 @@ export function getMembershipEntitlements(m: Membership | null) {
 /**
  * Lấy membership đang hoạt động (không bị hết hạn)
  */
-export function getActiveMembership(m: Membership | null): Membership | null {
-  if (!m) return null;
-  if (m.expireAt < Date.now()) return null;
-  return m;
+export function getActiveMembership(
+  input: Membership | null | { userId: string; email: string }
+): Membership | null {
+  if (!input) return null;
+  if (typeof (input as any).expireAt === "number") {
+    const m = input as Membership;
+    if (m.expireAt < Date.now()) return null;
+    return m;
+  }
+  const { userId, email } = input as { userId: string; email: string };
+  const cached = getCachedMembership(userId, email);
+  if (!cached) return null;
+  if (cached.expireAt < Date.now()) return null;
+  return cached;
 }
 
 /**
