@@ -358,7 +358,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 2) dọn các key “session-only”
     if (typeof window !== "undefined") {
-      localStorage.removeItem("chainstorm_last_wallet");
+      const keys = [
+        "chainstorm_last_wallet",
+        `chainstorm_last_wallet:${prevId}`,
+        `chainstorm_last_wallet:${prevEmail}`,
+      ].filter(Boolean);
+      keys.forEach((k) => localStorage.removeItem(k));
       localStorage.removeItem("chainstorm_redirect");
     }
 

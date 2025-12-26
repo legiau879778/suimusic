@@ -26,7 +26,7 @@ type ProfileState = {
   walletAddress?: string;
 };
 
-const LAST_WALLET_KEY = "chainstorm_last_wallet";
+const lastWalletKey = (userId: string) => `chainstorm_last_wallet:${userId}`;
 
 /* ================= DATE HELPERS (MASK + VALIDATE) ================= */
 
@@ -198,7 +198,7 @@ export default function InfoTab() {
     }));
 
     if (currentWallet?.name) {
-      localStorage.setItem(LAST_WALLET_KEY, currentWallet.name);
+      localStorage.setItem(lastWalletKey(userId), currentWallet.name);
     }
   }, [currentAccount, currentWallet]);
 
@@ -221,16 +221,17 @@ export default function InfoTab() {
     if (isConnected) return;
     if (!wallets.length) return;
 
-    const lastWalletName = localStorage.getItem(LAST_WALLET_KEY);
+    const lastWalletName = localStorage.getItem(lastWalletKey(userId));
     if (!lastWalletName) return;
 
     const wallet = wallets.find((w) => w.name === lastWalletName);
     if (!wallet) return;
 
     connect({ wallet }).catch(() => {
-      localStorage.removeItem(LAST_WALLET_KEY);
+      localStorage.removeItem(lastWalletKey(userId));
+      localStorage.removeItem("chainstorm_last_wallet");
     });
-  }, [wallets, isConnected, connect]);
+  }, [wallets, isConnected, connect, userId]);
 
   /* =====================================================
      ACTIONS
@@ -252,7 +253,8 @@ export default function InfoTab() {
   };
 
   const disconnectWallet = async () => {
-    localStorage.removeItem(LAST_WALLET_KEY);
+    localStorage.removeItem(lastWalletKey(userId));
+    localStorage.removeItem("chainstorm_last_wallet");
     await disconnect();
   };
 
