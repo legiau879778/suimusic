@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./search.module.css";
 
-import { getVerifiedWorks, type Work } from "@/lib/workStore";
+import { getVerifiedWorks, syncWorksFromChain, type Work } from "@/lib/workStore";
 import { loadProfile, toGateway } from "@/lib/profileStore";
 
 /* ===== SUI ===== */
@@ -200,6 +200,7 @@ export default function SearchPage() {
       setWorks(list);
     };
 
+    syncWorksFromChain();
     load();
     const onUpdate = () => load();
     window.addEventListener("works_updated", onUpdate);

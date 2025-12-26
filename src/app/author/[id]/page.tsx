@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import styles from "./author.module.css";
-import { getVerifiedWorks } from "@/lib/workStore";
+import { getVerifiedWorks, syncWorksFromChain } from "@/lib/workStore";
 
 /* ✅ profileStore */
 import {
@@ -174,11 +174,20 @@ export default function AuthorProfilePage() {
   // FIX hydration: only load localStorage-based data after mounted
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const [worksVersion, setWorksVersion] = useState(0);
+
+  useEffect(() => {
+    if (!mounted) return;
+    syncWorksFromChain();
+    const onUpdate = () => setWorksVersion((v) => v + 1);
+    window.addEventListener("works_updated", onUpdate);
+    return () => window.removeEventListener("works_updated", onUpdate);
+  }, [mounted]);
 
   const worksAll = useMemo(() => {
     if (!mounted) return [] as Work[];
     return getVerifiedWorks() as unknown as Work[];
-  }, [mounted]);
+  }, [mounted, worksVersion]);
 
   const works = useMemo(() => {
     if (!mounted) return [] as Work[];

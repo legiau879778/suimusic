@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { bindLicenseToWork, getWorkById, updateNFTOwner } from "@/lib/workStore";
+import {
+  bindLicenseToWork,
+  getWorkById,
+  syncWorksFromChain,
+  updateNFTOwner,
+} from "@/lib/workStore";
 import { useToast } from "@/context/ToastContext";
 
 /* ===== SUI SDK (NEW) ===== */
@@ -76,13 +81,29 @@ export default function MarketplaceDetailPage() {
   /* ================= LOAD WORK ================= */
 
   useEffect(() => {
-    if (!workId) return;
-    const w = getWorkById(workId);
-    if (!w) {
-      router.replace("/marketplace");
-      return;
+    let alive = true;
+    async function loadWork() {
+      if (!workId) return;
+      await syncWorksFromChain();
+      if (!alive) return;
+      const w = getWorkById(workId);
+      if (!w) {
+        router.replace("/marketplace");
+        return;
+      }
+      setWork(w);
     }
-    setWork(w);
+
+    loadWork();
+    const onUpdate = () => {
+      const w = getWorkById(workId);
+      if (w) setWork(w);
+    };
+    window.addEventListener("works_updated", onUpdate);
+    return () => {
+      alive = false;
+      window.removeEventListener("works_updated", onUpdate);
+    };
   }, [workId, router]);
 
   /* ================= SYNC OWNER ================= */

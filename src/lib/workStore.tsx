@@ -215,6 +215,92 @@ export const getPendingWorks = () =>
 export const countWorksByAuthor = (authorId: string) =>
   load().filter((w) => w.authorId === authorId && !w.deletedAt).length;
 
+const ONCHAIN_SYNC_KEY = "chainstorm_onchain_sync";
+const ONCHAIN_SYNC_TTL_MS = 20_000;
+
+function getDefaultNetwork() {
+  return process.env.NEXT_PUBLIC_SUI_NETWORK || "devnet";
+}
+
+function buildDefaults(input: Partial<Work>): Work {
+  return {
+    id: String(input.id || uid()),
+    title: input.title || "",
+    authorId: String(input.authorId || ""),
+    sellType: normalizeSellType(input.sellType as string),
+    quorumWeight: Number(input.quorumWeight ?? 1),
+    status: (input.status as any) || "verified",
+    licenses: input.licenses || [],
+    approvalMap: input.approvalMap || {},
+    rejectionBy: input.rejectionBy || [],
+    ...input,
+  } as Work;
+}
+
+function mergeOnchainWorks(list: Partial<Work>[]) {
+  const current = load();
+  const map = new Map(current.map((w) => [w.id, w]));
+
+  for (const raw of list) {
+    const on = buildDefaults(raw);
+    const existing = map.get(on.id);
+    if (!existing) {
+      map.set(on.id, on);
+      continue;
+    }
+
+    const merged: Work = {
+      ...existing,
+      ...on,
+      title: existing.title || on.title,
+      authorName: existing.authorName || on.authorName,
+      authorEmail: existing.authorEmail || on.authorEmail,
+      authorAvatar: existing.authorAvatar || on.authorAvatar,
+      authorPhone: existing.authorPhone || on.authorPhone,
+      category: existing.category || on.category,
+      language: existing.language || on.language,
+      createdDate: existing.createdDate || on.createdDate,
+      approvalMap: existing.approvalMap || on.approvalMap || {},
+      rejectionBy: existing.rejectionBy || on.rejectionBy || [],
+      licenses: existing.licenses || on.licenses || [],
+      status: existing.status || on.status,
+    };
+    map.set(on.id, merged);
+  }
+
+  const mergedList = Array.from(map.values());
+  save(mergedList);
+  return mergedList.length;
+}
+
+export async function syncWorksFromChain(options?: {
+  network?: string;
+  force?: boolean;
+}) {
+  if (typeof window === "undefined") return 0;
+
+  const now = Date.now();
+  const lastRaw = safeLoad<number>(ONCHAIN_SYNC_KEY);
+  const last = Number(lastRaw || 0);
+  if (!options?.force && now - last < ONCHAIN_SYNC_TTL_MS) return 0;
+
+  const net = options?.network || getDefaultNetwork();
+  try {
+    const res = await fetch(
+      `/api/chainstorm/works?network=${encodeURIComponent(net)}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return 0;
+    const data = await res.json();
+    if (!data?.ok || !Array.isArray(data?.works)) return 0;
+    const count = mergeOnchainWorks(data.works as Partial<Work>[]);
+    safeSave(ONCHAIN_SYNC_KEY, now);
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
 /* ================= CREATE ================= */
 
 export function addWork(data: {

@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import styles from "./leaderboard.module.css";
 
-import { getVerifiedWorks, type Work } from "@/lib/workStore";
+import { getVerifiedWorks, syncWorksFromChain, type Work } from "@/lib/workStore";
 import { loadProfile } from "@/lib/profileStore";
 import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
 import { useSuiClient } from "@mysten/dapp-kit";
@@ -43,6 +43,7 @@ export default function AuthorLeaderboardPage() {
   );
 
   useEffect(() => {
+    syncWorksFromChain();
     const onUpdate = () => {
       setWorks((getVerifiedWorks() as unknown as Work[]) || []);
     };

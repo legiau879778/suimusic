@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getVerifiedWorks } from "@/lib/workStore";
+import { getVerifiedWorks, syncWorksFromChain } from "@/lib/workStore";
 import { useSyncWorkOwner } from "@/hooks/useSyncWorkOwner";
 import { explorerObjectUrl, shortAddr } from "@/lib/suiExplorer";
 import styles from "./marketplace.module.css";
@@ -21,6 +21,7 @@ export default function MarketplacePage() {
   }
 
   useEffect(() => {
+    syncWorksFromChain();
     load();
     window.addEventListener("works_updated", load);
     return () => window.removeEventListener("works_updated", load);

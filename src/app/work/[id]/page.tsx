@@ -1,20 +1,37 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
-import { getWorkById, Work } from "@/lib/workStore";
+import { useEffect, useMemo, useState } from "react";
+import { getWorkById, syncWorksFromChain, Work } from "@/lib/workStore";
 import { getReviewLogsByWork } from "@/lib/reviewLogStore";
 import styles from "@/styles/work.module.css";
 
 export default function WorkDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const work: Work | undefined = useMemo(() => {
-    return getWorkById(id);
+  const [work, setWork] = useState<Work | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      if (!id) return;
+      await syncWorksFromChain();
+      if (!alive) return;
+      setWork(getWorkById(id));
+    }
+    load();
+    const onUpdate = () => {
+      setWork(getWorkById(id));
+    };
+    window.addEventListener("works_updated", onUpdate);
+    return () => {
+      alive = false;
+      window.removeEventListener("works_updated", onUpdate);
+    };
   }, [id]);
 
   const reviewLogs = useMemo(() => {
-    return getReviewLogsByWork(id).map(l => ({
+    return getReviewLogsByWork(id).map((l) => ({
       ...l,
       time: new Date(l.time).toLocaleString(),
     }));
