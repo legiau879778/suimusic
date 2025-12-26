@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
-import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
+import {
+  getChainstormConfig,
+  normalizeSuiNet,
+  type SuiNet,
+} from "@/lib/chainstormConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,7 +91,10 @@ function sellTypeFromU8(v: any) {
   return String(v ?? "");
 }
 
-async function fetchOnChainWorks(net: string, cfg: { packageId: string; module?: string }) {
+async function fetchOnChainWorks(
+  net: SuiNet,
+  cfg: { packageId: string; module?: string }
+) {
   const client = new SuiClient({ url: getFullnodeUrl(net) });
   const type = `${cfg.packageId}::${cfg.module || "chainstorm_nft"}::WorkNFT`;
 
