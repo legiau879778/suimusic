@@ -9,7 +9,17 @@ const MOCK_DIR = path.join(
   process.env.WALRUS_MOCK_DIR || process.env.TMPDIR || "/tmp",
   "walrus_mock"
 );
-const READ_BASE = process.env.WALRUS_READ_ENDPOINT || process.env.WALRUS_ENDPOINT;
+function getReadBase() {
+  const readEnv = process.env.WALRUS_READ_ENDPOINT;
+  if (readEnv) return readEnv;
+
+  const uploadEnv = process.env.WALRUS_ENDPOINT || "";
+  if (uploadEnv.includes("upload-relay")) {
+    return uploadEnv.replace("upload-relay", "aggregator");
+  }
+
+  return uploadEnv;
+}
 
 function buildReadCandidates(base: string, id: string) {
   const trimmed = base.replace(/\/+$/, "");
@@ -32,6 +42,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
   }
 
+  const READ_BASE = getReadBase();
   const useMock = !READ_BASE || process.env.WALRUS_MOCK === "1";
 
   if (!useMock) {

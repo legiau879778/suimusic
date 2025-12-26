@@ -9,6 +9,7 @@ import {
   updateNFTOwner,
 } from "@/lib/workStore";
 import { useToast } from "@/context/ToastContext";
+import { toGateway } from "@/lib/profileStore";
 
 /* ===== SUI SDK (NEW) ===== */
 import {
@@ -49,6 +50,66 @@ async function fetchObjectOwnerAddress(suiClient: any, objectId: string): Promis
   return null;
 }
 
+function resolveMetaInput(w: any) {
+  const raw = String(w?.walrusMetaId || w?.metadataCid || w?.metadata || w?.hash || "").trim();
+  if (!raw) return "";
+  if (
+    raw.startsWith("http://") ||
+    raw.startsWith("https://") ||
+    raw.startsWith("walrus:") ||
+    raw.startsWith("walrus://") ||
+    raw.startsWith("/api/walrus/blob/")
+  ) {
+    return raw;
+  }
+  return `walrus:${raw}`;
+}
+
+function resolveCover(meta: any, w: any) {
+  const raw =
+    meta?.image ||
+    meta?.cover ||
+    meta?.properties?.cover?.url ||
+    meta?.properties?.cover_image ||
+    meta?.properties?.image ||
+    "";
+  const byMeta = toGateway(raw);
+  if (byMeta) return byMeta;
+  const coverId = String(w?.walrusCoverId || "").trim();
+  if (coverId) return toGateway(`walrus:${coverId}`);
+  return "";
+}
+
+function resolveMedia(meta: any, w: any) {
+  const raw =
+    meta?.animation_url ||
+    meta?.properties?.animation_url ||
+    meta?.properties?.file?.url ||
+    meta?.file?.url ||
+    "";
+  const byMeta = toGateway(raw);
+  if (byMeta) return byMeta;
+  const fileId = String(w?.walrusFileId || "").trim();
+  if (fileId) return toGateway(`walrus:${fileId}`);
+  return "";
+}
+
+function guessMediaKind(meta: any, url: string): "audio" | "video" | "image" | "other" {
+  const mime =
+    String(meta?.file?.mime || meta?.file?.type || meta?.properties?.file?.type || "")
+      .toLowerCase()
+      .trim();
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("image/")) return "image";
+
+  const u = url.toLowerCase();
+  if (/\.(mp3|wav|ogg|m4a|flac)$/.test(u)) return "audio";
+  if (/\.(mp4|webm|mov|mkv)$/.test(u)) return "video";
+  if (/\.(png|jpg|jpeg|webp|gif|bmp|svg)$/.test(u)) return "image";
+  return "other";
+}
+
 /* ================= COMPONENT ================= */
 
 export default function MarketplaceDetailPage() {
@@ -74,6 +135,8 @@ export default function MarketplaceDetailPage() {
   const [work, setWork] = useState<any | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [meta, setMeta] = useState<any | null>(null);
+  const [metaLoading, setMetaLoading] = useState(false);
 
   // ✅ IMPORTANT: Hook must be called every render (not after early return)
   const licenses = useMemo(() => work?.licenses ?? [], [work?.licenses]);
@@ -105,6 +168,37 @@ export default function MarketplaceDetailPage() {
       window.removeEventListener("works_updated", onUpdate);
     };
   }, [workId, router]);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadMeta() {
+      if (!work) return;
+      const metaInput = resolveMetaInput(work);
+      const metaUrl = toGateway(metaInput);
+      if (!metaUrl) {
+        setMeta(null);
+        return;
+      }
+      setMetaLoading(true);
+      try {
+        const res = await fetch(metaUrl, { cache: "force-cache" });
+        if (!res.ok) {
+          if (alive) setMeta(null);
+          return;
+        }
+        const json = await res.json();
+        if (alive) setMeta(json);
+      } catch {
+        if (alive) setMeta(null);
+      } finally {
+        if (alive) setMetaLoading(false);
+      }
+    }
+    loadMeta();
+    return () => {
+      alive = false;
+    };
+  }, [work]);
 
   /* ================= SYNC OWNER ================= */
 
@@ -220,6 +314,10 @@ export default function MarketplaceDetailPage() {
     );
   }
 
+  const cover = resolveCover(meta, work);
+  const mediaUrl = resolveMedia(meta, work);
+  const mediaKind = mediaUrl ? guessMediaKind(meta, mediaUrl) : "other";
+
   return (
     <main style={{ padding: 28, maxWidth: 900, margin: "0 auto" }}>
       <div
@@ -230,31 +328,96 @@ export default function MarketplaceDetailPage() {
           background: "rgba(255,255,255,.03)",
         }}
       >
-        <h1>{work.title}</h1>
+        <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 16 }}>
+            <div
+              style={{
+                width: "100%",
+                aspectRatio: "1 / 1",
+                borderRadius: 14,
+                overflow: "hidden",
+                border: "1px solid rgba(255,255,255,.10)",
+                background: "rgba(15,23,42,.6)",
+              }}
+            >
+              {cover ? (
+                <img src={cover} alt="Cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    color: "rgba(226,232,240,.6)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  No cover
+                </div>
+              )}
+            </div>
 
-        <p style={{ opacity: 0.8, marginTop: 6 }}>
-          Network: <b>{activeNet}</b> • pkg: <b>{shortAddr(PACKAGE_ID)}</b>
-          {syncing ? <span style={{ marginLeft: 10, opacity: 0.7 }}>syncing...</span> : null}
-        </p>
+            <div>
+              <h1>{meta?.name || meta?.title || work.title}</h1>
+              <p style={{ opacity: 0.8, marginTop: 6 }}>
+                Network: <b>{activeNet}</b> • pkg: <b>{shortAddr(PACKAGE_ID)}</b>
+                {syncing ? <span style={{ marginLeft: 10, opacity: 0.7 }}>syncing...</span> : null}
+              </p>
+              <p>
+                <b>Mode:</b> {work.sellType}
+              </p>
+              <p>
+                <b>NFT:</b>{" "}
+                {work.nftObjectId ? (
+                  <a
+                    href={explorerObjUrl(activeNet, work.nftObjectId)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {shortAddr(work.nftObjectId)}
+                  </a>
+                ) : (
+                  "Not minted"
+                )}
+              </p>
+              <p>
+                <b>Owner:</b> {work.authorWallet ? shortAddr(work.authorWallet) : "—"}
+              </p>
+            </div>
+          </div>
 
-        <p>
-          <b>Mode:</b> {work.sellType}
-        </p>
-
-        <p>
-          <b>NFT:</b>{" "}
-          {work.nftObjectId ? (
-            <a href={explorerObjUrl(activeNet, work.nftObjectId)} target="_blank" rel="noreferrer">
-              {shortAddr(work.nftObjectId)}
-            </a>
-          ) : (
-            "Not minted"
-          )}
-        </p>
-
-        <p>
-          <b>Owner:</b> {work.authorWallet ? shortAddr(work.authorWallet) : "—"}
-        </p>
+          <div
+            style={{
+              border: "1px solid rgba(255,255,255,.10)",
+              borderRadius: 14,
+              padding: 12,
+              background: "rgba(2,6,23,.6)",
+            }}
+          >
+            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+              {metaLoading ? "Loading preview..." : "Preview"}
+            </div>
+            {mediaUrl ? (
+              mediaKind === "audio" ? (
+                <audio controls src={mediaUrl} style={{ width: "100%" }} />
+              ) : mediaKind === "video" ? (
+                <video controls src={mediaUrl} style={{ width: "100%", maxHeight: 360 }} />
+              ) : mediaKind === "image" ? (
+                <img src={mediaUrl} alt="Preview" style={{ width: "100%", maxHeight: 360, objectFit: "contain" }} />
+              ) : (
+                <a href={mediaUrl} target="_blank" rel="noreferrer">
+                  Open file
+                </a>
+              )
+            ) : (
+              <div style={{ opacity: 0.7 }}>No preview available.</div>
+            )}
+          </div>
+        </div>
 
         {work.sellType === "license" && (
           <>
