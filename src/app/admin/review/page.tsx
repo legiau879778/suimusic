@@ -107,6 +107,9 @@ export default function AdminReviewPage() {
         reviewerRole,
         // no weight passed => store infers from role
       });
+      if (w.proofId) {
+        setProofs((prev) => prev.filter((x) => x.id !== w.proofId));
+      }
       // load() will be triggered via works_updated (save() dispatches event), but call now for smoother UI
       load();
       showToast("Approved TSA and updated status", "success");
@@ -164,11 +167,16 @@ export default function AdminReviewPage() {
     const reason = prompt("Reject reason (optional):") ?? "";
     setBusyId(p.id);
     try {
+      const signed = await signApproveMessage(p.metaHash, p.id);
+
       const res = await fetch("/api/proof/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proofId: p.id,
+          adminWallet: signed.adminWallet,
+          signature: signed.signature,
+          message: signed.message,
           reject: true,
           reason,
         }),
@@ -176,6 +184,14 @@ export default function AdminReviewPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "Reject failed");
+      }
+      const maybeWork = getWorkByProofId(p.id);
+      if (maybeWork) {
+        rejectWork({
+          workId: maybeWork.id,
+          reviewerId: reviewerIdLocal,
+          reason,
+        });
       }
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
       showToast("Profile rejected", "warning");
@@ -193,11 +209,33 @@ export default function AdminReviewPage() {
     const reason = prompt("Reject reason (optional):") ?? "";
     setBusyId(w.id);
     try {
+      if (w.proofId) {
+        const signed = await signApproveMessage(w.id, w.proofId);
+        const res = await fetch("/api/proof/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            proofId: w.proofId,
+            adminWallet: signed.adminWallet,
+            signature: signed.signature,
+            message: signed.message,
+            reject: true,
+            reason,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) {
+          throw new Error(data?.error || "Reject failed");
+        }
+      }
       rejectWork({
         workId: w.id,
         reviewerId,
         reason,
       });
+      if (w.proofId) {
+        setProofs((prev) => prev.filter((x) => x.id !== w.proofId));
+      }
       load();
     } finally {
       setBusyId(null);
