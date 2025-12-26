@@ -63,6 +63,34 @@ export function getMembershipEntitlements(m: Membership | null) {
   };
 }
 
+export function getFeaturePolicy(m: Membership | null) {
+  if (!m) {
+    return {
+      musicUseUnlimited: false,
+      musicUseLimit: 0,
+    };
+  }
+
+  if (m.type !== "creator") {
+    return {
+      musicUseUnlimited: false,
+      musicUseLimit: 0,
+    };
+  }
+
+  if (m.plan === "pro" || m.plan === "studio") {
+    return {
+      musicUseUnlimited: true,
+      musicUseLimit: 0,
+    };
+  }
+
+  return {
+    musicUseUnlimited: false,
+    musicUseLimit: 10,
+  };
+}
+
 // --- HÀM BỔ SUNG ĐỂ FIX LỖI IMPORT (SEARCH/HEADER) ---
 
 /**

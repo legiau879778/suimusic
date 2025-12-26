@@ -27,7 +27,7 @@ export async function syncUserMembershipAndRole(u: User): Promise<User> {
   const email = (u.email || "").trim();
   if (!userId) return u;
 
-  const m = await getActiveMembership({ userId, email }).catch(() => null);
+  const m = getActiveMembership({ userId, email });
 
   // ✅ không cần cast nữa nếu AuthContext.membership đã đồng bộ store
   const membershipType: User["membership"] = m?.type ?? null;

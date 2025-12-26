@@ -1,4 +1,5 @@
-import type { MembershipType, UserRole } from "@/context/AuthContext";
+import type { MembershipType } from "@/lib/membershipStore";
+import type { UserRole } from "@/context/AuthContext";
 
 export function roleFromMembership(
   membership: MembershipType | null | undefined,
