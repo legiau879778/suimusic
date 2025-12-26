@@ -11,8 +11,10 @@ import {
   approveWork,
   rejectWork,
   setWorkQuorumWeight,
+  getWorkByProofId,
   type Work,
 } from "@/lib/workStore";
+import type { ProofRecord } from "@/lib/proofTypes";
 import { signApproveMessage } from "@/lib/signApproveMessage";
 
 export default function AdminReviewPage() {
@@ -20,6 +22,7 @@ export default function AdminReviewPage() {
   const { showToast } = useToast();
 
   const [works, setWorks] = useState<Work[]>([]);
+  const [proofs, setProofs] = useState<ProofRecord[]>([]);
   const [qMap, setQMap] = useState<Record<string, string>>({}); // workId -> input quorum string
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -37,8 +40,22 @@ export default function AdminReviewPage() {
     });
   };
 
+  async function loadProofs() {
+    try {
+      const res = await fetch("/api/proof");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok && Array.isArray(data.proofs)) {
+        const list = (data.proofs as ProofRecord[]).filter(
+          (p) => p.status === "submitted" || p.status === "tsa_attested"
+        );
+        setProofs(list);
+      }
+    } catch {}
+  }
+
   useEffect(() => {
     load();
+    void loadProofs();
 
     const onUpdate = () => load();
     window.addEventListener("works_updated", onUpdate);
@@ -48,7 +65,7 @@ export default function AdminReviewPage() {
   const reviewerId = user?.email || user?.id || "admin";
   const reviewerRole = user?.role || "admin";
 
-  const totalPending = works.length;
+  const totalPending = works.length + proofs.length;
 
   const weightHint = useMemo(() => {
     // phải khớp getReviewerWeightByRole() trong store
@@ -100,6 +117,77 @@ export default function AdminReviewPage() {
     }
   };
 
+  const onApproveProof = async (p: ProofRecord) => {
+    const reviewerIdLocal = reviewerId;
+    if (!reviewerIdLocal) return;
+    setBusyId(p.id);
+    try {
+      const signed = await signApproveMessage(p.metaHash, p.id);
+
+      const res = await fetch("/api/proof/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proofId: p.id,
+          adminWallet: signed.adminWallet,
+          signature: signed.signature,
+          message: signed.message,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Approve TSA thất bại");
+      }
+
+      const maybeWork = getWorkByProofId(p.id);
+      if (maybeWork) {
+        approveWork({
+          workId: maybeWork.id,
+          reviewerId: reviewerIdLocal,
+          reviewerRole,
+        });
+      }
+
+      setProofs((prev) => prev.filter((x) => x.id !== p.id));
+      showToast("Đã duyệt TSA cho hồ sơ", "success");
+    } catch (e: any) {
+      showToast(e?.message || "Không thể duyệt TSA", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onRejectProof = async (p: ProofRecord) => {
+    const reviewerIdLocal = reviewerId;
+    if (!reviewerIdLocal) return;
+    const reason = prompt("Lý do từ chối (tuỳ chọn):") ?? "";
+    setBusyId(p.id);
+    try {
+      const res = await fetch("/api/proof/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proofId: p.id,
+          reject: true,
+          reason,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Reject thất bại");
+      }
+      setProofs((prev) => prev.filter((x) => x.id !== p.id));
+      showToast("Đã từ chối hồ sơ", "warning");
+    } catch (e: any) {
+      showToast(e?.message || "Không thể từ chối", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const pendingProofs = useMemo(() => proofs, [proofs]);
+
   const onReject = async (w: Work) => {
     if (!reviewerId) return;
     const reason = prompt("Lý do từ chối (tuỳ chọn):") ?? "";
@@ -140,7 +228,7 @@ export default function AdminReviewPage() {
           </div>
         </div>
 
-        {works.length === 0 ? (
+        {works.length === 0 && pendingProofs.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.emptyIcon}>✓</div>
             <div className={styles.emptyTitle}>Không có tác phẩm chờ duyệt</div>
@@ -160,6 +248,67 @@ export default function AdminReviewPage() {
               </thead>
 
               <tbody>
+                {pendingProofs.map((p) => {
+                  const title =
+                    String(p.metadata?.name || p.metadata?.title || "Untitled");
+                  const sellType = String(
+                    p.metadata?.attributes?.find?.((a: any) => a?.trait_type === "sellType")
+                      ?.value || "-"
+                  );
+                  const isBusy = busyId === p.id;
+                  return (
+                    <tr key={`proof-${p.id}`}>
+                      <td className={styles.workCell}>
+                        <div className={styles.workTitle}>{title}</div>
+                        <div className={styles.workMeta}>
+                          <span className={styles.mono}>Proof: {p.id.slice(0, 8)}…</span>
+                          {p.wallet && (
+                            <span className={styles.mono}>Owner: {p.wallet.slice(0, 8)}…</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className={`${styles.badge} ${styles.license}`}>
+                          {sellType ? String(sellType).toUpperCase() : "—"}
+                        </span>
+                      </td>
+
+                      <td className={styles.quorumCell}>
+                        <div className={styles.quorumHint}>Chưa sync quorum</div>
+                      </td>
+
+                      <td>
+                        <div className={styles.approvalBox}>
+                          <div className={styles.approvalTop}>
+                            <span className={styles.approvalNum}>0/1</span>
+                            <span className={`${styles.dot} ${styles.dotPending}`} />
+                          </div>
+                          <div className={styles.approvalList}>
+                            <span className={styles.muted}>Chưa có</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className={styles.actionsCell}>
+                        <button
+                          className={styles.approveBtn}
+                          onClick={() => onApproveProof(p)}
+                          disabled={isBusy}
+                        >
+                          Duyệt (+{weightHint})
+                        </button>
+                        <button
+                          className={styles.rejectBtn}
+                          onClick={() => onRejectProof(p)}
+                          disabled={isBusy}
+                        >
+                          Từ chối
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {works.map((w) => {
                   const totalWeight = calcTotalWeight(w);
                   const quorum = w.quorumWeight ?? 1;

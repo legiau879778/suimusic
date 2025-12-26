@@ -62,3 +62,9 @@ export async function getProof(id: string) {
   const list = await readAll();
   return list.find((p) => p.id === id) || null;
 }
+
+export async function listProofs(status?: string) {
+  const list = await readAll();
+  if (!status) return list;
+  return list.filter((p) => p.status === status);
+}

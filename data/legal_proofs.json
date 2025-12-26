@@ -2,7 +2,7 @@
   {
     "id": "f87f5c7f-96ff-42df-bfb4-89925f1db426",
     "createdAt": "2025-12-25T20:19:19.638Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "102810016170476988916",
     "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
     "fileHash": "2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab",
@@ -12,7 +12,6 @@
     "walrusCoverId": "0123442638882a613a1a533d2877ec9f1281ab08a2e6ddb4f2e0be5702e6e0d5",
     "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nMetaHash: 9c748ac9405df2f9b68cae9a6917424923f271e14e2a14d445a3283f2098236f\nWalrusFileId: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nWalrusMetaId: 9c748ac9405df2f9b68cae9a6917424923f271e14e2a14d445a3283f2098236f\nTime: 2025-12-25T20:19:10.972Z",
     "authorSignature": "AKm9rj2BPHxkiFTc9ZzzINU7TJaIDFzK13qw9jm5nmIBBc6b339zu+tvUisqJdKIwOOHSfuH/sk/6rs63yM8CAVuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
-    "signatureVerified": true,
     "signatureVerifyReason": "OK",
     "metadata": {
       "name": "Sao Mình Chưa Nắm Tay Nhau",
@@ -104,7 +103,7 @@
   {
     "id": "f53bc5c4-e192-4fd2-948a-f1a15d2ac537",
     "createdAt": "2025-12-25T20:19:22.779Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "102810016170476988916",
     "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
     "fileHash": "2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab",
@@ -114,7 +113,6 @@
     "walrusCoverId": "0123442638882a613a1a533d2877ec9f1281ab08a2e6ddb4f2e0be5702e6e0d5",
     "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nMetaHash: eecb8232195fdcd710c038a72898873d1b73fbec622b8912c08877925c06782f\nWalrusFileId: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nWalrusMetaId: eecb8232195fdcd710c038a72898873d1b73fbec622b8912c08877925c06782f\nTime: 2025-12-25T20:19:21.804Z",
     "authorSignature": "AJldRWhQbuPCAE4uTMET3Z7uVoShwbSwO1YENWSzmYwCpAq0FCp4bkhF8X3/xODNklSu6vl9Mv7RPa+EfId7EAxuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
-    "signatureVerified": true,
     "signatureVerifyReason": "OK",
     "metadata": {
       "name": "Sao Mình Chưa Nắm Tay Nhau",
@@ -206,7 +204,7 @@
   {
     "id": "8356d870-27ad-4052-9f6e-1670311150a9",
     "createdAt": "2025-12-25T20:22:59.856Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "102810016170476988916",
     "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
     "fileHash": "2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab",
@@ -216,7 +214,6 @@
     "walrusCoverId": "0123442638882a613a1a533d2877ec9f1281ab08a2e6ddb4f2e0be5702e6e0d5",
     "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nMetaHash: 6a9a4e7ae85e4af5d3a84a4c8eff88495d16afa776bca68975b000eef63c45b3\nWalrusFileId: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nWalrusMetaId: 6a9a4e7ae85e4af5d3a84a4c8eff88495d16afa776bca68975b000eef63c45b3\nTime: 2025-12-25T20:22:58.176Z",
     "authorSignature": "APDJqRj513hYo5z3ihWC/zA/ZruwUkhp/SdXJ7Gj7ogJerjhDUfSDb/a00fR7KylRrd7tBflnyU6Mm17xvpeaARuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
-    "signatureVerified": true,
     "signatureVerifyReason": "OK",
     "metadata": {
       "name": "Sao Mình Chưa Nắm Tay Nhau",
@@ -308,7 +305,7 @@
   {
     "id": "8add8981-54db-4fa7-9c79-762d6c1d0efb",
     "createdAt": "2025-12-25T20:23:47.756Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "102810016170476988916",
     "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
     "fileHash": "2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab",
@@ -318,7 +315,6 @@
     "walrusCoverId": "0123442638882a613a1a533d2877ec9f1281ab08a2e6ddb4f2e0be5702e6e0d5",
     "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nMetaHash: 547d5772eac5a80c24a03235932677067ec33101f14db223b398c0303ddfd5d9\nWalrusFileId: 2c358436730e434e6a447d13b789e9dcca50e088b7411031a049b429c722d0ab\nWalrusMetaId: 547d5772eac5a80c24a03235932677067ec33101f14db223b398c0303ddfd5d9\nTime: 2025-12-25T20:23:46.146Z",
     "authorSignature": "AGrpK/52wm8qpDQKjwHrPClKsYLlaQ/J8k2lo1toZUo8f/+ST8cSwGQ/35lCKDKxdbCI1MoRQmSOZu2bkZaEBwVuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
-    "signatureVerified": true,
     "signatureVerifyReason": "OK",
     "metadata": {
       "name": "Sao Mình Chưa Nắm Tay Nhau",
@@ -1380,6 +1376,116 @@
       "adminWallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
       "signature": "AA8KBIc2Y9x42AVW92YwtJ0QMC1rzQ+31MhEBU3/SLwlXNR31D+/G4xPqiDKwIm+ql9HYSAqNfssP+3byO+oKwVuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
       "time": "2025-12-26T03:22:32.838Z"
+    }
+  },
+  {
+    "id": "a5329b3f-a07a-45f8-87ba-15d506c880da",
+    "createdAt": "2025-12-26T05:48:30.404Z",
+    "status": "approved",
+    "authorId": "102810016170476988916",
+    "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
+    "fileHash": "07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+    "metaHash": "0c8307f7ff113293d29d7a2ffada4391b1b7366b32b654c1f6f8254b44644521",
+    "walrusFileId": "07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+    "walrusMetaId": "0c8307f7ff113293d29d7a2ffada4391b1b7366b32b654c1f6f8254b44644521",
+    "walrusCoverId": "bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+    "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b\nMetaHash: 0c8307f7ff113293d29d7a2ffada4391b1b7366b32b654c1f6f8254b44644521\nWalrusFileId: 07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b\nWalrusMetaId: 0c8307f7ff113293d29d7a2ffada4391b1b7366b32b654c1f6f8254b44644521\nTime: 2025-12-26T05:48:25.781Z",
+    "authorSignature": "AOg/AeBCq88xvGUFfRqWa5fmoYuskY9oh8IQdIZ/BKPujGGssQO51WF8RYFPa5F/z7eoogrioPyyUt0hSAU27Q5uiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
+    "signatureVerified": true,
+    "signatureVerifyReason": "OK",
+    "metadata": {
+      "name": "Ngày mai người ta lấy chồng",
+      "description": "Chainstorm WorkNFT metadata (Walrus)",
+      "image": "/api/walrus/blob/bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+      "animation_url": "/api/walrus/blob/07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+      "duration": 364,
+      "file": {
+        "walrusId": "07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+        "url": "/api/walrus/blob/07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+        "mime": "audio/mpeg",
+        "name": "Ngày Mai Người Ta Lấy Chồng (HITStory Live Version).mp3",
+        "size": 14636396,
+        "sha256": "07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+        "duration": 364
+      },
+      "cover_image": "/api/walrus/blob/bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+      "cover": {
+        "walrusId": "bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+        "url": "/api/walrus/blob/bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+        "mime": "image/jpeg",
+        "name": "ngaymai.jpg",
+        "size": 12387
+      },
+      "attributes": [
+        {
+          "trait_type": "sellType",
+          "value": "exclusive"
+        },
+        {
+          "trait_type": "sell_type_u8",
+          "value": 1
+        },
+        {
+          "trait_type": "royalty_percent",
+          "value": 24
+        },
+        {
+          "trait_type": "category",
+          "value": "Music"
+        },
+        {
+          "trait_type": "language",
+          "value": "vi"
+        },
+        {
+          "trait_type": "createdDate",
+          "value": "26/10/2023"
+        }
+      ],
+      "properties": {
+        "app": "Chainstorm",
+        "network": "devnet",
+        "category": "Music",
+        "language": "vi",
+        "createdDate": "26/10/2023",
+        "createdAtISO": "2023-10-26T00:00:00.000Z",
+        "chainstorm": {
+          "packageId": "0xbfade441b8bd0baa42261eb7e4529b1a77a98533e5371acbe6a692cdc68752c7",
+          "registryId": "0xff6ce0d3ce9ae2523bb4f20e010f1365b139d4b60cd5ba878b8a43e69c082aa5",
+          "module": "chainstorm_nft",
+          "mintFn": "mint"
+        },
+        "author": {
+          "userId": "102810016170476988916",
+          "name": "Unknown",
+          "email": "lifufu.2004@gmail.com",
+          "avatar": "https://lh3.googleusercontent.com/a/ACg8ocJpuLp5SY7lP-yBoTISlx5n-2aqD121nvmL724cwcIkf114iOLB=s96-c",
+          "phone": "",
+          "walletAddress": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a"
+        },
+        "file": {
+          "walrusId": "07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+          "url": "/api/walrus/blob/07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b",
+          "name": "Ngày Mai Người Ta Lấy Chồng (HITStory Live Version).mp3",
+          "size": 14636396,
+          "type": "audio/mpeg",
+          "sha256": "07ba073d6e25bc6d74faa70a66e2a60665ef515d5ab314c67ef06b159c5a732b"
+        },
+        "cover": {
+          "walrusId": "bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+          "url": "/api/walrus/blob/bbf814155865525e011aeb418b3d917c1a82801e4c3652564fc0f3b06e9fa385",
+          "name": "ngaymai.jpg",
+          "size": 12387,
+          "type": "image/jpeg"
+        },
+        "createdAt": "2025-12-26T05:48:25.729Z",
+        "duration": 364
+      }
+    },
+    "approval": {
+      "adminWallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
+      "signature": "AC9tWxysd0ECWKVDpzjsvKNBmGOgCvJ+O4QtxbgI4mDrHhGwdlNDe1xH5gmTlKsdZaOAyYxEfdtHDXMURT55NAtuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
+      "time": "2025-12-26T05:49:27.999Z"
     }
   }
 ]

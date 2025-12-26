@@ -265,6 +265,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.replace(consumeRedirect());
     },
     onError: () => showToast("Đăng nhập Google thất bại", "warning"),
+    // show clear feedback when popup is blocked or closed
+    // @ts-ignore - onNonOAuthError exists in react-oauth/google
+    onNonOAuthError: (err: any) => {
+      const reason = String(err?.type || err?.message || "unknown");
+      showToast(`Không mở được popup Google (${reason}). Hãy cho phép popup.`, "warning");
+    },
   });
 
   const loginWithGoogle = () => {
@@ -274,6 +280,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "warning"
       );
       return;
+    }
+    if (typeof window !== "undefined") {
+      const expected = String(process.env.NEXT_PUBLIC_APP_URL || "").trim();
+      const origin = window.location.origin;
+      if (expected && expected !== origin) {
+        showToast(
+          `Origin hiện tại (${origin}) khác NEXT_PUBLIC_APP_URL (${expected}). ` +
+            "Hãy thêm origin này vào Google OAuth Console.",
+          "warning"
+        );
+      }
     }
     googleLoginFn();
   };
