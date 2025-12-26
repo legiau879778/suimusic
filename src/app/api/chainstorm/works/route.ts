@@ -67,8 +67,7 @@ export async function GET(req: Request) {
 
     while (items.length < MAX_ITEMS) {
       // eslint-disable-next-line no-await-in-loop
-      const page: Awaited<ReturnType<SuiClient["queryObjects"]>> =
-        await client.queryObjects({
+      const page: any = await (client as any).queryObjects({
         query: { MoveStructType: type },
         cursor,
         limit: PAGE_SIZE,
