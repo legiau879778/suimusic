@@ -2,16 +2,27 @@ import { promises as fs } from "fs";
 import path from "path";
 import { ProofRecord } from "./proofTypes";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const PROOF_FILE = path.join(DATA_DIR, "legal_proofs.json");
+function getDataDir() {
+  if (process.env.LEGAL_PROOF_DIR) return process.env.LEGAL_PROOF_DIR;
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isServerless) {
+    const tmp = process.env.WALRUS_MOCK_DIR || process.env.TMPDIR || "/tmp";
+    return path.join(tmp, "suimusic_data");
+  }
+  return path.join(process.cwd(), "data");
+}
+
+function getProofFile() {
+  return path.join(getDataDir(), "legal_proofs.json");
+}
 
 async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.mkdir(getDataDir(), { recursive: true });
 }
 
 async function readAll(): Promise<ProofRecord[]> {
   try {
-    const raw = await fs.readFile(PROOF_FILE, "utf8");
+    const raw = await fs.readFile(getProofFile(), "utf8");
     const data = JSON.parse(raw);
     return Array.isArray(data) ? data : [];
   } catch {
@@ -21,7 +32,7 @@ async function readAll(): Promise<ProofRecord[]> {
 
 async function writeAll(list: ProofRecord[]) {
   await ensureDir();
-  await fs.writeFile(PROOF_FILE, JSON.stringify(list, null, 2), "utf8");
+  await fs.writeFile(getProofFile(), JSON.stringify(list, null, 2), "utf8");
 }
 
 function newId() {
