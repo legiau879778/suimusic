@@ -6,7 +6,10 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MOCK_DIR = path.join(process.cwd(), "data", "walrus_mock");
+const MOCK_DIR = path.join(
+  process.env.WALRUS_MOCK_DIR || process.env.TMPDIR || "/tmp",
+  "walrus_mock"
+);
 
 function sha256Hex(buf: Buffer) {
   return crypto.createHash("sha256").update(buf).digest("hex");
@@ -56,10 +59,19 @@ export async function POST(req: Request) {
   if (!file) {
     return NextResponse.json({ ok: false, error: "No file" }, { status: 400 });
   }
+  if (file.size > 4 * 1024 * 1024) {
+    return NextResponse.json(
+      { ok: false, error: "File too large for server upload limit (~4MB)" },
+      { status: 413 }
+    );
+  }
 
   const endpoint = process.env.WALRUS_ENDPOINT;
   const apiKey = process.env.WALRUS_API_KEY;
-  const useMock = !endpoint || process.env.WALRUS_MOCK === "1";
+  const useMock =
+    !endpoint ||
+    process.env.WALRUS_MOCK === "1" ||
+    (!apiKey && process.env.WALRUS_REQUIRE_API_KEY !== "1");
 
   if (useMock) {
     const buf = Buffer.from(await file.arrayBuffer());
@@ -88,10 +100,13 @@ export async function POST(req: Request) {
   let lastErr = "";
 
   for (const url of candidates) {
+    const headers = apiKey
+      ? { Authorization: `Bearer ${apiKey}`, "X-API-Key": apiKey }
+      : undefined;
     // eslint-disable-next-line no-await-in-loop
     res = await fetch(url, {
       method: "POST",
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      headers,
       body: fd,
     });
     // eslint-disable-next-line no-await-in-loop

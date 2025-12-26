@@ -85,6 +85,46 @@ async function readApi(res: Response) {
 }
 
 const MAX_MB = 4; // Vercel serverless is usually ~4-5MB
+const DIRECT_WALRUS_ENDPOINT = process.env.NEXT_PUBLIC_WALRUS_ENDPOINT || "";
+const DIRECT_WALRUS_EPOCHS = process.env.NEXT_PUBLIC_WALRUS_STORE_EPOCHS || "";
+const DIRECT_WALRUS_API_KEY = process.env.NEXT_PUBLIC_WALRUS_API_KEY || "";
+const CAN_DIRECT_UPLOAD = Boolean(DIRECT_WALRUS_ENDPOINT);
+
+function appendQuery(url: string, key: string, value: string) {
+  if (!value) return url;
+  const joiner = url.includes("?") ? "&" : "?";
+  return `${url}${joiner}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+}
+
+function buildUploadCandidates(endpoint: string, epochs?: string) {
+  const base = endpoint.replace(/\/+$/, "");
+  const list = [endpoint];
+  if (!base.includes("/v1/") && !base.endsWith("/store")) {
+    list.push(`${base}/v1/store`, `${base}/store`);
+  }
+  const withQuery = list.map((u) => appendQuery(u, "epochs", epochs || ""));
+  return Array.from(new Set(withQuery));
+}
+
+function pickBlobId(data: any) {
+  return (
+    data?.blobId ||
+    data?.id ||
+    data?.blob_id ||
+    data?.objectId ||
+    data?.object_id ||
+    null
+  );
+}
+
+function pickUrl(data: any) {
+  return data?.url || data?.uri || data?.blobUrl || null;
+}
+
+function isOverServerLimit(f: File) {
+  return f.size > MAX_MB * 1024 * 1024;
+}
+
 function guardSize(f: File) {
   const mb = f.size / 1024 / 1024;
   if (mb > MAX_MB) {
@@ -360,6 +400,107 @@ export default function RegisterWorkPage() {
      - POST /api/walrus/upload-file (FormData: file)
      - POST /api/walrus/upload-json (JSON)
   ======================= */
+  function normalizeWalrusResult(result: any, f: File): UploadResult {
+    if (result?.ok === false) {
+      throw new Error(result?.error || "Upload failed");
+    }
+    const blobId = pickBlobId(result);
+    if (!blobId) throw new Error("Walrus response missing blob id");
+    const url = pickUrl(result) || `/api/walrus/blob/${blobId}`;
+    return {
+      cid: blobId,
+      url,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    };
+  }
+
+  function xhrUpload(
+    url: string,
+    fd: FormData,
+    headers?: Record<string, string>
+  ): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url, true);
+
+      if (headers) {
+        for (const [k, v] of Object.entries(headers)) {
+          xhr.setRequestHeader(k, v);
+        }
+      }
+
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round((e.loaded / e.total) * 100);
+        setUploadPct(pct);
+      };
+
+      xhr.onload = () => {
+        const text = xhr.responseText || "";
+        if (xhr.status < 200 || xhr.status >= 300) {
+          const err = new Error(text || `HTTP ${xhr.status}`) as Error & {
+            status?: number;
+            body?: string;
+          };
+          err.status = xhr.status;
+          err.body = text;
+          return reject(err);
+        }
+        if (!text) return resolve({});
+        try {
+          return resolve(JSON.parse(text));
+        } catch {
+          return resolve(text);
+        }
+      };
+
+      xhr.onerror = () => {
+        const err = new Error("Network error") as Error & { status?: number };
+        err.status = xhr.status || 0;
+        reject(err);
+      };
+
+      xhr.send(fd);
+    });
+  }
+
+  async function uploadDirectToWalrus(f: File): Promise<UploadResult> {
+    if (!CAN_DIRECT_UPLOAD) {
+      throw new Error("Direct upload is not configured.");
+    }
+
+    const candidates = buildUploadCandidates(
+      DIRECT_WALRUS_ENDPOINT,
+      DIRECT_WALRUS_EPOCHS
+    );
+    const headers = DIRECT_WALRUS_API_KEY
+      ? {
+          Authorization: `Bearer ${DIRECT_WALRUS_API_KEY}`,
+          "X-API-Key": DIRECT_WALRUS_API_KEY,
+        }
+      : undefined;
+
+    let lastErr: any = null;
+
+    for (const url of candidates) {
+      const fd = new FormData();
+      fd.append("file", f, f.name);
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await xhrUpload(url, fd, headers);
+        return normalizeWalrusResult(result, f);
+      } catch (e: any) {
+        const status = e?.status;
+        lastErr = e;
+        if (status !== 404 && status !== 405) break;
+      }
+    }
+
+    throw lastErr || new Error("Walrus upload failed");
+  }
+
   async function uploadToWalrusFile(
     f: File,
     kind: "audio" | "cover"
@@ -369,6 +510,16 @@ export default function RegisterWorkPage() {
     setUploadPct(0);
 
     try {
+      if (isOverServerLimit(f) && CAN_DIRECT_UPLOAD) {
+        showToast("Server limit hit. Uploading directly to Walrus...", "info");
+        const direct = await uploadDirectToWalrus(f);
+        setUploadStage("done");
+        setTimeout(() => setUploadPct(0), 800);
+        showToast("Walrus upload successful.", "success");
+        return direct;
+      }
+
+      guardSize(f);
       showToast(
         kind === "audio" ? "Uploading file to Walrus..." : "Uploading cover to Walrus...",
         "info"
@@ -377,46 +528,33 @@ export default function RegisterWorkPage() {
       fd.append("file", f, f.name);
       fd.append("kind", kind);
 
-      const result = await new Promise<any>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/walrus/upload-file", true);
+      let result: any;
+      try {
+        result = await xhrUpload("/api/walrus/upload-file", fd);
+      } catch (e: any) {
+        const msg = String(e?.message || "");
+        const isLimit =
+          e?.status === 413 ||
+          msg.includes("413") ||
+          msg.toLowerCase().includes("too large");
+        if (isLimit && CAN_DIRECT_UPLOAD) {
+          showToast("Server limit hit. Uploading directly to Walrus...", "info");
+          const direct = await uploadDirectToWalrus(f);
+          setUploadStage("done");
+          setTimeout(() => setUploadPct(0), 800);
+          showToast("Walrus upload successful.", "success");
+          return direct;
+        }
+        throw e;
+      }
 
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) return;
-          const pct = Math.round((e.loaded / e.total) * 100);
-          setUploadPct(pct);
-        };
-
-        xhr.onload = () => {
-          if (xhr.status < 200 || xhr.status >= 300) {
-            return reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
-          }
-          try {
-            resolve(JSON.parse(xhr.responseText));
-          } catch {
-            reject(new Error("Invalid Walrus response"));
-          }
-        };
-
-        xhr.onerror = () => reject(new Error("Network error"));
-        xhr.send(fd);
-      });
-
-      if (!result?.ok) throw new Error(result?.error || "Upload failed");
-      const blobId = result?.blobId as string;
-      if (!blobId) throw new Error("Walrus response missing blobId");
+      const normalized = normalizeWalrusResult(result, f);
 
       setUploadStage("done");
       setTimeout(() => setUploadPct(0), 800);
       showToast("Walrus upload successful.", "success");
 
-      return {
-        cid: blobId,
-        url: result?.url || "",
-        name: f.name,
-        size: f.size,
-        type: f.type,
-      };
+      return normalized;
     } catch (e: any) {
       showToast(e?.message || "Upload failed.", "error");
       throw e;

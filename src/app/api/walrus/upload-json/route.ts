@@ -6,7 +6,10 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MOCK_DIR = path.join(process.cwd(), "data", "walrus_mock");
+const MOCK_DIR = path.join(
+  process.env.WALRUS_MOCK_DIR || process.env.TMPDIR || "/tmp",
+  "walrus_mock"
+);
 
 function sha256Hex(buf: Buffer) {
   return crypto.createHash("sha256").update(buf).digest("hex");
@@ -58,7 +61,10 @@ export async function POST(req: Request) {
 
   const endpoint = process.env.WALRUS_JSON_ENDPOINT || process.env.WALRUS_ENDPOINT;
   const apiKey = process.env.WALRUS_API_KEY;
-  const useMock = !endpoint || process.env.WALRUS_MOCK === "1";
+  const useMock =
+    !endpoint ||
+    process.env.WALRUS_MOCK === "1" ||
+    (!apiKey && process.env.WALRUS_REQUIRE_API_KEY !== "1");
 
   if (useMock) {
     const buf = Buffer.from(JSON.stringify(body));
@@ -89,10 +95,13 @@ export async function POST(req: Request) {
   fd.append("file", file, "metadata.json");
 
   for (const url of candidates) {
+    const headers = apiKey
+      ? { Authorization: `Bearer ${apiKey}`, "X-API-Key": apiKey }
+      : undefined;
     // eslint-disable-next-line no-await-in-loop
     res = await fetch(url, {
       method: "POST",
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      headers,
       body: fd,
     });
     // eslint-disable-next-line no-await-in-loop

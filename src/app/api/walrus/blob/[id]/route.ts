@@ -5,7 +5,10 @@ import path from "path";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MOCK_DIR = path.join(process.cwd(), "data", "walrus_mock");
+const MOCK_DIR = path.join(
+  process.env.WALRUS_MOCK_DIR || process.env.TMPDIR || "/tmp",
+  "walrus_mock"
+);
 const READ_BASE = process.env.WALRUS_READ_ENDPOINT || process.env.WALRUS_ENDPOINT;
 
 function buildReadCandidates(base: string, id: string) {
