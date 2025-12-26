@@ -24,7 +24,7 @@ export default function DownloadGate({
 
   async function handleDownload() {
     if (!currentAccount) {
-      showToast("Vui lòng kết nối ví để tải", "warning");
+      showToast("Please connect your wallet to download", "warning");
       return;
     }
 

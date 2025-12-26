@@ -14,7 +14,6 @@ import {
   softDeleteWork,
   updateNFTOwner,
   bindNFTToWork,
-  updateWorkConfig,
 } from "@/lib/workStore";
 import type { Work } from "@/lib/workStore";
 
@@ -35,7 +34,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
 type ViewMode = "active" | "trash";
-type MarketFilter = "all" | "sell" | "license" | "none";
+type MarketFilter = "all" | "sell" | "license";
 
 const PAGE_SIZE = 12;
 
@@ -55,8 +54,8 @@ function explorerTxUrl(net: "devnet" | "testnet" | "mainnet", digest: string) {
 }
 
 /**
- * FIX: toGateway must accept common CIDv0 + CIDv1 (bafy/bafk/baf...).
- * Avoid cover/preview being "" => No cover
+ * ✅ FIX: toGateway phải accept CIDv0 + CIDv1 phổ biến (bafy/bafk/baf...).
+ * Tránh tình trạng cover/preview bị "" => No cover
  */
 function toGateway(input?: string) {
   if (!input) return "";
@@ -65,15 +64,22 @@ function toGateway(input?: string) {
 
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
 
-  if (v.startsWith("/api/walrus/blob/")) return v;
-  if (v.startsWith("walrus:")) {
-    return `/api/walrus/blob/${v.slice("walrus:".length)}`;
-  }
-  if (v.startsWith("walrus://")) {
-    return `/api/walrus/blob/${v.slice("walrus://".length)}`;
-  }
+  if (v.startsWith("ipfs://")) v = v.slice("ipfs://".length);
 
-  return "";
+  v = v.replace(/^\/+/, "");
+  if (v.startsWith("ipfs/")) v = v.slice("ipfs/".length);
+
+  v = v.split("?")[0].split("#")[0];
+
+  const isLikelyCid =
+    v.startsWith("Qm") ||
+    v.startsWith("bafy") ||
+    v.startsWith("bafk") ||
+    v.startsWith("baf");
+
+  if (!isLikelyCid) return "";
+
+  return `https://gateway.pinata.cloud/ipfs/${v}`;
 }
 
 function normalizeIpfsUrl(url?: string) {
@@ -94,7 +100,7 @@ function toDDMMYYYY(iso?: string) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-/** createdDate display for UI (prefer work.createdDate) */
+/** createdDate display for UI (work.createdDate ưu tiên) */
 function pickCreatedDate(work: Work, meta: any | null) {
   const w = String(work.createdDate || "").trim();
   if (w) return w;
@@ -119,7 +125,7 @@ async function cidToAddressHex(cid: string): Promise<string> {
   return hex;
 }
 
-/** FIX: read mime/name from multiple places (top-level + properties) */
+/** ✅ FIX: đọc mime/name từ nhiều nơi (top-level + properties) */
 function guessKindFromFile(meta: any): "image" | "audio" | "video" | "pdf" | "other" {
   const t: string =
     meta?.file?.mime ||
@@ -201,7 +207,7 @@ export default function ManagePage() {
   const [works, setWorks] = useState<Work[]>([]);
   const [page, setPage] = useState(1);
 
-  /** FIX TS: always allow string (fallback "") */
+  /** ✅ FIX TS: cho phép string luôn (fallback "") */
   const prevStatus = useRef<Record<string, string>>({});
 
   const [syncingOwners, setSyncingOwners] = useState<Record<string, boolean>>({});
@@ -231,8 +237,7 @@ export default function ManagePage() {
       list = list.filter(
         (w) =>
           (filter === "sell" && w.sellType === "exclusive") ||
-          (filter === "license" && w.sellType === "license") ||
-          (filter === "none" && w.sellType === "none")
+          (filter === "license" && w.sellType === "license")
       );
     }
 
@@ -244,12 +249,12 @@ export default function ManagePage() {
       const prev = prevStatus.current[id];
       if (prev && prev !== cur) {
         showToast(
-          `Work "${w.title}" ${cur === "verified" ? "was verified" : "was rejected"}`,
+          `Work "${w.title}" ${cur === "verified" ? "has been approved" : "has been rejected"}`,
           cur === "verified" ? "success" : "warning"
         );
       }
 
-      // FIX TS: always a string
+      // ✅ FIX TS: luôn là string
       prevStatus.current[id] = cur;
     });
 
@@ -284,7 +289,7 @@ export default function ManagePage() {
     async (w: Work) => {
       if (!PACKAGE_ID?.startsWith("0x")) return;
 
-      // Case 1: nftObjectId exists => sync owner
+      // Case 1: đã có nftObjectId => sync owner
       if (w.nftObjectId) {
         const obj = await suiClient.getObject({
           id: w.nftObjectId,
@@ -297,7 +302,7 @@ export default function ManagePage() {
         return;
       }
 
-      // Case 2: no nftObjectId => scan by content_hash
+      // Case 2: chưa có nftObjectId => scan theo content_hash
       const cid = String(w.hash || "").trim();
       if (!cid) return;
 
@@ -344,7 +349,7 @@ export default function ManagePage() {
 
   async function handleSyncAll(reason?: string) {
     if (!currentAccount?.address) {
-      showToast("Please connect a wallet to sync", "warning");
+      showToast("Please connect your wallet to sync", "warning");
       return;
     }
     if (!PACKAGE_ID?.startsWith("0x")) {
@@ -367,10 +372,10 @@ export default function ManagePage() {
         await syncOneWorkFromChain(w);
       }
 
-      showToast("Sync completed (NFTs will auto-bind / sync owner if available)", "success");
+      showToast("✅ Sync xong (nếu có NFT sẽ tự bind / sync owner)", "success");
     } catch (e) {
       console.error(e);
-      showToast("Sync failed", "error");
+      showToast("Sync thất bại", "error");
     } finally {
       setSyncingAll(false);
     }
@@ -429,7 +434,7 @@ export default function ManagePage() {
 
       const owner = (obj as any)?.data?.owner?.AddressOwner as string | undefined;
       if (!owner) {
-        showToast("Unable to read owner from chain", "warning");
+        showToast("Cannot read owner from chain", "warning");
         return;
       }
 
@@ -437,7 +442,7 @@ export default function ManagePage() {
       showToast(`Owner synced: ${shortAddr(owner)}`, "success");
     } catch (e) {
       console.error(e);
-      showToast("Owner sync failed", "error");
+      showToast("Sync owner failed", "error");
     } finally {
       setSyncingOwners((m) => ({ ...m, [work.id]: false }));
     }
@@ -445,7 +450,7 @@ export default function ManagePage() {
 
   async function handleSellNFT(work: Work) {
     if (!currentAccount) {
-      showToast("Please connect a wallet", "warning");
+      showToast("Please connect your wallet", "warning");
       return;
     }
     if (!PACKAGE_ID?.startsWith("0x")) {
@@ -453,19 +458,19 @@ export default function ManagePage() {
       return;
     }
     if (!work.nftObjectId) {
-      showToast("Work has not bound NFT yet (click Auto-sync NFT)", "warning");
+      showToast("Work not bound to NFT (click Auto-sync NFT)", "warning");
       return;
     }
 
-    const buyer = prompt("Enter buyer wallet (0x...):");
+    const buyer = prompt("Enter buyer's wallet (0x...):");
     if (!buyer) return;
 
-    const priceStr = prompt("Enter price (SUI)", "1");
+    const priceStr = prompt("Nhập giá (SUI)", "1");
     if (!priceStr) return;
 
     const priceMist = BigInt(Math.floor(Number(priceStr) * 1_000_000_000));
     if (priceMist <= BigInt(0)) {
-      showToast("Invalid price", "warning");
+      showToast("Giá không hợp lệ", "warning");
       return;
     }
 
@@ -495,10 +500,10 @@ export default function ManagePage() {
         priceMist: priceMist.toString(),
       });
 
-      showToast("NFT sale successful", "success");
+      showToast("🎉 Bán NFT thành công", "success");
     } catch (e) {
       console.error(e);
-      showToast("Transaction failed", "error");
+      showToast("Giao dịch thất bại", "error");
     } finally {
       setSellingId(null);
     }
@@ -506,7 +511,7 @@ export default function ManagePage() {
 
   async function handleIssueLicense(work: Work) {
     if (!currentAccount) {
-      showToast("Please connect a wallet", "warning");
+      showToast("Vui lòng kết nối ví", "warning");
       return;
     }
     if (!PACKAGE_ID?.startsWith("0x")) {
@@ -514,16 +519,16 @@ export default function ManagePage() {
       return;
     }
     if (!work.nftObjectId) {
-      showToast("Work has not bound WorkNFT (click Auto-sync NFT)", "warning");
+      showToast("Work not bound to WorkNFT (click Auto-sync NFT)", "warning");
       return;
     }
 
-    const licensee = prompt("Enter license buyer wallet (0x...):");
+    const licensee = prompt("Nhập ví người mua license (0x...):");
     if (!licensee) return;
 
     const royalty = Number(prompt("Royalty % (0-100)", String(work.royalty ?? 10)));
     if (Number.isNaN(royalty) || royalty < 0 || royalty > 100) {
-      showToast("Invalid royalty", "warning");
+      showToast("Royalty không hợp lệ", "warning");
       return;
     }
 
@@ -550,10 +555,10 @@ export default function ManagePage() {
         txDigest: (result as any).digest,
       });
 
-      showToast("License issued successfully", "success");
+      showToast("✅ Cấp license thành công", "success");
     } catch (e) {
       console.error(e);
-      showToast("License issuance failed", "error");
+      showToast("Cấp license thất bại", "error");
     } finally {
       setLicensingId(null);
     }
@@ -562,7 +567,7 @@ export default function ManagePage() {
   function handleSoftDelete(work: Work) {
     if (!userId) return;
 
-    const ok = confirm(`Move "${work.title}" to trash?`);
+    const ok = confirm(`Đưa "${work.title}" vào thùng rác?`);
     if (!ok) return;
 
     try {
@@ -571,10 +576,7 @@ export default function ManagePage() {
         actor: { id: userId, role: userRole as any },
         walletAddress: currentAccount?.address,
       });
-      if (selected?.id === work.id) {
-        setSelected(null);
-      }
-      showToast("Moved to trash", "success");
+      showToast("🗑️ Moved to trash", "success");
     } catch (e: any) {
       console.error(e);
       if (String(e?.message).includes("FORBIDDEN")) {
@@ -589,16 +591,16 @@ export default function ManagePage() {
     if (!userId) return;
 
     if (userRole !== "admin") {
-      showToast("Only admins can restore", "warning");
+      showToast("Chỉ admin mới được khôi phục", "warning");
       return;
     }
 
-    const ok = confirm(`Restore "${work.title}"?`);
+    const ok = confirm(`Khôi phục "${work.title}"?`);
     if (!ok) return;
 
     try {
       restoreWork({ workId: work.id, actor: { id: userId, role: userRole as any } });
-      showToast("Work restored", "success");
+      showToast("♻️ Work restored", "success");
     } catch (e: any) {
       console.error(e);
       showToast("Restore failed", "error");
@@ -611,8 +613,8 @@ export default function ManagePage() {
     return (
       <div className={styles.page}>
         <div className={styles.locked}>
-          <h2>Not signed in</h2>
-          <p>Please sign in to manage works.</p>
+          <h2>Not logged in</h2>
+          <p>Please log in to manage your works.</p>
         </div>
       </div>
     );
@@ -623,7 +625,7 @@ export default function ManagePage() {
       {/* ===== Header ===== */}
       <div className={styles.header}>
         <div className={styles.headLeft}>
-          <h1 className={styles.headTitle}>Manage works</h1>
+          <h1 className={styles.headTitle}>Manage Works</h1>
           <div className={styles.headSub}>
             Network: <b>{activeNet}</b> • pkg:{" "}
             <b className={styles.mono}>{PACKAGE_ID ? shortAddr(PACKAGE_ID) : "missing"}</b>
@@ -632,14 +634,14 @@ export default function ManagePage() {
 
         <div className={styles.headRight}>
           <button className={styles.btnPrimary} onClick={() => router.push("/register-work")}>
-            + Register work
+            + Register Work
           </button>
 
           <button
             className={styles.btnSecondary}
             onClick={() => handleSyncAll("Auto-syncing NFTs from chain...")}
             disabled={syncingAll || isPending}
-            title="Scan WorkNFTs in wallet by content_hash = sha256(metadataCid)"
+            title="Scan WorkNFT in wallet by content_hash = sha256(metadataCid)"
           >
             {syncingAll ? "Syncing..." : "Auto-sync NFT"}
           </button>
@@ -651,9 +653,8 @@ export default function ManagePage() {
               onChange={(e) => setFilter(e.target.value as any)}
             >
               <option value="all">All</option>
-              <option value="sell">Exclusive</option>
+              <option value="sell">Sell outright</option>
               <option value="license">License</option>
-              <option value="none">Not for sale</option>
             </select>
 
             <select
@@ -673,7 +674,7 @@ export default function ManagePage() {
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>🎵</div>
           <div className={styles.emptyTitle}>No works yet</div>
-          <div className={styles.emptySub}>Register your first work to mint an NFT.</div>
+          <div className={styles.emptySub}>Register your first work to mint NFT.</div>
         </div>
       ) : null}
 
@@ -707,11 +708,11 @@ export default function ManagePage() {
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            Prev
+            ← Trước
           </button>
 
           <div className={styles.pagerInfo}>
-            Page <b>{page}</b>/<b>{totalPages}</b> •{" "}
+            Trang <b>{page}</b>/<b>{totalPages}</b> •{" "}
             <span className={styles.muted}>{works.length} items</span>
           </div>
 
@@ -720,7 +721,7 @@ export default function ManagePage() {
             disabled={page >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
-            Next
+            Sau →
           </button>
         </div>
       ) : null}
@@ -780,12 +781,8 @@ function WorkCard(props: {
     syncingOwner,
   } = props;
 
-  const { showToast } = useToast();
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [sellTypeEdit, setSellTypeEdit] = useState<string>(work.sellType || "exclusive");
-  const [royaltyEdit, setRoyaltyEdit] = useState<string>(String(work.royalty ?? 0));
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
 
@@ -804,16 +801,6 @@ function WorkCard(props: {
     };
   }, [metaUrl]);
 
-  useEffect(() => {
-    setSellTypeEdit(work.sellType || "exclusive");
-    setRoyaltyEdit(String(work.royalty ?? 0));
-  }, [work.id, work.sellType, work.royalty]);
-
-  useEffect(() => {
-    setSellTypeEdit(work.sellType || "exclusive");
-    setRoyaltyEdit(String(work.royalty ?? 0));
-  }, [work.id, work.sellType, work.royalty]);
-
   // ✅ cover fallback: properties.cover.url -> cover_image -> cover.url -> image
   const coverUrl = useMemo(() => {
     const cover =
@@ -830,36 +817,16 @@ function WorkCard(props: {
 
   // ✅ FIX TS: s?: string
   function statusLabel(s?: string) {
-    if (s === "verified") return "Verified";
+    if (s === "verified") return "Approved";
     if (s === "pending") return "Pending";
     if (s === "rejected") return "Rejected";
     return "—";
   }
   function sellTypeLabel(t?: string) {
-    if (t === "exclusive") return "Exclusive";
+    if (t === "exclusive") return "Bán đứt";
     if (t === "license") return "License";
-    if (t === "none") return "Not for sale";
     return t || "—";
   }
-
-  async function saveEdit() {
-    if (view === "trash") return;
-    const royaltyNum = Math.max(0, Math.min(100, Math.floor(Number(royaltyEdit || 0))));
-    setSavingEdit(true);
-    try {
-      updateWorkConfig({
-        workId: work.id,
-        sellType: sellTypeEdit as any,
-        royalty: royaltyNum,
-      });
-      showToast("Updated sellType/royalty.", "success");
-    } catch (e: any) {
-      showToast(e?.message || "Update failed", "error");
-    } finally {
-      setSavingEdit(false);
-    }
-  }
-
 
   return (
     <div
@@ -906,13 +873,13 @@ function WorkCard(props: {
 
         <div
           className={`${styles.dateBadge} ${createdText === "—" ? styles.dateBadgeMuted : ""}`}
-          title="Creation date"
+          title="Ngày sáng tác"
         >
           {createdText}
         </div>
 
         <div className={styles.previewOverlay}>
-          <span className={styles.previewCta}>View details -&gt;</span>
+          <span className={styles.previewCta}>Xem chi tiết →</span>
         </div>
       </div>
 
@@ -931,7 +898,7 @@ function WorkCard(props: {
                 {shortAddr(work.nftObjectId)}
               </a>
             ) : (
-              <span className={styles.warnText}>— not bound</span>
+              <span className={styles.warnText}>— chưa bind</span>
             )}
           </span>
         </div>
@@ -956,36 +923,36 @@ function WorkCard(props: {
           className={styles.actionPrimary}
           onClick={onSell}
           disabled={view === "trash" || selling || disableGlobal}
-          title={view === "trash" ? "Restore before action" : "Sell NFT"}
+          title={view === "trash" ? "Restore before operation" : "Sell NFT"}
         >
-          {selling ? "Selling..." : "Sell"}
+          {selling ? "Selling…" : "Sell"}
         </button>
 
         <button
           className={styles.actionPrimary}
           onClick={onIssueLicense}
           disabled={view === "trash" || licensing || disableGlobal}
-          title={view === "trash" ? "Restore before action" : "Issue license"}
+          title={view === "trash" ? "Restore before operation" : "Issue license"}
         >
-          {licensing ? "Issuing..." : "License"}
+          {licensing ? "Issuing…" : "License"}
         </button>
 
         <button
           className={styles.actionGhost}
           onClick={onSyncOwner}
           disabled={!work.nftObjectId || syncingOwner || disableGlobal}
-          title={!work.nftObjectId ? "No NFT yet" : "Read owner from chain"}
+          title={!work.nftObjectId ? "Chưa có NFT" : "Đọc owner từ chain"}
         >
           {syncingOwner ? "Sync…" : "Sync"}
         </button>
 
         {view === "active" ? (
           <button className={styles.actionDanger} onClick={onDelete} disabled={disableGlobal}>
-            Delete
+            Xoá
           </button>
         ) : (
           <button className={styles.actionGhost} onClick={onRestore} disabled={disableGlobal}>
-            Restore
+            Khôi phục
           </button>
         )}
       </div>
@@ -1024,12 +991,8 @@ function WorkDetailModal(props: {
     syncingOwner,
   } = props;
 
-  const { showToast } = useToast();
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [sellTypeEdit, setSellTypeEdit] = useState<string>(work.sellType || "exclusive");
-  const [royaltyEdit, setRoyaltyEdit] = useState<string>(String(work.royalty ?? 0));
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
 
@@ -1050,11 +1013,6 @@ function WorkDetailModal(props: {
       alive = false;
     };
   }, [metaUrl]);
-
-  useEffect(() => {
-    setSellTypeEdit(work.sellType || "exclusive");
-    setRoyaltyEdit(String(work.royalty ?? 0));
-  }, [work.id, work.sellType, work.royalty]);
 
   const coverUrl = useMemo(() => {
     const cover =
@@ -1082,34 +1040,15 @@ function WorkDetailModal(props: {
   }
 
   function statusLabel(s?: string) {
-    if (s === "verified") return "Verified";
+    if (s === "verified") return "Approved";
     if (s === "pending") return "Pending";
     if (s === "rejected") return "Rejected";
     return "—";
   }
   function sellTypeLabel(t?: string) {
-    if (t === "exclusive") return "Exclusive";
+    if (t === "exclusive") return "Bán đứt";
     if (t === "license") return "License";
-    if (t === "none") return "Not for sale";
     return t || "—";
-  }
-
-  async function saveEdit() {
-    if (view === "trash") return;
-    const royaltyNum = Math.max(0, Math.min(100, Math.floor(Number(royaltyEdit || 0))));
-    setSavingEdit(true);
-    try {
-      updateWorkConfig({
-        workId: work.id,
-        sellType: sellTypeEdit as any,
-        royalty: royaltyNum,
-      });
-      showToast("Updated sellType/royalty.", "success");
-    } catch (e: any) {
-      showToast(e?.message || "Update failed", "error");
-    } finally {
-      setSavingEdit(false);
-    }
   }
 
   return (
@@ -1163,7 +1102,7 @@ function WorkDetailModal(props: {
 
           {!mediaUrl ? (
             <div className={styles.mediaEmpty}>
-              No preview file (metadata missing animation_url / file.url).
+              Không có file preview (metadata thiếu animation_url / file.url).
             </div>
           ) : kind === "audio" ? (
             <audio className={styles.audio} controls src={mediaUrl} />
@@ -1176,16 +1115,16 @@ function WorkDetailModal(props: {
             <img className={styles.modalImg2} src={mediaUrl} alt="preview" />
           ) : (
             <div className={styles.mediaEmpty}>
-              Unable to detect type.{" "}
+              Không nhận diện được type.{" "}
               <a className={styles.link} href={mediaUrl} target="_blank" rel="noreferrer">
-                Open file
+                Mở file
               </a>
             </div>
           )}
         </div>
 
         <div className={styles.modalGridPro}>
-          <KV label="Creation date" value={createdText} />
+          <KV label="Ngày sáng tác" value={createdText} />
           <KV label="Owner" value={work.authorWallet ? shortAddr(work.authorWallet) : "—"} mono />
           <KV label="Royalty" value={`${work.royalty ?? 0}%`} />
 
@@ -1242,7 +1181,7 @@ function WorkDetailModal(props: {
           />
 
           <KV
-            label="Author"
+            label="Tác giả"
             value={`${work.authorName || work.authorId || "—"}${
               work.authorPhone ? ` • ${work.authorPhone}` : ""
             }`}
@@ -1251,49 +1190,11 @@ function WorkDetailModal(props: {
 
         {meta?.description ? <div className={styles.metaDesc}>{meta.description}</div> : null}
 
-        <div className={styles.editBox}>
-          <div className={styles.editTitle}>Update sales & royalty</div>
-          <div className={styles.editRow}>
-            <label className={styles.editLabel}>Type</label>
-            <select
-              className={styles.editSelect}
-              value={sellTypeEdit}
-              onChange={(e) => setSellTypeEdit(e.target.value)}
-              disabled={view === "trash" || disableGlobal || savingEdit}
-            >
-              <option value="exclusive">Exclusive</option>
-              <option value="license">License</option>
-              <option value="none">Not for sale</option>
-            </select>
-          </div>
-
-          <div className={styles.editRow}>
-            <label className={styles.editLabel}>Royalty (%)</label>
-            <input
-              className={styles.editInput}
-              value={royaltyEdit}
-              onChange={(e) => setRoyaltyEdit(e.target.value)}
-              inputMode="numeric"
-              disabled={view === "trash" || disableGlobal || savingEdit}
-            />
-          </div>
-
-          <div className={styles.editActions}>
-            <button
-              className={styles.btnPrimary}
-              onClick={saveEdit}
-              disabled={view === "trash" || disableGlobal || savingEdit}
-            >
-              {savingEdit ? "Saving..." : "Save changes"}
-            </button>
-          </div>
-        </div>
-
         <div className={styles.licenseBox}>
           <div className={styles.licenseHead}>
             <div className={styles.licenseTitle}>License history</div>
             <div className={styles.licenseHint}>
-              {work.sellType === "license" ? "Sold as license" : "Not in license mode"}
+              {work.sellType === "license" ? "Bán theo license" : "Không phải license mode"}
             </div>
           </div>
 
@@ -1325,7 +1226,7 @@ function WorkDetailModal(props: {
                 ))}
             </div>
           ) : (
-            <div className={styles.licenseEmpty}>No licenses yet.</div>
+            <div className={styles.licenseEmpty}>Chưa có license nào.</div>
           )}
         </div>
 
@@ -1335,7 +1236,7 @@ function WorkDetailModal(props: {
             onClick={onSell}
             disabled={view === "trash" || selling || disableGlobal}
           >
-            {selling ? "Selling..." : "Sell NFT"}
+            {selling ? "Selling…" : "Sell NFT"}
           </button>
 
           <button
@@ -1343,7 +1244,7 @@ function WorkDetailModal(props: {
             onClick={onIssueLicense}
             disabled={view === "trash" || licensing || disableGlobal}
           >
-            {licensing ? "Issuing..." : "Issue license"}
+            {licensing ? "Issuing…" : "Issue License"}
           </button>
 
           <button
@@ -1356,11 +1257,11 @@ function WorkDetailModal(props: {
 
           {view === "active" ? (
             <button className={styles.actionDanger} onClick={onDelete} disabled={disableGlobal}>
-              Delete
+              Xoá
             </button>
           ) : (
             <button className={styles.actionGhost} onClick={onRestore} disabled={disableGlobal}>
-              Restore
+              Khôi phục
             </button>
           )}
         </div>

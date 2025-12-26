@@ -20,7 +20,7 @@ export default function DashboardPage() {
 
   return (
     <div className={styles.page}>
-      <h1>Author dashboard</h1>
+      <h1>Author Dashboard</h1>
 
       <div className={styles.stats}>
         <div>

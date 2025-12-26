@@ -64,7 +64,7 @@ export default function WalletPanel() {
     setLoading(true);
     try {
       await connectWallet();
-      // After user clicks connect, re-check status
+      // Sau khi user click connect, re-check status
       const s = await detectSuietStatus();
       setStatus(s);
     } finally {
@@ -77,10 +77,10 @@ export default function WalletPanel() {
   ========================= */
   return (
     <div className={styles.walletCard}>
-      <h2>SUI Wallet</h2>
+      <h2>Ví SUI</h2>
 
       {/* =====================
-          NOT CONNECTED
+          CHƯA CONNECT
       ===================== */}
       {!user.wallet && (
         <>
@@ -89,14 +89,14 @@ export default function WalletPanel() {
             onClick={handleConnect}
             disabled={loading}
           >
-            {loading ? "Connecting..." : "Connect SUI wallet"}
+            {loading ? "Connecting..." : "Connect SUI Wallet"}
           </button>
 
           {/* ===== STATUS MESSAGE ===== */}
 
           {status === "not-installed" && (
             <div className={styles.walletHint}>
-              <p>❌ SUI wallet not detected</p>
+              <p>❌ SUI Wallet not detected</p>
 
               <a
                 href="https://chromewebstore.google.com/detail/suiet-wallet/khmnhcnbpipfhdldjhnadmgkgbhkjpph"
@@ -111,7 +111,7 @@ export default function WalletPanel() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                👉 Install official Sui Wallet
+                👉 Install Official Sui Wallet
               </a>
 
               <a
@@ -127,7 +127,7 @@ export default function WalletPanel() {
           {status === "locked" && (
             <div className={styles.walletHintWarn}>
               <p>🔒 Suiet is locked</p>
-              <p>👉 Open Suiet Wallet and enter your password to unlock</p>
+              <p>👉 Open Suiet Wallet and enter password to unlock</p>
             </div>
           )}
 
@@ -135,8 +135,7 @@ export default function WalletPanel() {
             <div className={styles.walletHint}>
               <p>✅ Suiet is ready</p>
               <p>
-                👉 If you click and do not see a popup, check the right side
-                of the Chrome address bar and allow popups
+                👉 If you click but don't see popup, look at the right corner of Chrome address bar and allow popup
               </p>
             </div>
           )}
@@ -144,17 +143,17 @@ export default function WalletPanel() {
       )}
 
       {/* =====================
-          CONNECTED
+          ĐÃ CONNECT
       ===================== */}
       {user.wallet && (
         <>
           <div className={styles.walletField}>
-            <label>Wallet address</label>
+            <label>Địa chỉ ví</label>
             <input value={user.wallet.address} disabled />
           </div>
 
           <div className={styles.balanceBox}>
-            <span>Balance</span>
+            <span>Số dư</span>
             <strong>{balance.toFixed(4)} SUI</strong>
           </div>
 
@@ -162,7 +161,7 @@ export default function WalletPanel() {
             className={styles.revokeBtn}
             onClick={revokeWallet}
           >
-            Disconnect wallet
+            Gỡ ví
           </button>
         </>
       )}

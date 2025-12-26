@@ -119,7 +119,7 @@ async function fetchMetadata(metaCidOrUrl: string) {
   }
 }
 
-/** resolve profile: prefer loadProfile(authorId) -> fallback find by email/wallet from repWork */
+/** ✅ resolve profile: ưu tiên loadProfile(authorId) -> fallback tìm bằng email/wallet từ repWork */
 function resolveProfile(authorId: string, repWork: Work | null): UserProfile | null {
   const p0 = loadProfile(authorId);
 
@@ -140,7 +140,7 @@ function resolveProfile(authorId: string, repWork: Work | null): UserProfile | n
   return (byEmail?.profile || byWallet?.profile || null) as UserProfile | null;
 }
 
-/* ===== Pick author info (prefer profileStore) ===== */
+/* ===== Pick author info (ưu tiên profileStore) ===== */
 function pickAuthorFromProfile(authorId: string, prof: UserProfile | null, repWork: Work | null) {
   const rep = repWork || {};
 
@@ -157,7 +157,7 @@ function pickAuthorFromProfile(authorId: string, prof: UserProfile | null, repWo
 
   return {
     id: authorId,
-    name: name || String(rep.authorName || "").trim() || "Author",
+    name: name || String(rep.authorName || "").trim() || "Tác giả",
     email: email || String(rep.authorEmail || rep.email || "").trim() || "—",
     avatar,
     phone: phone || String(rep.authorPhone || rep.phone || "").trim() || "",
@@ -171,7 +171,7 @@ export default function AuthorProfilePage() {
   const params = useParams();
   const authorId = decodeURIComponent(String(params?.id || ""));
 
-  // FIX hydration: only load localStorage-based data after mounted
+  // ✅ FIX hydration: chỉ load localStorage-based data sau khi mounted
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [worksVersion, setWorksVersion] = useState(0);
@@ -199,7 +199,7 @@ export default function AuthorProfilePage() {
   /* ✅ profileStore */
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  // stable key to avoid object dependency loops
+  // key “ổn định” để tránh loop dependency theo object
   const repEmailKey = String(repWork?.authorEmail || repWork?.email || "").trim();
   const repWalletKey = String(repWork?.authorWallet || repWork?.walletAddress || "").trim();
 
@@ -210,7 +210,7 @@ export default function AuthorProfilePage() {
     // initial resolve
     setProfile(resolveProfile(authorId, repWork));
 
-    // listenAll: true so profile key changes reload even if authorId differs
+    // listenAll: true để khi profile key khác authorId thay đổi vẫn reload
     const unsub = subscribeProfile(
       authorId,
       () => {
@@ -246,14 +246,14 @@ export default function AuthorProfilePage() {
   /* modal */
   const [selected, setSelected] = useState<Work | null>(null);
 
-  // FIX hydration: always return <main> (do not switch div/main between SSR & client)
+  // ✅ FIX hydration: luôn return <main> (không đổi div/main giữa SSR & client)
   if (!mounted) {
     return (
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>⏳</div>
-            <div className={styles.emptyTitle}>Loading author profile...</div>
+            <div className={styles.emptyTitle}>Loading author profile…</div>
             <div className={styles.emptySub}>Please wait a moment</div>
           </div>
         </div>
@@ -267,8 +267,8 @@ export default function AuthorProfilePage() {
         <div className={styles.shell}>
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>⚠️</div>
-            <div className={styles.emptyTitle}>Missing authorId</div>
-            <div className={styles.emptySub}>URL must be /author/[id]</div>
+            <div className={styles.emptyTitle}>Thiếu authorId</div>
+            <div className={styles.emptySub}>URL cần dạng /author/[id]</div>
           </div>
         </div>
       </main>
@@ -280,14 +280,14 @@ export default function AuthorProfilePage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <Link className={styles.backLink} href="/search">
-            <ArrowLeft size={16} weight="bold" /> Back to search
+            <ArrowLeft size={16} weight="bold" /> Quay lại tra cứu
           </Link>
 
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>👤</div>
-            <div className={styles.emptyTitle}>Author not found</div>
+            <div className={styles.emptyTitle}>Không tìm thấy tác giả</div>
             <div className={styles.emptySub}>
-              No verified works found for authorId:{" "}
+              Không có tác phẩm đã duyệt nào thuộc authorId:{" "}
               <b className={styles.mono}>{authorId}</b>
             </div>
           </div>
@@ -301,7 +301,7 @@ export default function AuthorProfilePage() {
       <div className={styles.shell}>
         <div className={styles.topbar}>
           <Link className={styles.backLink} href="/search">
-            <ArrowLeft size={16} weight="bold" /> Back
+            <ArrowLeft size={16} weight="bold" /> Quay lại
           </Link>
 
           <div className={styles.rightHint}>
@@ -324,7 +324,7 @@ export default function AuthorProfilePage() {
 
             <div className={styles.headerText}>
               <div className={styles.nameRow}>
-                <h1 className={styles.name}>{author.name || "Author"}</h1>
+                <h1 className={styles.name}>{author.name || "Tác giả"}</h1>
                 <span className={styles.verifiedPill}>
                   <ShieldCheck size={14} weight="fill" /> Verified
                 </span>
@@ -349,15 +349,15 @@ export default function AuthorProfilePage() {
           <div className={styles.headerRight}>
             <div className={styles.stat}>
               <div className={styles.statVal}>{stats.total}</div>
-              <div className={styles.statLab}>Works</div>
+              <div className={styles.statLab}>Tác phẩm</div>
             </div>
             <div className={styles.stat}>
               <div className={styles.statVal}>{stats.cats}</div>
-              <div className={styles.statLab}>Category</div>
+              <div className={styles.statLab}>Thể loại</div>
             </div>
             <div className={styles.stat}>
               <div className={styles.statVal}>{stats.langs}</div>
-              <div className={styles.statLab}>Language</div>
+              <div className={styles.statLab}>Ngôn ngữ</div>
             </div>
           </div>
         </section>
@@ -365,26 +365,26 @@ export default function AuthorProfilePage() {
         <section className={styles.detailGrid}>
           <div className={styles.detailCard}>
             <div className={styles.detailHead}>
-              <div className={styles.detailTitle}>Details</div>
+              <div className={styles.detailTitle}>Thông tin chi tiết</div>
               <div className={styles.detailHint}>
-                Source: profileStore (preferred) / fallback from works
+                Nguồn: profileStore (ưu tiên) / fallback từ tác phẩm
               </div>
             </div>
 
             <div className={styles.kvGrid}>
               <KV icon={<Wallet size={16} weight="bold" />} label="Wallet" value={author.wallet ? shortAddr(author.wallet) : "—"} mono />
-              <KV icon={<Phone size={16} weight="bold" />} label="Phone" value={author.phone || "—"} />
-              <KV icon={<GlobeHemisphereWest size={16} weight="bold" />} label="Country" value={author.country || "—"} />
-              <KV icon={<MapPin size={16} weight="bold" />} label="Address" value={author.address || "—"} />
+              <KV icon={<Phone size={16} weight="bold" />} label="Số điện thoại" value={author.phone || "—"} />
+              <KV icon={<GlobeHemisphereWest size={16} weight="bold" />} label="Quốc gia" value={author.country || "—"} />
+              <KV icon={<MapPin size={16} weight="bold" />} label="Địa chỉ" value={author.address || "—"} />
             </div>
 
             {!profile ? (
               <div className={styles.note}>
-                * No profile in profileStore for this authorId -&gt; showing fallback data from works.
+                * Chưa có profile trong profileStore cho authorId này → đang hiển thị dữ liệu fallback từ tác phẩm.
               </div>
             ) : (
               <div className={styles.note}>
-                * Showing profileStore data (may map by email/wallet) for:{" "}
+                * Đang hiển thị dữ liệu từ profileStore (có thể map theo email/wallet) cho:{" "}
                 <b className={styles.mono}>{authorId}</b>.
               </div>
             )}
@@ -392,8 +392,8 @@ export default function AuthorProfilePage() {
 
           <div className={styles.detailCardAlt}>
             <div className={styles.altHead}>
-              <div className={styles.altTitle}>Recent activity</div>
-              <div className={styles.altSub}>List of verified works by the author</div>
+              <div className={styles.altTitle}>Hoạt động gần đây</div>
+              <div className={styles.altSub}>Danh sách tác phẩm đã duyệt của tác giả</div>
             </div>
 
             <div className={styles.altList}>
@@ -415,8 +415,8 @@ export default function AuthorProfilePage() {
         </section>
 
         <section className={styles.sectionHead}>
-          <h2 className={styles.sectionTitle}>Verified works</h2>
-          <p className={styles.sectionSub}>Click a card to view details.</p>
+          <h2 className={styles.sectionTitle}>Tác phẩm đã duyệt</h2>
+          <p className={styles.sectionSub}>Click vào card để xem detail.</p>
         </section>
 
         <section className={styles.grid}>
@@ -443,7 +443,7 @@ function KV(props: { icon: React.ReactNode; label: string; value: any; mono?: bo
   );
 }
 
-/* ===== Card + Modal keep the same design ===== */
+/* ===== Card + Modal giữ nguyên design ===== */
 
 function AuthorWorkCard(props: { work: Work; onOpen: () => void }) {
   const { work, onOpen } = props;
@@ -530,17 +530,17 @@ function AuthorWorkCard(props: { work: Work; onOpen: () => void }) {
         </div>
 
         <div className={styles.previewCta}>
-          View details <ArrowRight size={16} weight="bold" />
+          Xem chi tiết <ArrowRight size={16} weight="bold" />
         </div>
       </div>
 
       <div className={styles.workInfo}>
         <div className={styles.row}>
-          <span className={styles.k}>Category</span>
+          <span className={styles.k}>Thể loại</span>
           <span className={styles.v}>{work.category || "—"}</span>
         </div>
         <div className={styles.row}>
-          <span className={styles.k}>Language</span>
+          <span className={styles.k}>Ngôn ngữ</span>
           <span className={styles.v}>{work.language || "—"}</span>
         </div>
         <div className={styles.row}>
@@ -652,7 +652,7 @@ function WorkDetailModal(props: { work: Work; onClose: () => void }) {
           </div>
 
           {!mediaUrl ? (
-            <div className={styles.mediaEmpty}>No preview file.</div>
+            <div className={styles.mediaEmpty}>Không có file preview.</div>
           ) : kind === "audio" ? (
             <audio className={styles.audio} controls src={mediaUrl} />
           ) : kind === "video" ? (
@@ -664,9 +664,9 @@ function WorkDetailModal(props: { work: Work; onClose: () => void }) {
             <img className={styles.modalImg2} src={mediaUrl} alt="preview" />
           ) : (
             <div className={styles.mediaEmpty}>
-              Unable to detect type.{" "}
+              Không nhận diện được type.{" "}
               <a className={styles.link} href={mediaUrl} target="_blank" rel="noreferrer">
-                Open file
+                Mở file
               </a>
             </div>
           )}

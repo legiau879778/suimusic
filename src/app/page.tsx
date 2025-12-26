@@ -51,14 +51,14 @@ export default function HomePage() {
               <span>Digital music copyrights</span>
             </h1>
 
-            <p className={styles.subtitle}>Protect your music with the power of blockchain.</p>
+            <p className={styles.subtitle}>Protect your music with the power of Blockchain.</p>
 
             <div className={styles.heroActions}>
               <Link href="/register-work" className={styles.primaryBtn}>
-                Register work
+                Register Work
               </Link>
               <Link href="/search" className={styles.secondaryBtn}>
-                Search works
+                Search Work
               </Link>
             </div>
 
@@ -68,7 +68,7 @@ export default function HomePage() {
                 <div className={styles.infoIcon}>🔒</div>
                 <div className={styles.infoText}>
                   <div className={styles.infoTop}>On-chain Proof</div>
-                  <div className={styles.infoBot}>Transparent hash + ownership</div>
+                  <div className={styles.infoBot}>Transparent Hash + Ownership</div>
                 </div>
               </div>
 
@@ -76,7 +76,7 @@ export default function HomePage() {
                 <div className={styles.infoIcon}>⚡</div>
                 <div className={styles.infoText}>
                   <div className={styles.infoTop}>Fast Verify</div>
-                  <div className={styles.infoBot}>Instant search &amp; verification</div>
+                  <div className={styles.infoBot}>Instant Search &amp; Verification</div>
                 </div>
               </div>
             </div>
@@ -103,7 +103,7 @@ export default function HomePage() {
                 <span className={styles.chainBadge}>Sui</span>
               </div>
 
-              <div className={styles.nftHoverCta}>View NFT -&gt;</div>
+              <div className={styles.nftHoverCta}>View NFT →</div>
             </div>
 
             <div className={styles.nftBody}>
@@ -134,9 +134,9 @@ export default function HomePage() {
       {/* FEATURES (PHOSPHOR) */}
       <section className={styles.features}>
         <div className={styles.sectionHead}>
-          <h2 className={styles.sectionTitle}>Core features</h2>
+          <h2 className={styles.sectionTitle}>Core Features</h2>
           <p className={styles.sectionSub}>
-            Key features to keep your protection and trading safe.
+            Core functions that make your protection and trading safe.
           </p>
         </div>
 
@@ -148,7 +148,7 @@ export default function HomePage() {
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
               <div className={styles.featureTitleV2}>Register work</div>
-              <div className={styles.featureSubV2}>Record on-chain ownership of works</div>
+              <div className={styles.featureSubV2}>Record work ownership on-chain</div>
             </div>
           </Link>
 
@@ -158,8 +158,8 @@ export default function HomePage() {
             </div>
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
-              <div className={styles.featureTitleV2}>Rights management</div>
-              <div className={styles.featureSubV2}>Track status, ownership, and licenses</div>
+              <div className={styles.featureTitleV2}>Manage copyrights</div>
+              <div className={styles.featureSubV2}>Track status, ownership and licenses</div>
             </div>
           </Link>
 
@@ -170,7 +170,7 @@ export default function HomePage() {
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
               <div className={styles.featureTitleV2}>Search works</div>
-              <div className={styles.featureSubV2}>Verify origin and ownership instantly</div>
+              <div className={styles.featureSubV2}>Verify origin &amp; ownership instantly</div>
             </div>
           </Link>
 
@@ -180,8 +180,8 @@ export default function HomePage() {
             </div>
             <div className={styles.featureBodyV2}>
               <div className={styles.featureBrand}>SUIMUSIC</div>
-              <div className={styles.featureTitleV2}>Rights trading</div>
-              <div className={styles.featureSubV2}>Buy/sell and issue licenses transparently on-chain</div>
+              <div className={styles.featureTitleV2}>Trade copyrights</div>
+              <div className={styles.featureSubV2}>Buy &amp; issue licenses transparently on-chain</div>
             </div>
           </Link>
         </div>
@@ -191,15 +191,15 @@ export default function HomePage() {
       <section className={styles.stats}>
         <div className={styles.stat}>
           <strong>8,000+</strong>
-          <span>Works protected</span>
+          <span>Protected works</span>
         </div>
         <div className={styles.stat}>
           <strong>700+</strong>
-          <span>Works traded</span>
+          <span>Traded works</span>
         </div>
         <div className={styles.stat}>
           <strong>98%</strong>
-          <span>Trust score</span>
+          <span>Reliability</span>
         </div>
       </section>
 
@@ -211,15 +211,15 @@ export default function HomePage() {
               <span className={styles.infoHeadIcon}>
                 <Info weight="duotone" size={18} />
               </span>
-              <h3 className={styles.infoBlockTitle}>What does Chainstorm do?</h3>
+              <h3 className={styles.infoBlockTitle}>What is Chainstorm website used for?</h3>
             </div>
 
             <ul className={styles.infoList}>
-              <li className={styles.infoLine}>Record music work ownership</li>
-              <li className={styles.infoLine}>Verify copyright transparently</li>
+              <li className={styles.infoLine}>Record ownership of musical works</li>
+              <li className={styles.infoLine}>Transparent and clear copyright verification</li>
               <li className={styles.infoLine}>Track and manage music usage</li>
-              <li className={styles.infoLine}>Prevent unauthorized copying and use</li>
-              <li className={styles.infoLine}>Support licensing and royalty collection</li>
+              <li className={styles.infoLine}>Prevent copying and unauthorized use</li>
+              <li className={styles.infoLine}>Support licensing and copyright fee collection</li>
             </ul>
           </div>
 
@@ -232,11 +232,11 @@ export default function HomePage() {
             </div>
 
             <ul className={styles.infoList}>
-              <li className={styles.infoLine}>Protect legal rights of artists and producers</li>
-              <li className={styles.infoLine}>Reduce infringement and unauthorized copying</li>
+              <li className={styles.infoLine}>Protect the legal rights of artists and producers</li>
+              <li className={styles.infoLine}>Minimize copyright infringement and unauthorized copying</li>
               <li className={styles.infoLine}>Increase transparency in music management and usage</li>
-              <li className={styles.infoLine}>Create stable copyright revenue for creators</li>
-              <li className={styles.infoLine}>Raise community awareness of copyright</li>
+              <li className={styles.infoLine}>Create stable revenue from copyrights for creators</li>
+              <li className={styles.infoLine}>Enhance copyright respect awareness in the community</li>
             </ul>
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function HomePage() {
         className={`${styles.backToTop} ${showTop ? styles.backToTopShow : ""}`}
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Back to top"
-        title="Back to top"
+        title="Go to top"
       >
         <svg className={styles.progressRing} viewBox="0 0 44 44" aria-hidden="true">
           <circle className={styles.progressTrack} cx="22" cy="22" r="18" />

@@ -172,7 +172,7 @@ export default function MarketplacePage() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Marketplace</h1>
-          <p className={styles.subtitle}>Verified works + realtime NFT ownership</p>
+          <p className={styles.subtitle}>Approved works + NFT ownership realtime</p>
         </div>
 
         <div className={styles.filters}>
@@ -182,7 +182,7 @@ export default function MarketplacePage() {
               className={`${styles.filterBtn} ${filter === f ? styles.active : ""}`}
               onClick={() => setFilter(f)}
             >
-              {f === "all" ? "All" : f === "exclusive" ? "Exclusive" : "License"}
+              {f === "all" ? "Tất cả" : f === "exclusive" ? "Bán đứt" : "License"}
             </button>
           ))}
           <select
@@ -253,7 +253,7 @@ function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
 
       <div className={styles.actions}>
         <Link className={styles.primaryBtn} href={`/marketplace/${work.id}`}>
-          View details
+          Xem chi tiết
         </Link>
       </div>
     </div>

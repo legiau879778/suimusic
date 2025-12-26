@@ -18,7 +18,7 @@ export default function LoginPanel() {
       <div className={styles.col}>
         <h2>User</h2>
         <p className={styles.desc}>
-          Đăng nhập bằng Google để mở khóa thêm chức năng.
+         Log in with Google to unlock more features.
         </p>
 
         <button
@@ -26,7 +26,7 @@ export default function LoginPanel() {
           onClick={loginWithGoogle}
         >
           <span className={styles.icon}>G</span>
-          Đăng nhập Google
+          Login Google
         </button>
       </div>
 
@@ -34,14 +34,14 @@ export default function LoginPanel() {
       <div className={styles.col}>
         <h2>Author</h2>
         <p className={styles.desc}>
-          Kết nối ví để đăng nhập quyền tác giả của bạn.
+          Connect your wallet to log in to your author rights.
         </p>
 
         <button
           className={styles.wallet}
           onClick={connectWallet}
         >
-          🔗 Kết nối Wallet
+          🔗 Connect Wallet
         </button>
       </div>
     </section>

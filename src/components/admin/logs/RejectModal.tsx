@@ -21,10 +21,10 @@ export default function RejectModal({
   return (
     <div className={styles.overlay}>
       <div className={styles.modal}>
-        <h2>Từ chối tác phẩm</h2>
+        <h2>Reject work</h2>
 
         <textarea
-          placeholder="Nhập lý do từ chối..."
+          placeholder="Enter rejection reason..."
           value={reason}
           onChange={e => setReason(e.target.value)}
           rows={4}
