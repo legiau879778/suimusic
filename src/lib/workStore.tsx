@@ -4,7 +4,11 @@ import { addReviewLog } from "./reviewLogStore";
 import type { UserRole } from "@/context/AuthContext";
 
 /* ✅ profile sync (read-only) */
-import { loadProfile } from "@/lib/profileStore";
+import {
+  loadProfile,
+  findProfileByWallet,
+  findProfileByEmail,
+} from "@/lib/profileStore";
 
 /* ================= STORAGE ================= */
 
@@ -40,6 +44,20 @@ export type Work = {
   title: string;
   authorId: string;
   hash?: string;
+  durationSec?: number;
+  fileHash?: string;
+  metaHash?: string;
+  walrusFileId?: string;
+  walrusMetaId?: string;
+  walrusCoverId?: string;
+  proofId?: string;
+  authorSignature?: string;
+  tsaId?: string;
+  tsaSignature?: string;
+  tsaTime?: string;
+  approvalSignature?: string;
+  approvalWallet?: string;
+  approvalTime?: string;
 
   authorName?: string;
   authorEmail?: string;
@@ -52,7 +70,7 @@ export type Work = {
   createdDate?: string;
 
   // ✅ sellType is REQUIRED here -> must never be undefined
-  sellType: "exclusive" | "license" | string;
+  sellType: "exclusive" | "license" | "none" | string;
   royalty?: number;
   quorumWeight: number;
 
@@ -114,27 +132,61 @@ function sumApprovalWeight(w: Work) {
   );
 }
 
+function isEmptyObj(v: any) {
+  return !v || typeof v !== "object" || Object.keys(v).length === 0;
+}
+
+function safeStr(v: any) {
+  return String(v ?? "").trim();
+}
+
 /**
- * ✅ SSR-safe wrapper for loadProfile
- * - build/SSR: không đọc localStorage
- * - client: đọc profileStore bình thường
+ * ✅ resolveAuthorSnapshot(authorId)
+ * - SSR: trả placeholder
+ * - Client:
+ *   1) loadProfile(authorId)
+ *   2) nếu rỗng -> findProfileByWallet(authorId)
+ *   3) nếu vẫn rỗng -> findProfileByEmail(authorId) (phòng case authorId đang là email)
  */
 function resolveAuthorSnapshot(authorId: string) {
   if (typeof window === "undefined") {
-    return { authorName: authorId, authorPhone: "" };
+    return {
+      authorName: authorId,
+      authorPhone: "",
+      authorEmail: "",
+      authorAvatar: "",
+      authorWallet: "",
+    };
   }
 
-  const p = loadProfile(authorId);
-  const authorName = p?.name && p.name.trim() ? p.name.trim() : authorId;
-  const authorPhone = p?.phone ?? "";
-  return { authorName, authorPhone };
+  let p = loadProfile(authorId);
+
+  // 1️⃣ authorId là wallet
+  if (isEmptyObj(p)) {
+    const found = findProfileByWallet(authorId);
+    if (found?.profile) p = found.profile;
+  }
+
+  // 2️⃣ authorId là email
+  if (isEmptyObj(p)) {
+    const found = findProfileByEmail(authorId);
+    if (found?.profile) p = found.profile;
+  }
+
+  const authorName = safeStr((p as any)?.name) || authorId;
+  const authorPhone = safeStr((p as any)?.phone);
+  const authorEmail = safeStr((p as any)?.email);
+  const authorAvatar = safeStr((p as any)?.avatar); // raw: walrus:ID or http(s)
+  const authorWallet = safeStr((p as any)?.walletAddress);
+
+  return { authorName, authorPhone, authorEmail, authorAvatar, authorWallet };
 }
 
 /** ✅ normalize sellType to avoid undefined */
 function normalizeSellType(v?: string): "exclusive" | "license" | string {
   const s = String(v || "").trim();
   if (!s) return "exclusive";
-  if (s === "exclusive" || s === "license") return s;
+  if (s === "exclusive" || s === "license" || s === "none") return s;
   return s; // allow custom string if you ever used it
 }
 
@@ -147,6 +199,12 @@ export const getActiveWorks = () => load().filter((w) => !w.deletedAt);
 export const getTrashWorks = () => load().filter((w) => Boolean(w.deletedAt));
 
 export const getWorkById = (id: string) => load().find((w) => w.id === id);
+
+export const getWorkByProofId = (proofId?: string) => {
+  const pid = String(proofId || "").trim();
+  if (!pid) return undefined;
+  return load().find((w) => String(w.proofId || "").trim() === pid);
+};
 
 export const getVerifiedWorks = () =>
   load().filter((w) => w.status === "verified" && !w.deletedAt);
@@ -163,6 +221,20 @@ export function addWork(data: {
   title: string;
   authorId: string;
   hash: string;
+  durationSec?: number;
+  fileHash?: string;
+  metaHash?: string;
+  walrusFileId?: string;
+  walrusMetaId?: string;
+  walrusCoverId?: string;
+  proofId?: string;
+  authorSignature?: string;
+  tsaId?: string;
+  tsaSignature?: string;
+  tsaTime?: string;
+  approvalSignature?: string;
+  approvalWallet?: string;
+  approvalTime?: string;
 
   authorName?: string;
   authorEmail?: string;
@@ -174,13 +246,13 @@ export function addWork(data: {
   language?: string;
   createdDate?: string;
 
-  sellType?: "exclusive" | "license" | string;
+  sellType?: "exclusive" | "license" | "none" | string;
   royalty?: number;
   quorumWeight?: number;
 }) {
   const works = load();
 
-  const { authorName, authorPhone } = resolveAuthorSnapshot(data.authorId);
+  const snap = resolveAuthorSnapshot(data.authorId);
 
   const work: Work = {
     id: uid(),
@@ -190,11 +262,29 @@ export function addWork(data: {
 
     authorId: data.authorId,
 
-    authorName,
-    authorPhone,
+    authorName: safeStr(data.authorName) || snap.authorName,
+    authorPhone: safeStr(data.authorPhone) || snap.authorPhone,
+
+    authorEmail: safeStr(data.authorEmail) || snap.authorEmail,
+    authorAvatar: safeStr(data.authorAvatar) || snap.authorAvatar,
+    authorWallet: safeStr(data.authorWallet) || snap.authorWallet,
 
     // ✅ keep safe (avoid empty hash)
     hash: String(data.hash || "").trim(),
+    durationSec: typeof data.durationSec === "number" ? data.durationSec : undefined,
+    fileHash: safeStr(data.fileHash),
+    metaHash: safeStr(data.metaHash),
+    walrusFileId: safeStr(data.walrusFileId),
+    walrusMetaId: safeStr(data.walrusMetaId),
+    walrusCoverId: safeStr(data.walrusCoverId),
+    proofId: safeStr(data.proofId),
+    authorSignature: safeStr(data.authorSignature),
+    tsaId: safeStr(data.tsaId),
+    tsaSignature: safeStr(data.tsaSignature),
+    tsaTime: safeStr(data.tsaTime),
+    approvalSignature: safeStr(data.approvalSignature),
+    approvalWallet: safeStr(data.approvalWallet),
+    approvalTime: safeStr(data.approvalTime),
 
     language: data.language,
     category: data.category,
@@ -223,26 +313,38 @@ export function addWork(data: {
 /* ================= AUTHOR SYNC ================= */
 
 /**
- * ✅ Update authorName/authorPhone for ALL works of a user.
+ * ✅ Update author snapshot for ALL works of a user.
  */
 export function updateAuthorProfileForUser(authorId: string) {
   if (typeof window === "undefined") return;
   if (!authorId) return;
 
   const works = load();
-  const { authorName, authorPhone } = resolveAuthorSnapshot(authorId);
+  const snap = resolveAuthorSnapshot(authorId);
 
   let changed = false;
 
   for (const w of works) {
     if (w.authorId !== authorId) continue;
 
-    if ((w.authorName ?? "") !== (authorName ?? "")) {
-      w.authorName = authorName;
+    if ((w.authorName ?? "") !== (snap.authorName ?? "")) {
+      w.authorName = snap.authorName;
       changed = true;
     }
-    if ((w.authorPhone ?? "") !== (authorPhone ?? "")) {
-      w.authorPhone = authorPhone ?? "";
+    if ((w.authorPhone ?? "") !== (snap.authorPhone ?? "")) {
+      w.authorPhone = snap.authorPhone ?? "";
+      changed = true;
+    }
+    if ((w.authorEmail ?? "") !== (snap.authorEmail ?? "")) {
+      w.authorEmail = snap.authorEmail ?? "";
+      changed = true;
+    }
+    if ((w.authorAvatar ?? "") !== (snap.authorAvatar ?? "")) {
+      w.authorAvatar = snap.authorAvatar ?? "";
+      changed = true;
+    }
+    if ((w.authorWallet ?? "") !== (snap.authorWallet ?? "")) {
+      w.authorWallet = snap.authorWallet ?? "";
       changed = true;
     }
   }
@@ -275,6 +377,44 @@ export function updateAuthorNameForUser(authorId: string, newName: string) {
 }
 
 /**
+ * ✅ Backfill/Migrate snapshots for existing works.
+ * - update theo snapshot (không chỉ khi trống) để profile đổi là works đổi theo
+ */
+export function backfillAuthorSnapshots() {
+  if (typeof window === "undefined") return;
+
+  const works = load();
+  let changed = false;
+
+  for (const w of works) {
+    const snap = resolveAuthorSnapshot(w.authorId);
+
+    if ((w.authorName ?? "") !== (snap.authorName ?? "")) {
+      w.authorName = snap.authorName;
+      changed = true;
+    }
+    if ((w.authorPhone ?? "") !== (snap.authorPhone ?? "")) {
+      w.authorPhone = snap.authorPhone ?? "";
+      changed = true;
+    }
+    if ((w.authorEmail ?? "") !== (snap.authorEmail ?? "")) {
+      w.authorEmail = snap.authorEmail ?? "";
+      changed = true;
+    }
+    if ((w.authorAvatar ?? "") !== (snap.authorAvatar ?? "")) {
+      w.authorAvatar = snap.authorAvatar ?? "";
+      changed = true;
+    }
+    if ((w.authorWallet ?? "") !== (snap.authorWallet ?? "")) {
+      w.authorWallet = snap.authorWallet ?? "";
+      changed = true;
+    }
+  }
+
+  if (changed) save(works);
+}
+
+/**
  * ✅ Listen profile changes and auto-sync works.
  * - same-tab: custom event (profileStore dispatch)
  * - cross-tab: storage event
@@ -297,11 +437,17 @@ export function startWorkAuthorAutoSync() {
     updateAuthorProfileForUser(userId);
   };
 
-  window.addEventListener(WORKSTORE_PROFILE_UPDATED_EVENT, onProfileUpdated as any);
+  window.addEventListener(
+    WORKSTORE_PROFILE_UPDATED_EVENT,
+    onProfileUpdated as any
+  );
   window.addEventListener("storage", onStorage);
 
   return () => {
-    window.removeEventListener(WORKSTORE_PROFILE_UPDATED_EVENT, onProfileUpdated as any);
+    window.removeEventListener(
+      WORKSTORE_PROFILE_UPDATED_EVENT,
+      onProfileUpdated as any
+    );
     window.removeEventListener("storage", onStorage);
   };
 }
@@ -333,6 +479,16 @@ export function bindNFTToWork(params: {
 export function patchWork(workId: string, patch: Partial<Work>) {
   const works = load();
   const w = works.find((x) => x.id === workId);
+  if (!w) return;
+  Object.assign(w, patch);
+  save(works);
+}
+
+export function patchWorkByProofId(proofId: string, patch: Partial<Work>) {
+  const works = load();
+  const pid = String(proofId || "").trim();
+  if (!pid) return;
+  const w = works.find((x) => String(x.proofId || "").trim() === pid);
   if (!w) return;
   Object.assign(w, patch);
   save(works);
@@ -371,7 +527,10 @@ export function canEditWork(params: {
 
   if (!work.authorWallet) return false;
 
-  return !!walletAddress && walletAddress.toLowerCase() === work.authorWallet.toLowerCase();
+  return (
+    !!walletAddress &&
+    walletAddress.toLowerCase() === work.authorWallet.toLowerCase()
+  );
 }
 
 /* ================= DELETE / RESTORE ================= */
@@ -385,7 +544,13 @@ export function softDeleteWork(params: {
   const w = works.find((x) => x.id === params.workId);
   if (!w) return;
 
-  if (!canEditWork({ work: w, walletAddress: params.walletAddress, actor: params.actor })) {
+  if (
+    !canEditWork({
+      work: w,
+      walletAddress: params.walletAddress,
+      actor: params.actor,
+    })
+  ) {
     throw new Error("FORBIDDEN");
   }
 
@@ -437,6 +602,23 @@ export function updateNFTOwner(params: { workId: string; newOwner: string }) {
   if (!w) return;
 
   w.authorWallet = params.newOwner;
+  save(works);
+}
+
+export function updateWorkConfig(params: {
+  workId: string;
+  sellType?: "exclusive" | "license" | "none" | string;
+  royalty?: number;
+}) {
+  const works = load();
+  const w = works.find((x) => x.id === params.workId);
+  if (!w) return;
+
+  if (params.sellType) w.sellType = normalizeSellType(params.sellType);
+  if (typeof params.royalty === "number") {
+    w.royalty = Math.max(0, Math.min(100, Math.floor(params.royalty)));
+  }
+
   save(works);
 }
 
@@ -499,7 +681,9 @@ export function getRoyaltyStats(workId: string) {
     totalLicenses === 0
       ? 0
       : Math.round(
-          (((w.licenses || []).reduce((s, x) => s + (x?.royalty || 0), 0) / totalLicenses) * 100) /
+          (((w.licenses || []).reduce((s, x) => s + (x?.royalty || 0), 0) /
+            totalLicenses) *
+            100) /
             100
         );
 
@@ -528,7 +712,10 @@ function getReviewerWeightByRole(role: UserRole) {
 
 /* ================= ADMIN REVIEW ================= */
 
-export function setWorkQuorumWeight(params: { workId: string; quorumWeight: number }) {
+export function setWorkQuorumWeight(params: {
+  workId: string;
+  quorumWeight: number;
+}) {
   const works = load();
   const w = works.find((x) => x.id === params.workId);
   if (!w) return;
@@ -585,7 +772,11 @@ export function approveWork(params: {
   save(works);
 }
 
-export function rejectWork(params: { workId: string; reviewerId: string; reason?: string }) {
+export function rejectWork(params: {
+  workId: string;
+  reviewerId: string;
+  reason?: string;
+}) {
   const works = load();
   const w = works.find((x) => x.id === params.workId);
   if (!w) return;
@@ -594,7 +785,8 @@ export function rejectWork(params: { workId: string; reviewerId: string; reason?
   w.reviewedAt = Date.now();
 
   if (!w.rejectionBy) w.rejectionBy = [];
-  if (!w.rejectionBy.includes(params.reviewerId)) w.rejectionBy.push(params.reviewerId);
+  if (!w.rejectionBy.includes(params.reviewerId))
+    w.rejectionBy.push(params.reviewerId);
 
   addReviewLog({
     id: uid(),

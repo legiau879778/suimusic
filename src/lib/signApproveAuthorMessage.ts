@@ -55,12 +55,17 @@ Time: ${new Date().toISOString()}
   }
 
   // ❗ GỌI ĐÚNG 2 TẦNG KEY
-  const result =
-    await feature["sui:signPersonalMessage"]
-      .signPersonalMessage({
-        message: new TextEncoder().encode(message),
-        account,
-      });
+  const signer =
+    (feature as any).signPersonalMessage ||
+    (feature as any)["sui:signPersonalMessage"]?.signPersonalMessage;
+  if (!signer) {
+    throw new Error("Ví không hỗ trợ signPersonalMessage");
+  }
+
+  const result = await signer({
+    message: new TextEncoder().encode(message),
+    account,
+  });
 
   return {
     message,

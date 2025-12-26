@@ -1,0 +1,5 @@
+default_context: testnet
+contexts:
+  testnet:
+    rpc_url: https://fullnode.testnet.sui.io:443
+    upload_relay: https://upload-relay.testnet.walrus.space

@@ -27,7 +27,7 @@ export type UserProfile = {
 
   walletAddress?: string;
 
-  /** ✅ avatar URL: http/https hoặc ipfs://CID hoặc cid trần */
+  /** ✅ avatar URL: http/https hoặc walrus:ID */
   avatar?: string;
 
   socials?: SocialLinks;
@@ -53,7 +53,7 @@ function safeTrim(v: any) {
   return t;
 }
 
-/** ✅ helper normalize ipfs://CID hoặc cid -> gateway (dùng cho avatar/cover/metadata nếu cần) */
+/** ✅ helper normalize walrus -> gateway (chỉ dùng Walrus) */
 export function toGateway(input?: string) {
   if (typeof input !== "string") return "";
   const v = input.trim();
@@ -62,13 +62,15 @@ export function toGateway(input?: string) {
   // URL đầy đủ
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
 
-  // ipfs://CID/...
-  if (v.startsWith("ipfs://")) {
-    return `https://gateway.pinata.cloud/ipfs/${v.replace("ipfs://", "")}`;
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  // walrus:ID hoặc walrus://ID
+  if (v.startsWith("walrus:")) {
+    return `/api/walrus/blob/${v.replace("walrus:", "")}`;
   }
-
-  // CID thuần
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+  if (v.startsWith("walrus://")) {
+    return `/api/walrus/blob/${v.replace("walrus://", "")}`;
+  }
+  return "";
 }
 
 /** merge sâu tối thiểu cho profile (tránh mất socials/options khi update 1 phần) */
@@ -89,7 +91,7 @@ function mergeProfile(base: UserProfile, patch: UserProfile): UserProfile {
     out[k] = safeTrim(out[k]);
   });
 
-  // normalize avatar: cho phép ipfs:// hoặc cid hoặc http(s)
+  // normalize avatar: cho phép walrus: hoặc http(s)
   if (out.avatar) out.avatar = String(out.avatar).trim();
 
   return out;

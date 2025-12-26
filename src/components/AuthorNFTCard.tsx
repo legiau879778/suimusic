@@ -18,7 +18,7 @@ export type WorkLite = {
 
 type Meta = any;
 
-/* ============ IPFS helpers ============ */
+/* ============ Walrus helpers ============ */
 
 function toGateway(input?: string) {
   if (!input) return "";
@@ -27,15 +27,11 @@ function toGateway(input?: string) {
 
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
 
-  if (v.startsWith("ipfs://")) v = v.slice("ipfs://".length);
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  if (v.startsWith("walrus:")) return `/api/walrus/blob/${v.slice("walrus:".length)}`;
+  if (v.startsWith("walrus://")) return `/api/walrus/blob/${v.slice("walrus://".length)}`;
 
-  v = v.replace(/^\/+/, "");
-  if (v.startsWith("ipfs/")) v = v.slice("ipfs/".length);
-
-  // chặn rác tránh spam gateway
-  if (!v.startsWith("Qm") && !v.startsWith("bafy")) return "";
-
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+  return "";
 }
 
 function normalizeIpfsUrl(url?: string) {

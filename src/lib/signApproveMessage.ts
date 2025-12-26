@@ -8,11 +8,12 @@ import type {
  * ⚠️ GIỮ TÊN signApproveMessage để không phá code cũ
  */
 export async function signApproveMessage(
-  walletAddress: string,
-  workId: string
+  workId: string,
+  proofId?: string
 ): Promise<{
   message: string;
   signature: string;
+  adminWallet: string;
 }> {
   const wallets = getWallets().get();
 
@@ -35,7 +36,8 @@ export async function signApproveMessage(
   const message = `
 APPROVE WORK
 Work ID: ${workId}
-Admin Wallet: ${walletAddress}
+Proof ID: ${proofId || "-"}
+Admin Wallet: ${account.address}
 Time: ${new Date().toISOString()}
 `.trim();
 
@@ -55,15 +57,21 @@ Time: ${new Date().toISOString()}
   }
 
   // ❗ GỌI ĐÚNG 2 TẦNG KEY
-  const result =
-    await feature["sui:signPersonalMessage"]
-      .signPersonalMessage({
-        message: new TextEncoder().encode(message),
-        account,
-      });
+  const signer =
+    (feature as any).signPersonalMessage ||
+    (feature as any)["sui:signPersonalMessage"]?.signPersonalMessage;
+  if (!signer) {
+    throw new Error("Ví không hỗ trợ signPersonalMessage");
+  }
+
+  const result = await signer({
+    message: new TextEncoder().encode(message),
+    account,
+  });
 
   return {
     message,
     signature: result.signature,
+    adminWallet: account.address,
   };
 }

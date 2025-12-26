@@ -5,6 +5,7 @@ import AdminGuard from "@/components/admin/AdminGuard";
 import styles from "@/styles/admin/adminReview.module.css";
 
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import {
   getPendingWorks,
   approveWork,
@@ -12,9 +13,11 @@ import {
   setWorkQuorumWeight,
   type Work,
 } from "@/lib/workStore";
+import { signApproveMessage } from "@/lib/signApproveMessage";
 
 export default function AdminReviewPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const [works, setWorks] = useState<Work[]>([]);
   const [qMap, setQMap] = useState<Record<string, string>>({}); // workId -> input quorum string
@@ -59,6 +62,28 @@ export default function AdminReviewPage() {
     if (!reviewerId) return;
     setBusyId(w.id);
     try {
+      if (!w.proofId) {
+        throw new Error("Tác phẩm chưa có proofId để duyệt TSA");
+      }
+
+      const signed = await signApproveMessage(w.id, w.proofId);
+
+      const res = await fetch("/api/proof/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proofId: w.proofId,
+          adminWallet: signed.adminWallet,
+          signature: signed.signature,
+          message: signed.message,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Approve TSA thất bại");
+      }
+
       approveWork({
         workId: w.id,
         reviewerId,
@@ -67,6 +92,9 @@ export default function AdminReviewPage() {
       });
       // load() sẽ tự gọi qua works_updated (save() dispatch event), nhưng gọi luôn để UI mượt
       load();
+      showToast("Đã duyệt TSA + cập nhật trạng thái", "success");
+    } catch (e: any) {
+      showToast(e?.message || "Không thể duyệt TSA", "error");
     } finally {
       setBusyId(null);
     }

@@ -19,22 +19,15 @@ function explorerTxUrl(net: Net, digest: string) {
   return `https://suiexplorer.com/txblock/${digest}?network=${net}`;
 }
 
-// ipfs://CID -> https://gateway.pinata.cloud/ipfs/CID
-function normalizeIpfsUrl(url?: string) {
-  if (!url) return "";
-  if (url.startsWith("ipfs://")) {
-    const cid = url.replace("ipfs://", "");
-    return `https://gateway.pinata.cloud/ipfs/${cid}`;
-  }
-  return url;
-}
-
-// if you store CID only (like bafy...), make gateway url
-function cidToGateway(cid?: string) {
-  if (!cid) return "";
-  if (cid.startsWith("http")) return cid;
-  if (cid.startsWith("ipfs://")) return normalizeIpfsUrl(cid);
-  return `https://gateway.pinata.cloud/ipfs/${cid}`;
+function toGateway(urlOrId?: string) {
+  if (!urlOrId) return "";
+  const v = String(urlOrId).trim();
+  if (!v) return "";
+  if (v.startsWith("http")) return v;
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  if (v.startsWith("walrus:")) return `/api/walrus/blob/${v.replace("walrus:", "")}`;
+  if (v.startsWith("walrus://")) return `/api/walrus/blob/${v.replace("walrus://", "")}`;
+  return "";
 }
 
 export default function NFTViewerCard(props: {
@@ -48,11 +41,11 @@ export default function NFTViewerCard(props: {
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [syncingOwner, setSyncingOwner] = useState(false);
 
-  const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
+  const metaUrl = useMemo(() => toGateway(work.hash), [work.hash]);
 
   const previewUrl = useMemo(() => {
-    const img = normalizeIpfsUrl(meta?.image);
-    const anim = normalizeIpfsUrl(meta?.animation_url);
+    const img = toGateway(meta?.image);
+    const anim = toGateway(meta?.animation_url);
     // ưu tiên image
     return img || anim || "";
   }, [meta]);

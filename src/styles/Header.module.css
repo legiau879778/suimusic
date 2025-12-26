@@ -67,8 +67,10 @@
   border: none;
   cursor: pointer;
 
-  font-size: 13px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
   color: rgba(226, 232, 240, 0.90);
 
   padding: 10px 12px;

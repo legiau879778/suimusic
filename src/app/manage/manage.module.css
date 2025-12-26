@@ -382,7 +382,7 @@
   background: rgba(0,0,0,.65);
   display: grid;
   place-items: center;
-  z-index: 50;
+  z-index: 2000;
   padding: 18px;
 }
 
@@ -500,11 +500,42 @@
   width: 100%;
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(2,6,23,0.40);
+  background: linear-gradient(180deg, rgba(2,6,23,0.55), rgba(2,6,23,0.25));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 28px rgba(2,6,23,0.35);
 }
 
 .video { max-height: 420px; }
 .pdf { height: 420px; }
+
+.audio {
+  height: 60px;
+  border-color: rgba(148,163,184,0.35);
+  background: linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.85));
+}
+.audio:focus-visible {
+  outline: 2px solid rgba(125,211,252,0.9);
+  outline-offset: 2px;
+}
+.audio::-webkit-media-controls-panel {
+  background: linear-gradient(180deg, rgba(30,41,59,0.95), rgba(2,6,23,0.9));
+}
+.audio::-webkit-media-controls-play-button,
+.audio::-webkit-media-controls-mute-button,
+.audio::-webkit-media-controls-overflow-button {
+  filter: brightness(1.55) saturate(1.35) drop-shadow(0 0 6px rgba(253,224,71,0.55));
+}
+.audio::-webkit-media-controls-volume-slider,
+.audio::-webkit-media-controls-timeline {
+  filter: drop-shadow(0 0 4px rgba(253,224,71,0.75));
+}
+.audio::-webkit-media-controls-volume-slider,
+.audio::-webkit-media-controls-timeline {
+  filter: drop-shadow(0 0 3px rgba(56,189,248,0.65));
+}
+.audio::-webkit-media-controls-current-time-display,
+.audio::-webkit-media-controls-time-remaining-display {
+  color: rgba(241,245,249,0.98);
+}
 
 .modalImg2 {
   width: 100%;
@@ -547,6 +578,55 @@
   background: rgba(56,189,248,0.06);
   opacity: 0.95;
   line-height: 1.45;
+}
+
+.editBox {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(250, 204, 21, 0.16);
+  background: rgba(2, 6, 23, 0.45);
+  display: grid;
+  gap: 10px;
+}
+
+.editTitle {
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.editRow {
+  display: grid;
+  gap: 6px;
+}
+
+.editLabel {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.editInput,
+.editSelect {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(2, 6, 23, 0.65);
+  color: rgba(226, 232, 240, 0.92);
+  padding: 10px 12px;
+  outline: none;
+}
+
+.editInput:focus,
+.editSelect:focus {
+  border-color: rgba(250, 204, 21, 0.35);
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.1);
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .licenseBox {

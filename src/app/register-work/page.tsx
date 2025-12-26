@@ -6,8 +6,15 @@ import { useRouter } from "next/navigation";
 import styles from "./register-work.module.css";
 
 import { useAuth } from "@/context/AuthContext";
-import { addWork, bindNFTToWork } from "@/lib/workStore";
+import { useToast } from "@/context/ToastContext";
+import {
+  addWork,
+  bindNFTToWork,
+  getWorkByProofId,
+  patchWorkByProofId,
+} from "@/lib/workStore";
 import { loadProfile, subscribeProfile, saveProfile } from "@/lib/profileStore";
+import { signWorkProofMessage } from "@/lib/signWorkProofMessage";
 
 /* ===== SUI ===== */
 import {
@@ -21,7 +28,7 @@ import { Transaction } from "@mysten/sui/transactions";
 /* ✅ network-aware config */
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
-type SellTypeUI = "exclusive" | "license";
+type SellTypeUI = "exclusive" | "license" | "none";
 
 type UploadStage = "idle" | "upload_file" | "upload_cover" | "upload_meta" | "done";
 
@@ -91,6 +98,7 @@ function guardSize(f: File) {
 export default function RegisterWorkPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
@@ -120,6 +128,7 @@ export default function RegisterWorkPage() {
 
   // audio/work file
   const [file, setFile] = useState<File | null>(null);
+  const [fileDuration, setFileDuration] = useState<number | null>(null);
 
   // cover
   const [cover, setCover] = useState<File | null>(null);
@@ -130,15 +139,20 @@ export default function RegisterWorkPage() {
   const [uploadPct, setUploadPct] = useState(0);
 
   // uploaded results
-  const [fileCid, setFileCid] = useState("");
+  const [fileBlobId, setFileBlobId] = useState("");
   const [fileUrl, setFileUrl] = useState("");
 
-  const [coverCid, setCoverCid] = useState("");
+  const [coverBlobId, setCoverBlobId] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
 
   // metadata
-  const [metaCid, setMetaCid] = useState("");
+  const [metaBlobId, setMetaBlobId] = useState("");
   const [metaUrl, setMetaUrl] = useState("");
+
+  const [proofId, setProofId] = useState("");
+  const [proofStatus, setProofStatus] = useState<
+    "draft" | "submitted" | "tsa_attested" | "approved" | "rejected"
+  >("draft");
 
   // author snapshot
   const [authorName, setAuthorName] = useState<string>("Unknown");
@@ -160,7 +174,7 @@ export default function RegisterWorkPage() {
     const apply = () => {
       const p = loadProfile(user.id);
 
-      const name = p?.name?.trim() ? p.name.trim() : user.id;
+      const name = p?.name?.trim() ? p.name.trim() : "Unknown";
       const phone = p?.phone ?? "";
 
       const email = String(p?.email || user.email || "").trim();
@@ -217,16 +231,17 @@ export default function RegisterWorkPage() {
     window.setTimeout(() => setUploadPct(0), 450);
   }
 
-  function resetIpfsState() {
+  function resetWalrusState() {
     setErr(null);
-    setFileCid("");
+    setFileBlobId("");
     setFileUrl("");
-    setCoverCid("");
+    setCoverBlobId("");
     setCoverUrl("");
-    setMetaCid("");
+    setMetaBlobId("");
     setMetaUrl("");
     setUploadStage("idle");
     setUploadPct(0);
+    setProofId("");
   }
 
   /* =======================
@@ -238,7 +253,11 @@ export default function RegisterWorkPage() {
     return Math.max(0, Math.min(100, Math.floor(n)));
   }, [royalty]);
 
-  const sellTypeU8 = useMemo(() => (sellType === "exclusive" ? 1 : 2), [sellType]);
+  const sellTypeU8 = useMemo(() => {
+    if (sellType === "exclusive") return 1;
+    if (sellType === "license") return 2;
+    return 0;
+  }, [sellType]);
 
   const configOk = useMemo(() => {
     return Boolean(
@@ -272,6 +291,23 @@ export default function RegisterWorkPage() {
 
   useEffect(() => setErr(null), [step, sellType, activeNet]);
 
+  async function refreshProofStatus() {
+    if (step !== 3 || !proofId) return;
+    try {
+      showToast("Đang làm mới trạng thái hồ sơ...", "info");
+      const res = await fetch(`/api/proof/${encodeURIComponent(proofId)}`);
+      const data: any = await readApi(res);
+      if (data?.ok && data?.proof?.status) {
+        setProofStatus(data.proof.status);
+        showToast("Đã cập nhật trạng thái hồ sơ.", "success");
+      }
+    } catch {
+      // keep current status
+      showToast("Không thể refresh trạng thái hồ sơ.", "error");
+    }
+  }
+
+
   function shortCid(cid: string) {
     return cid ? `${cid.slice(0, 10)}…${cid.slice(-6)}` : "";
   }
@@ -283,90 +319,120 @@ export default function RegisterWorkPage() {
     return !!mime && mime.startsWith("image/");
   }
 
-  /* =======================
-     ✅ IPFS upload helpers
-     route name giữ nguyên:
-     - POST /api/ipfs/upload (FormData: file)
-     - POST /api/ipfs/upload-json (JSON)
-  ======================= */
-  async function uploadToIPFSFile(f: File, kind: "audio" | "cover"): Promise<UploadResult> {
-  setUploading(true);
-  setUploadStage(kind === "audio" ? "upload_file" : "upload_cover");
-  setUploadPct(0);
-
-  try {
-    // ✅ lấy JWT từ server
-    const tRes = await fetch("/api/pinata/token");
-    const tData = await tRes.json();
-    if (!tData?.ok) throw new Error(tData?.error || "Cannot get Pinata token");
-    const jwt = tData.jwt as string;
-
-    // ✅ form-data gửi thẳng Pinata
-    const fd = new FormData();
-    fd.append("file", f, f.name);
-    fd.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
-    fd.append(
-      "pinataMetadata",
-      JSON.stringify({
-        name: f.name,
-        keyvalues: { app: "chainstorm", kind: kind === "audio" ? "work-file" : "work-cover" },
-      })
-    );
-
-    // ✅ XHR để có progress thật theo byte
-    const result = await new Promise<any>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "https://api.pinata.cloud/pinning/pinFileToIPFS", true);
-      xhr.setRequestHeader("Authorization", `Bearer ${jwt}`);
-
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) return;
-        const pct = Math.round((e.loaded / e.total) * 100);
-        setUploadPct(pct);
-      };
-
-      xhr.onload = () => {
-        if (xhr.status < 200 || xhr.status >= 300) {
-          return reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
-        }
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          reject(new Error("Invalid Pinata response"));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error("Network error"));
-      xhr.send(fd);
-    });
-
-    const cid = result?.IpfsHash as string;
-    if (!cid) throw new Error("Pinata response missing IpfsHash");
-
-    const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
-
-    setUploadStage("done");
-    setTimeout(() => setUploadPct(0), 800);
-
-    return {
-      cid,
-      url,
-      name: f.name,
-      size: f.size,
-      type: f.type,
-    };
-  } finally {
-    setUploading(false);
+  function isMediaFile(f: File) {
+    const t = String(f?.type || "");
+    if (t.startsWith("audio/") || t.startsWith("video/")) return true;
+    const name = String(f?.name || "").toLowerCase();
+    return /\.(mp3|wav|ogg|m4a|flac|mp4|webm|mov|mkv)$/.test(name);
   }
-}
+
+  async function readMediaDuration(f: File): Promise<number | null> {
+    if (!f || !isMediaFile(f)) return null;
+
+    const url = URL.createObjectURL(f);
+    const media =
+      String(f?.type || "").startsWith("video/")
+        ? document.createElement("video")
+        : document.createElement("audio");
+
+    return new Promise((resolve) => {
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        media.src = "";
+      };
+
+      media.preload = "metadata";
+      media.onloadedmetadata = () => {
+        const d = Number.isFinite(media.duration) ? media.duration : NaN;
+        cleanup();
+        resolve(Number.isFinite(d) && d > 0 ? Math.floor(d) : null);
+      };
+      media.onerror = () => {
+        cleanup();
+        resolve(null);
+      };
+      media.src = url;
+    });
+  }
+
+  /* =======================
+     ✅ Walrus upload helpers
+     - POST /api/walrus/upload-file (FormData: file)
+     - POST /api/walrus/upload-json (JSON)
+  ======================= */
+  async function uploadToWalrusFile(
+    f: File,
+    kind: "audio" | "cover"
+  ): Promise<UploadResult> {
+    setUploading(true);
+    setUploadStage(kind === "audio" ? "upload_file" : "upload_cover");
+    setUploadPct(0);
+
+    try {
+      showToast(
+        kind === "audio" ? "Đang upload file lên Walrus..." : "Đang upload cover lên Walrus...",
+        "info"
+      );
+      const fd = new FormData();
+      fd.append("file", f, f.name);
+      fd.append("kind", kind);
+
+      const result = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/walrus/upload-file", true);
+
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return;
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setUploadPct(pct);
+        };
+
+        xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            return reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+          }
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid Walrus response"));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(fd);
+      });
+
+      if (!result?.ok) throw new Error(result?.error || "Upload failed");
+      const blobId = result?.blobId as string;
+      if (!blobId) throw new Error("Walrus response missing blobId");
+
+      setUploadStage("done");
+      setTimeout(() => setUploadPct(0), 800);
+      showToast("Upload Walrus thành công.", "success");
+
+      return {
+        cid: blobId,
+        url: result?.url || "",
+        name: f.name,
+        size: f.size,
+        type: f.type,
+      };
+    } catch (e: any) {
+      showToast(e?.message || "Upload thất bại.", "error");
+      throw e;
+    } finally {
+      setUploading(false);
+    }
+  }
 
 
-  async function uploadJSONToIPFS(json: any): Promise<{ cid: string; url: string }> {
+  async function uploadJSONToWalrus(json: any): Promise<{ blobId: string; url: string }> {
     setUploading(true);
     const stop = startFakeProgress("upload_meta");
 
     try {
-      const res = await fetch("/api/ipfs/upload-json", {
+      showToast("Đang upload metadata lên Walrus...", "info");
+      const res = await fetch("/api/walrus/upload-json", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(json),
@@ -375,67 +441,105 @@ export default function RegisterWorkPage() {
       const data: any = await readApi(res);
       if (!data?.ok) throw new Error(data?.error || "Upload metadata failed");
 
-      setMetaCid(data.cid);
+      setMetaBlobId(data.blobId);
       setMetaUrl(data.url);
       setUploadStage("done");
       finishProgress();
+      showToast("Upload metadata thành công.", "success");
 
-      return { cid: data.cid, url: data.url };
+      return { blobId: data.blobId, url: data.url };
+    } catch (e: any) {
+      showToast(e?.message || "Upload metadata thất bại.", "error");
+      throw e;
     } finally {
       stop?.();
       setUploading(false);
     }
   }
 
-  /** ✅ CID(string) -> SHA-256 -> 32 bytes vector<u8> */
-  async function cidToHashBytes32(cid: string): Promise<Uint8Array> {
-    const enc = new TextEncoder();
-    const raw = enc.encode(cid);
-    const hash = await crypto.subtle.digest("SHA-256", raw);
+  async function sha256Bytes(input: ArrayBuffer | Uint8Array): Promise<Uint8Array> {
+    const view = input instanceof Uint8Array ? input : new Uint8Array(input);
+    const buf = view.slice().buffer;
+    const hash = await crypto.subtle.digest("SHA-256", buf as ArrayBuffer);
     return new Uint8Array(hash);
   }
 
-  async function ensureIPFSReady(): Promise<{
-    metadataCid: string;
-    hashBytes32: Uint8Array;
+  function bytesToHex(bytes: Uint8Array): string {
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  function strToBytes(s: string): Uint8Array {
+    return new TextEncoder().encode(s);
+  }
+
+  function extractCreatedObjectId(changes: any[] | undefined): string | null {
+    if (!Array.isArray(changes)) return null;
+    const created = changes.find(
+      (c) =>
+        c?.type === "created" &&
+        typeof c?.objectType === "string" &&
+        c.objectType.includes(`${PACKAGE_ID}::${MODULE}::WorkNFT`) &&
+        c?.objectId
+    );
+    if (created?.objectId) return created.objectId as string;
+
+    const anyCreated = changes.find((c) => c?.type === "created" && c?.objectId);
+    return anyCreated?.objectId ?? null;
+  }
+
+  async function ensureWalrusReady(): Promise<{
+    metadataBlobId: string;
+    fileHashBytes32: Uint8Array;
+    metaHashBytes32: Uint8Array;
+    fileHashHex: string;
+    metaHashHex: string;
+    metadataJson: any;
+    durationSec?: number;
     resolved: {
-      fileCid: string;
+      fileBlobId: string;
       fileUrl: string;
-      coverCid?: string;
+      coverBlobId?: string;
       coverUrl?: string;
     };
   }> {
     if (!user?.id) throw new Error("Bạn cần đăng nhập.");
     if (!file) throw new Error("Bạn chưa chọn file tác phẩm.");
 
-    // 1) ensure main file (audio)
-    let fCid = fileCid;
+    // 1) hash file
+    const fileBuf = await file.arrayBuffer();
+    const fileHashBytes = await sha256Bytes(fileBuf);
+    const fileHashHex = bytesToHex(fileHashBytes);
+
+    // 2) ensure main file (audio)
+    let fBlobId = fileBlobId;
     let fUrl = fileUrl;
 
-    if (!fCid) {
-      const r = await uploadToIPFSFile(file, "audio");
-      fCid = r.cid;
+    if (!fBlobId) {
+      const r = await uploadToWalrusFile(file, "audio");
+      fBlobId = r.cid;
       fUrl = r.url;
-      setFileCid(r.cid);
+      setFileBlobId(r.cid);
       setFileUrl(r.url);
     }
-    if (!fCid) throw new Error("Upload file lên IPFS thất bại.");
+    if (!fBlobId) throw new Error("Upload file lên Walrus thất bại.");
 
-    // 2) ensure cover (optional)
-    let cCid = coverCid;
+    // 3) ensure cover (optional)
+    let cBlobId = coverBlobId;
     let cUrl = coverUrl;
 
-    if (cover && !cCid) {
-      const r = await uploadToIPFSFile(cover, "cover");
-      cCid = r.cid;
+    if (cover && !cBlobId) {
+      const r = await uploadToWalrusFile(cover, "cover");
+      cBlobId = r.cid;
       cUrl = r.url;
-      setCoverCid(r.cid);
+      setCoverBlobId(r.cid);
       setCoverUrl(r.url);
     }
 
-    // 3) metadata JSON
+    // 4) metadata JSON
     const profile = loadProfile(user.id);
-    const aName = profile?.name?.trim() ? profile.name.trim() : user.id;
+    const aName = profile?.name?.trim() ? profile.name.trim() : "Unknown";
 
     const createdISO = createdDate.trim()
       ? parseDDMMYYYYToISO(createdDate.trim())
@@ -448,27 +552,36 @@ export default function RegisterWorkPage() {
     const safeTitle = title.trim();
     const topImage = cUrl || (isImageMime(file.type) ? fUrl : "");
 
+    const effectiveDuration =
+      fileDuration != null ? fileDuration : await readMediaDuration(file);
+    if (fileDuration == null && effectiveDuration != null) {
+      setFileDuration(effectiveDuration);
+    }
+
     const metadata: any = {
       name: safeTitle,
-      description: "Chainstorm WorkNFT metadata",
+      description: "Chainstorm WorkNFT metadata (Walrus)",
 
       ...(topImage ? { image: topImage } : {}),
       animation_url: fUrl,
+      ...(effectiveDuration != null ? { duration: effectiveDuration } : {}),
 
-      file: {
-        url: fUrl,
-        cid: fCid,
-        mime: file.type || "",
-        name: file.name,
-        size: file.size,
-      },
+        file: {
+          walrusId: fBlobId,
+          url: fUrl,
+          mime: file.type || "",
+          name: file.name,
+          size: file.size,
+          sha256: fileHashHex,
+          ...(effectiveDuration != null ? { duration: effectiveDuration } : {}),
+        },
 
       ...(cUrl
         ? {
             cover_image: cUrl,
             cover: {
+              walrusId: cBlobId,
               url: cUrl,
-              cid: cCid,
               mime: cover?.type || "image/*",
               name: cover?.name,
               size: cover?.size,
@@ -513,16 +626,17 @@ export default function RegisterWorkPage() {
         },
 
         file: {
-          cid: fCid,
+          walrusId: fBlobId,
           url: fUrl,
           name: file.name,
           size: file.size,
           type: file.type,
+          sha256: fileHashHex,
         },
-        ...(cCid
+        ...(cBlobId
           ? {
               cover: {
-                cid: cCid,
+                walrusId: cBlobId,
                 url: cUrl,
                 name: cover?.name,
                 size: cover?.size,
@@ -531,23 +645,34 @@ export default function RegisterWorkPage() {
             }
           : {}),
         createdAt: new Date().toISOString(),
+        ...(effectiveDuration != null ? { duration: effectiveDuration } : {}),
       },
     };
 
-    const meta = await uploadJSONToIPFS(metadata);
-    if (!meta.cid) throw new Error("Upload metadata lên IPFS thất bại.");
+    const metaStr = JSON.stringify(metadata);
+    const metaBytes = strToBytes(metaStr);
+    const metaHashBytes = await sha256Bytes(metaBytes);
+    const metaHashHex = bytesToHex(metaHashBytes);
 
-    // 4) mint hash bytes = sha256(metadataCid)
-    const bytes32 = await cidToHashBytes32(meta.cid);
-    if (bytes32.length !== 32) throw new Error("Hash bytes không đúng 32 bytes.");
+    const meta = await uploadJSONToWalrus(metadata);
+    if (!meta.blobId) throw new Error("Upload metadata lên Walrus thất bại.");
+
+    if (fileHashBytes.length !== 32 || metaHashBytes.length !== 32) {
+      throw new Error("Hash bytes không đúng 32 bytes.");
+    }
 
     return {
-      metadataCid: meta.cid,
-      hashBytes32: bytes32,
+      metadataBlobId: meta.blobId,
+      fileHashBytes32: fileHashBytes,
+      metaHashBytes32: metaHashBytes,
+      fileHashHex,
+      metaHashHex,
+      metadataJson: metadata,
+      durationSec: effectiveDuration ?? undefined,
       resolved: {
-        fileCid: fCid,
+        fileBlobId: fBlobId,
         fileUrl: fUrl,
-        coverCid: cCid || undefined,
+        coverBlobId: cBlobId || undefined,
         coverUrl: cUrl || undefined,
       },
     };
@@ -562,6 +687,10 @@ export default function RegisterWorkPage() {
         setErr(
           "Nhập tiêu đề (>=3 ký tự), chọn file, và kiểm tra ngày sáng tác (dd/mm/yyyy) trước khi tiếp tục."
         );
+        showToast(
+          "Thiếu thông tin ở Step 1. Kiểm tra tiêu đề/file/ngày sáng tác.",
+          "warning"
+        );
         return;
       }
       setStep(2);
@@ -575,28 +704,251 @@ export default function RegisterWorkPage() {
   }
 
   /* =======================
+     ✅ submit: offchain proof only
+  ======================= */
+  async function submitProof() {
+    setErr(null);
+
+      if (!configOk) {
+        setErr(
+          `Thiếu config on-chain cho "${activeNet}". Hãy điền đúng packageId + registryId trong chainstormConfig.ts`
+        );
+        showToast("Thiếu config on-chain. Kiểm tra chainstormConfig.ts", "error");
+        return null;
+      }
+
+      if (!canSubmit) {
+        setErr(
+          "Vui lòng kiểm tra: đăng nhập, kết nối ví, file/tiêu đề hợp lệ, ngày sáng tác đúng (dd/mm/yyyy)."
+        );
+        showToast("Thiếu điều kiện nộp hồ sơ.", "warning");
+        return null;
+      }
+
+    setSubmitting(true);
+    try {
+      const {
+        metadataBlobId,
+        fileHashBytes32,
+        metaHashBytes32,
+        fileHashHex,
+        metaHashHex,
+        metadataJson,
+        durationSec,
+        resolved,
+      } = await ensureWalrusReady();
+
+      const proofMessage = `
+CHAINSTORM WORK PROOF
+Wallet: ${walletAddress}
+FileHash: ${fileHashHex}
+MetaHash: ${metaHashHex}
+WalrusFileId: ${resolved.fileBlobId}
+WalrusMetaId: ${metadataBlobId}
+Time: ${new Date().toISOString()}
+`.trim();
+
+      const { signature: authorSignature, walletAddress: signedWallet } =
+        await signWorkProofMessage(proofMessage);
+
+      if (
+        walletAddress &&
+        signedWallet &&
+        walletAddress.toLowerCase() !== signedWallet.toLowerCase()
+      ) {
+        throw new Error("Ví ký không khớp với ví đang kết nối.");
+      }
+
+      const proofRes = await fetch("/api/proof/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authorId: user!.id,
+          wallet: walletAddress,
+          fileHash: fileHashHex,
+          metaHash: metaHashHex,
+          walrusFileId: resolved.fileBlobId,
+          walrusMetaId: metadataBlobId,
+          walrusCoverId: resolved.coverBlobId,
+          message: proofMessage,
+          authorSignature,
+          metadata: metadataJson,
+        }),
+      });
+
+      const proofData: any = await readApi(proofRes);
+      if (!proofData?.ok) {
+        throw new Error(proofData?.error || "Nộp hồ sơ pháp lý thất bại.");
+      }
+
+      const proof = proofData?.proof;
+      setProofId(proof?.id || "");
+      setProofStatus(proof?.status || "submitted");
+      showToast("Đã nộp hồ sơ. Chờ admin duyệt.", "success");
+
+      const existing = getWorkByProofId(proof?.id);
+      if (existing) {
+        patchWorkByProofId(proof?.id, {
+          hash: `walrus:${metadataBlobId}`,
+          fileHash: fileHashHex,
+          metaHash: metaHashHex,
+          walrusFileId: resolved.fileBlobId,
+          walrusMetaId: metadataBlobId,
+          walrusCoverId: resolved.coverBlobId,
+          durationSec,
+          authorSignature,
+          tsaId: proof.tsa?.id,
+          tsaSignature: proof.tsa?.signature,
+          tsaTime: proof.tsa?.time,
+          approvalSignature: proof.approval?.signature,
+          approvalWallet: proof.approval?.adminWallet,
+          approvalTime: proof.approval?.time,
+        });
+      } else {
+        addWork({
+          title: title.trim(),
+          authorId: user!.id,
+
+          authorName: authorName || user!.id,
+          authorEmail: authorEmail || String(user?.email || ""),
+          authorAvatar: authorAvatar || String((user as any)?.avatar || ""),
+          authorPhone: authorPhone || "",
+          authorWallet: walletAddress || "",
+
+          hash: `walrus:${metadataBlobId}`,
+          fileHash: fileHashHex,
+          metaHash: metaHashHex,
+          walrusFileId: resolved.fileBlobId,
+          walrusMetaId: metadataBlobId,
+          walrusCoverId: resolved.coverBlobId,
+          durationSec,
+          proofId: proof.id,
+          authorSignature,
+          tsaId: proof.tsa?.id,
+          tsaSignature: proof.tsa?.signature,
+          tsaTime: proof.tsa?.time,
+          approvalSignature: proof.approval?.signature,
+          approvalWallet: proof.approval?.adminWallet,
+          approvalTime: proof.approval?.time,
+          category: category.trim() || undefined,
+          language: language.trim() || undefined,
+          createdDate: createdDate.trim() || undefined,
+          sellType,
+          royalty: royaltyNum,
+          quorumWeight: 1,
+        });
+      }
+
+      return {
+        proof,
+        metadataBlobId,
+        fileHashBytes32,
+        metaHashBytes32,
+        resolved,
+        durationSec,
+        authorSignature,
+      };
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      setErr(msg);
+      showToast(msg, "error");
+      return null;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /* =======================
      ✅ submit: offchain + onchain mint
   ======================= */
   async function onSubmit() {
     setErr(null);
 
-    if (!configOk) {
-      setErr(
-        `Thiếu config on-chain cho "${activeNet}". Hãy điền đúng packageId + registryId trong chainstormConfig.ts`
-      );
-      return;
-    }
+      if (!configOk) {
+        setErr(
+          `Thiếu config on-chain cho "${activeNet}". Hãy điền đúng packageId + registryId trong chainstormConfig.ts`
+        );
+        showToast("Thiếu config on-chain. Kiểm tra chainstormConfig.ts", "error");
+        return;
+      }
 
-    if (!canSubmit) {
-      setErr(
-        "Vui lòng kiểm tra: đăng nhập, kết nối ví, file/tiêu đề hợp lệ, ngày sáng tác đúng (dd/mm/yyyy)."
-      );
-      return;
-    }
+      if (!canSubmit) {
+        setErr(
+          "Vui lòng kiểm tra: đăng nhập, kết nối ví, file/tiêu đề hợp lệ, ngày sáng tác đúng (dd/mm/yyyy)."
+        );
+        showToast("Thiếu điều kiện mint.", "warning");
+        return;
+      }
 
     setSubmitting(true);
     try {
-      const { metadataCid, hashBytes32 } = await ensureIPFSReady();
+      let proof: any = null;
+      let metadataBlobId = "";
+      let fileHashBytes32: Uint8Array | null = null;
+      let metaHashBytes32: Uint8Array | null = null;
+      let resolved: any = null;
+      let authorSignature = "";
+      let durationSecFromProof: number | undefined;
+
+      if (proofId) {
+        const res = await fetch(`/api/proof/${encodeURIComponent(proofId)}`);
+        const data: any = await readApi(res);
+        if (!data?.ok) {
+          throw new Error(data?.error || "Không lấy được hồ sơ pháp lý.");
+        }
+        proof = data?.proof;
+        setProofStatus(proof?.status || "submitted");
+        if (!proof?.approval || proof?.status !== "approved") {
+          setErr("Hồ sơ đã nộp. Hãy chờ admin duyệt trước khi mint.");
+          showToast("Hồ sơ chưa được duyệt.", "warning");
+          return;
+        }
+        metadataBlobId = String(proof?.walrusMetaId || "").trim();
+        resolved = {
+          fileBlobId: String(proof?.walrusFileId || "").trim(),
+          coverBlobId: String(proof?.walrusCoverId || "").trim() || undefined,
+        };
+        authorSignature = String(proof?.authorSignature || "").trim();
+        const rawDuration =
+          proof?.metadata?.duration ??
+          proof?.metadata?.properties?.duration ??
+          proof?.metadata?.properties?.file?.duration;
+        const numDur = Number(rawDuration);
+        durationSecFromProof =
+          Number.isFinite(numDur) && numDur > 0 ? Math.floor(numDur) : undefined;
+        fileHashBytes32 = new Uint8Array(
+          String(proof?.fileHash || "")
+            .match(/.{1,2}/g)
+            ?.map((b: string) => parseInt(b, 16)) || []
+        );
+        metaHashBytes32 = new Uint8Array(
+          String(proof?.metaHash || "")
+            .match(/.{1,2}/g)
+            ?.map((b: string) => parseInt(b, 16)) || []
+        );
+      } else {
+        const submitted = await submitProof();
+        if (!submitted?.proof) {
+          return;
+        }
+        proof = submitted.proof;
+        setProofStatus(proof?.status || "submitted");
+        if (!proof?.approval || proof?.status !== "approved") {
+          setErr("Hồ sơ đã nộp. Hãy chờ admin duyệt trước khi mint.");
+          showToast("Hồ sơ chưa được duyệt.", "warning");
+          return;
+        }
+        metadataBlobId = submitted.metadataBlobId;
+        fileHashBytes32 = submitted.fileHashBytes32;
+        metaHashBytes32 = submitted.metaHashBytes32;
+        resolved = submitted.resolved;
+        authorSignature = submitted.authorSignature;
+        durationSecFromProof = submitted.durationSec;
+      }
+
+      if (!fileHashBytes32 || !metaHashBytes32) {
+        throw new Error("Thiếu hash để mint. Vui lòng nộp hồ sơ lại.");
+      }
 
       // ✅ đảm bảo profileStore có email/avatar (nếu Auth có mà profileStore chưa có)
       try {
@@ -616,32 +968,69 @@ export default function RegisterWorkPage() {
       } catch {}
 
       // 1) off-chain store
-      const workId = addWork({
-        title: title.trim(),
-        authorId: user!.id,
+      const existing = getWorkByProofId(proof.id);
+      const workId =
+        existing?.id ||
+        addWork({
+          title: title.trim(),
+          authorId: user!.id,
 
-        authorName: authorName || user!.id,
-        authorEmail: authorEmail || String(user?.email || ""),
-        authorAvatar: authorAvatar || String((user as any)?.avatar || ""),
-        authorPhone: authorPhone || "",
-        authorWallet: walletAddress || "",
+          authorName: authorName || user!.id,
+          authorEmail: authorEmail || String(user?.email || ""),
+          authorAvatar: authorAvatar || String((user as any)?.avatar || ""),
+          authorPhone: authorPhone || "",
+          authorWallet: walletAddress || "",
 
-        hash: metadataCid, // CID metadata
-        category: category.trim() || undefined,
-        language: language.trim() || undefined,
-        createdDate: createdDate.trim() || undefined,
-        sellType,
-        royalty: royaltyNum,
-        quorumWeight: 1,
-      });
+          hash: `walrus:${metadataBlobId}`, // Walrus metadata blob
+          fileHash: proof.fileHash,
+          metaHash: proof.metaHash,
+          walrusFileId: resolved.fileBlobId,
+          walrusMetaId: metadataBlobId,
+          walrusCoverId: resolved.coverBlobId,
+          durationSec: durationSecFromProof,
+          proofId: proof.id,
+          authorSignature,
+          tsaId: proof.tsa?.id,
+          tsaSignature: proof.tsa?.signature,
+          tsaTime: proof.tsa?.time,
+          approvalSignature: proof.approval?.signature,
+          approvalWallet: proof.approval?.adminWallet,
+          approvalTime: proof.approval?.time,
+          category: category.trim() || undefined,
+          language: language.trim() || undefined,
+          createdDate: createdDate.trim() || undefined,
+          sellType,
+          royalty: royaltyNum,
+          quorumWeight: 1,
+        });
 
       // 2) on-chain mint (Move signature)
+      const tsaMillis = Date.parse(String(proof.tsa?.time || ""));
+      const tsaTime = Number.isFinite(tsaMillis) ? Math.floor(tsaMillis / 1000) : 0;
+
+      const authorSigBytes = strToBytes(authorSignature);
+      const tsaIdBytes = strToBytes(String(proof.tsa?.id || ""));
+      const tsaSigBytes = strToBytes(String(proof.tsa?.signature || ""));
+      const approvalSigBytes = strToBytes(String(proof.approval?.signature || ""));
+      const proofIdBytes = strToBytes(String(proof.id || ""));
+      const walrusFileIdBytes = strToBytes(String(resolved.fileBlobId || ""));
+      const walrusMetaIdBytes = strToBytes(String(metadataBlobId || ""));
+
       const tx = new Transaction();
       tx.moveCall({
         target: `${PACKAGE_ID}::${MODULE}::${MINT_FN}`,
         arguments: [
           tx.object(REGISTRY_ID),
-          tx.pure.vector("u8", Array.from(hashBytes32)),
+          tx.pure.vector("u8", Array.from(fileHashBytes32)),
+          tx.pure.vector("u8", Array.from(metaHashBytes32)),
+          tx.pure.vector("u8", Array.from(walrusFileIdBytes)),
+          tx.pure.vector("u8", Array.from(walrusMetaIdBytes)),
+          tx.pure.vector("u8", Array.from(authorSigBytes)),
+          tx.pure.vector("u8", Array.from(tsaIdBytes)),
+          tx.pure.vector("u8", Array.from(tsaSigBytes)),
+          tx.pure.u64(tsaTime),
+          tx.pure.vector("u8", Array.from(approvalSigBytes)),
+          tx.pure.vector("u8", Array.from(proofIdBytes)),
           tx.pure.u8(sellTypeU8),
           tx.pure.u8(royaltyNum),
         ],
@@ -656,48 +1045,31 @@ export default function RegisterWorkPage() {
       let createdObjectId: string | null = null;
 
       const changes = (result as any)?.objectChanges as any[] | undefined;
-      if (Array.isArray(changes)) {
-        const created = changes.find(
-          (c) =>
-            c?.type === "created" &&
-            typeof c?.objectType === "string" &&
-            c.objectType.includes(`${PACKAGE_ID}::${MODULE}::WorkNFT`) &&
-            c?.objectId
-        );
-        createdObjectId = created?.objectId ?? null;
-
-        if (!createdObjectId) {
-          const anyCreated = changes.find((c) => c?.type === "created" && c?.objectId);
-          createdObjectId = anyCreated?.objectId ?? null;
-        }
-      }
+      createdObjectId = extractCreatedObjectId(changes);
 
       if (!createdObjectId) {
-        const txb = await suiClient.getTransactionBlock({
-          digest,
-          options: { showObjectChanges: true, showEffects: true },
-        });
+        try {
+          await suiClient.waitForTransaction({ digest });
+        } catch {}
 
-        const oc = (txb as any)?.objectChanges as any[] | undefined;
-        if (Array.isArray(oc)) {
-          const created = oc.find(
-            (c) =>
-              c?.type === "created" &&
-              typeof c?.objectType === "string" &&
-              c.objectType.includes(`${PACKAGE_ID}::${MODULE}::WorkNFT`) &&
-              c?.objectId
-          );
-          createdObjectId = created?.objectId ?? null;
+        for (let i = 0; i < 3 && !createdObjectId; i += 1) {
+          const txb = await suiClient.getTransactionBlock({
+            digest,
+            options: { showObjectChanges: true, showEffects: true },
+          });
 
+          const oc = (txb as any)?.objectChanges as any[] | undefined;
+          createdObjectId = extractCreatedObjectId(oc);
           if (!createdObjectId) {
-            const anyCreated = oc.find((c) => c?.type === "created" && c?.objectId);
-            createdObjectId = anyCreated?.objectId ?? null;
+            await new Promise((r) => setTimeout(r, 250));
           }
         }
       }
 
       if (!createdObjectId) {
-        throw new Error("Mint thành công nhưng không đọc được objectId WorkNFT.");
+        throw new Error(
+          "Mint thành công nhưng không đọc được objectId WorkNFT. Hãy mở lại giao dịch và thử lại."
+        );
       }
 
       // 4) bind
@@ -709,6 +1081,7 @@ export default function RegisterWorkPage() {
         authorWallet: walletAddress,
       });
 
+      showToast("Mint thành công.", "success");
       router.push("/manage");
     } catch (e: any) {
       const msg = String(e?.message || e);
@@ -717,14 +1090,18 @@ export default function RegisterWorkPage() {
         setErr(
           `PACKAGE_ID không tồn tại trên "${activeNet}". Kiểm tra Sui Wallet network + chainstormConfig.ts`
         );
+        showToast("PACKAGE_ID không tồn tại trên network.", "error");
       } else if (msg.includes("Object does not exist") && msg.includes(REGISTRY_ID)) {
         setErr(
           `REGISTRY_ID không tồn tại trên "${activeNet}". Bạn đã init_registry chưa? (registry phải là Shared object)`
         );
+        showToast("REGISTRY_ID không tồn tại trên network.", "error");
       } else if (msg.includes("100") || msg.toLowerCase().includes("duplicate")) {
         setErr("DUPLICATE_HASH (100): Hash bị trùng. Upload metadata mới hoặc đổi tác phẩm.");
+        showToast("Hash bị trùng. Hãy đổi tác phẩm.", "error");
       } else {
         setErr(msg);
+        showToast(msg, "error");
       }
     } finally {
       setSubmitting(false);
@@ -877,7 +1254,13 @@ export default function RegisterWorkPage() {
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
                       setFile(f);
-                      resetIpfsState();
+                      setFileDuration(null);
+                      resetWalrusState();
+                      if (f) {
+                        readMediaDuration(f).then((d) => {
+                          if (d != null) setFileDuration(d);
+                        });
+                      }
                     }}
                   />
 
@@ -889,24 +1272,26 @@ export default function RegisterWorkPage() {
                       try {
                         setErr(null);
                         if (!file) return;
-                        const r = await uploadToIPFSFile(file, "audio");
-                        setFileCid(r.cid);
+                        const r = await uploadToWalrusFile(file, "audio");
+                        setFileBlobId(r.cid);
                         setFileUrl(r.url);
                       } catch (e: any) {
                         setErr(e?.message ?? "Upload thất bại.");
                       }
                     }}
                   >
-                    {uploading && uploadStage === "upload_file" ? "Đang upload..." : "Upload IPFS"}
+                    {uploading && uploadStage === "upload_file" ? "Đang upload..." : "Upload Walrus"}
                   </button>
                 </div>
 
                 <div className={styles.ipfsInfo}>
                   <div className={styles.ipfsLine}>
-                    <span className={styles.badge} data-ok={!!fileCid}>
-                      File CID
+                    <span className={styles.badge} data-ok={!!fileBlobId}>
+                      File Blob ID
                     </span>
-                    <span className={styles.mono}>{fileCid ? shortCid(fileCid) : "Chưa có"}</span>
+                    <span className={styles.mono}>
+                      {fileBlobId ? shortCid(fileBlobId) : "Chưa có"}
+                    </span>
                     {fileUrl ? (
                       <a className={styles.link} href={fileUrl} target="_blank" rel="noreferrer">
                         Open
@@ -914,7 +1299,7 @@ export default function RegisterWorkPage() {
                     ) : null}
                   </div>
                   <div className={styles.ipfsHint}>
-                    Mint sẽ pin metadata → lấy CID metadata → SHA-256 (32 bytes) → chống trùng hash.
+                    Mint sẽ hash file + metadata → 32 bytes → chống trùng hash.
                   </div>
                 </div>
               </label>
@@ -939,12 +1324,13 @@ export default function RegisterWorkPage() {
                       setCover(f);
                       // chỉ reset cover/meta (giữ file nếu có)
                       setErr(null);
-                      setCoverCid("");
+                      setCoverBlobId("");
                       setCoverUrl("");
-                      setMetaCid("");
+                      setMetaBlobId("");
                       setMetaUrl("");
                       setUploadStage("idle");
                       setUploadPct(0);
+                      setProofId("");
                     }}
                   />
 
@@ -956,8 +1342,8 @@ export default function RegisterWorkPage() {
                       try {
                         setErr(null);
                         if (!cover) return;
-                        const r = await uploadToIPFSFile(cover, "cover");
-                        setCoverCid(r.cid);
+                        const r = await uploadToWalrusFile(cover, "cover");
+                        setCoverBlobId(r.cid);
                         setCoverUrl(r.url);
                       } catch (e: any) {
                         setErr(e?.message ?? "Upload cover thất bại.");
@@ -970,11 +1356,11 @@ export default function RegisterWorkPage() {
 
                 <div className={styles.ipfsInfo}>
                   <div className={styles.ipfsLine}>
-                    <span className={styles.badge} data-ok={!!coverCid}>
-                      Cover CID
+                    <span className={styles.badge} data-ok={!!coverBlobId}>
+                      Cover Blob ID
                     </span>
                     <span className={styles.mono}>
-                      {coverCid ? shortCid(coverCid) : "Chưa có"}
+                      {coverBlobId ? shortCid(coverBlobId) : "Chưa có"}
                     </span>
                     {coverUrl ? (
                       <a className={styles.link} href={coverUrl} target="_blank" rel="noreferrer">
@@ -1002,6 +1388,7 @@ export default function RegisterWorkPage() {
                 >
                   <option value="exclusive">Bán đứt (exclusive)</option>
                   <option value="license">Bán license</option>
+                  <option value="none">Không bán</option>
                 </select>
               </label>
 
@@ -1041,9 +1428,37 @@ export default function RegisterWorkPage() {
               <Row label="Ngày sáng tác" value={createdDate || "-"} />
               <Row label="SellType" value={`${sellType} (u8=${sellTypeU8})`} />
               <Row label="Royalty" value={`${royaltyNum}%`} />
-              <Row label="File CID" value={fileCid ? shortCid(fileCid) : "Chưa có"} mono />
-              <Row label="Cover CID" value={coverCid ? shortCid(coverCid) : "Chưa có"} mono />
-              <Row label="Metadata CID" value={metaCid ? shortCid(metaCid) : "Sẽ tạo khi Mint"} mono />
+              <Row label="File Blob ID" value={fileBlobId ? shortCid(fileBlobId) : "Chưa có"} mono />
+              <Row label="Cover Blob ID" value={coverBlobId ? shortCid(coverBlobId) : "Chưa có"} mono />
+              <Row
+                label="Metadata Blob ID"
+                value={metaBlobId ? shortCid(metaBlobId) : "Sẽ tạo khi Mint"}
+                mono
+              />
+              <Row label="Proof ID" value={proofId || "Chưa có"} mono />
+              <Row
+                label="Proof status"
+                value={proofStatus === "draft" ? "Chưa nộp" : proofStatus}
+              />
+              <div className={styles.metaLinkRow}>
+                <button
+                  type="button"
+                  className={styles.btnGhost}
+                  onClick={refreshProofStatus}
+                  disabled={!proofId || submitting || isPending || uploading}
+                  title="Lấy trạng thái mới nhất"
+                >
+                  Refresh status
+                </button>
+              </div>
+
+              {proofStatus !== "approved" ? (
+                <div className={styles.callout}>
+                  Hồ sơ cần được admin duyệt trước khi mint. Vào trang{" "}
+                  <b>/admin/review</b> để duyệt.
+                </div>
+              ) : null}
+
 
               {metaUrl ? (
                 <div className={styles.metaLinkRow}>
@@ -1054,7 +1469,8 @@ export default function RegisterWorkPage() {
               ) : null}
 
               <div className={styles.callout}>
-                Mint sẽ hash CID metadata (SHA-256) → <b>32 bytes</b> → Move để chống duplicate.
+                Mint sẽ hash <b>file + metadata</b> (SHA-256) → <b>32 bytes</b> → Move để chống
+                duplicate.
               </div>
             </div>
           )}
@@ -1069,7 +1485,7 @@ export default function RegisterWorkPage() {
               Quay lại
             </button>
 
-            <div className={styles.actionsRight}>
+          <div className={styles.actionsRight}>
               {step < 3 ? (
                 <button
                   className={styles.btnPrimary}
@@ -1079,21 +1495,42 @@ export default function RegisterWorkPage() {
                   Tiếp theo
                 </button>
               ) : (
-                <button
-                  className={styles.btnPrimary}
-                  onClick={onSubmit}
-                  disabled={!canSubmit || submitting || isPending || uploading}
-                >
-                  {submitting || isPending || uploading
-                    ? uploadStage === "upload_file"
-                      ? "Uploading file..."
-                      : uploadStage === "upload_cover"
-                      ? "Uploading cover..."
-                      : uploadStage === "upload_meta"
-                      ? "Uploading metadata..."
-                      : "Đang mint..."
-                    : "Mint"}
-                </button>
+                <>
+                  <button
+                    className={styles.btnGhost}
+                    onClick={submitProof}
+                    disabled={!canSubmit || submitting || isPending || uploading}
+                    title="Nộp hồ sơ pháp lý (off-chain)"
+                  >
+                    Nộp hồ sơ
+                  </button>
+                  <button
+                    className={styles.btnPrimary}
+                    onClick={onSubmit}
+                    disabled={
+                      !canSubmit ||
+                      proofStatus !== "approved" ||
+                      submitting ||
+                      isPending ||
+                      uploading
+                    }
+                    title={
+                      proofStatus !== "approved"
+                        ? "Hồ sơ chưa được duyệt"
+                        : "Mint on-chain"
+                    }
+                  >
+                    {submitting || isPending || uploading
+                      ? uploadStage === "upload_file"
+                        ? "Uploading file..."
+                        : uploadStage === "upload_cover"
+                        ? "Uploading cover..."
+                        : uploadStage === "upload_meta"
+                        ? "Uploading metadata..."
+                        : "Đang mint..."
+                      : "Mint"}
+                  </button>
+                </>
               )}
             </div>
           </div>

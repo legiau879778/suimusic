@@ -33,8 +33,19 @@ module chainstorm_nft::chainstorm_nft {
     public struct WorkNFT has key, store {
         id: UID,
         author: address,
-        // lưu hash dưới dạng address
-        content_hash: address,
+        // hash file/meta dạng address (32 bytes)
+        file_hash: address,
+        meta_hash: address,
+        // Walrus blob ids (string bytes)
+        walrus_file_id: vector<u8>,
+        walrus_meta_id: vector<u8>,
+        // off-chain signatures (string bytes)
+        author_sig: vector<u8>,
+        tsa_id: vector<u8>,
+        tsa_sig: vector<u8>,
+        tsa_time: u64,
+        approval_sig: vector<u8>,
+        proof_id: vector<u8>,
         sell_type: u8, // 1 = exclusive, 2 = license
         royalty: u8,
     }
@@ -55,30 +66,49 @@ module chainstorm_nft::chainstorm_nft {
        MINT (ANTI DUPLICATE)
     ========================= */
 
-    /// content_hash_bytes phải đúng 32 bytes (address::from_bytes)
+    /// file_hash_bytes/meta_hash_bytes phải đúng 32 bytes (address::from_bytes)
     entry fun mint(
         registry: &mut Registry,
-        content_hash_bytes: vector<u8>,
+        file_hash_bytes: vector<u8>,
+        meta_hash_bytes: vector<u8>,
+        walrus_file_id: vector<u8>,
+        walrus_meta_id: vector<u8>,
+        author_sig: vector<u8>,
+        tsa_id: vector<u8>,
+        tsa_sig: vector<u8>,
+        tsa_time: u64,
+        approval_sig: vector<u8>,
+        proof_id: vector<u8>,
         sell_type: u8,
         royalty: u8,
         ctx: &mut TxContext
     ) {
         // Convert hash bytes -> address (consume vector)
-        let h = address::from_bytes(content_hash_bytes);
+        let file_h = address::from_bytes(file_hash_bytes);
+        let meta_h = address::from_bytes(meta_hash_bytes);
 
         assert!(
-            !table::contains(&registry.hashes, h),
+            !table::contains(&registry.hashes, file_h),
             100 // DUPLICATE_HASH
         );
 
-        table::add(&mut registry.hashes, h, true);
+        table::add(&mut registry.hashes, file_h, true);
 
         let sender = tx_context::sender(ctx);
 
         let nft = WorkNFT {
             id: object::new(ctx),
             author: sender,
-            content_hash: h,
+            file_hash: file_h,
+            meta_hash: meta_h,
+            walrus_file_id,
+            walrus_meta_id,
+            author_sig,
+            tsa_id,
+            tsa_sig,
+            tsa_time,
+            approval_sig,
+            proof_id,
             sell_type,
             royalty,
         };

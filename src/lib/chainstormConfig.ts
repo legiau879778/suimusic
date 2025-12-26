@@ -11,14 +11,14 @@ export const CHAINSTORM_BY_NETWORK: Record<
   }
 > = {
   devnet: {
-    packageId: "0x840be8415e526c4d325b54e65b597f3907e9fd29251cb91a85dcd39d424de2a6",
-    registryId: "0x4330abbe0a0194662515799e70cb30b1ba0e1a222ebc148e0c77ab61aff0e8d3", // 👈 tạm để rỗng (giải thích bên dưới)
+    packageId: "0xbfade441b8bd0baa42261eb7e4529b1a77a98533e5371acbe6a692cdc68752c7",
+    registryId: "0xff6ce0d3ce9ae2523bb4f20e010f1365b139d4b60cd5ba878b8a43e69c082aa5",
     module: "chainstorm_nft", // 👈 đúng theo output publish
     mintFn: "mint", // 👈 giữ "mint" nếu function của bạn tên mint
   },
   testnet: {
-    packageId: "",
-    registryId: "",
+    packageId: "0x672ff4692cb57ead0503db7b54028bbfca6aefee9f89eb2b5d025627172cab23",
+    registryId: "0xe8a047033205e1d29ef22331303e6672ebf1b291a0e8da842448e4d6ef8de05a",
     module: "chainstorm_nft",
     mintFn: "mint",
   },

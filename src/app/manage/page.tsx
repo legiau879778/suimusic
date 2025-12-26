@@ -14,6 +14,7 @@ import {
   softDeleteWork,
   updateNFTOwner,
   bindNFTToWork,
+  updateWorkConfig,
 } from "@/lib/workStore";
 import type { Work } from "@/lib/workStore";
 
@@ -34,7 +35,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
 type ViewMode = "active" | "trash";
-type MarketFilter = "all" | "sell" | "license";
+type MarketFilter = "all" | "sell" | "license" | "none";
 
 const PAGE_SIZE = 12;
 
@@ -64,22 +65,15 @@ function toGateway(input?: string) {
 
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
 
-  if (v.startsWith("ipfs://")) v = v.slice("ipfs://".length);
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  if (v.startsWith("walrus:")) {
+    return `/api/walrus/blob/${v.slice("walrus:".length)}`;
+  }
+  if (v.startsWith("walrus://")) {
+    return `/api/walrus/blob/${v.slice("walrus://".length)}`;
+  }
 
-  v = v.replace(/^\/+/, "");
-  if (v.startsWith("ipfs/")) v = v.slice("ipfs/".length);
-
-  v = v.split("?")[0].split("#")[0];
-
-  const isLikelyCid =
-    v.startsWith("Qm") ||
-    v.startsWith("bafy") ||
-    v.startsWith("bafk") ||
-    v.startsWith("baf");
-
-  if (!isLikelyCid) return "";
-
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+  return "";
 }
 
 function normalizeIpfsUrl(url?: string) {
@@ -237,7 +231,8 @@ export default function ManagePage() {
       list = list.filter(
         (w) =>
           (filter === "sell" && w.sellType === "exclusive") ||
-          (filter === "license" && w.sellType === "license")
+          (filter === "license" && w.sellType === "license") ||
+          (filter === "none" && w.sellType === "none")
       );
     }
 
@@ -576,6 +571,9 @@ export default function ManagePage() {
         actor: { id: userId, role: userRole as any },
         walletAddress: currentAccount?.address,
       });
+      if (selected?.id === work.id) {
+        setSelected(null);
+      }
       showToast("🗑️ Đã chuyển vào thùng rác", "success");
     } catch (e: any) {
       console.error(e);
@@ -655,6 +653,7 @@ export default function ManagePage() {
               <option value="all">Tất cả</option>
               <option value="sell">Bán đứt</option>
               <option value="license">License</option>
+              <option value="none">Không bán</option>
             </select>
 
             <select
@@ -781,8 +780,12 @@ function WorkCard(props: {
     syncingOwner,
   } = props;
 
+  const { showToast } = useToast();
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
+  const [sellTypeEdit, setSellTypeEdit] = useState<string>(work.sellType || "exclusive");
+  const [royaltyEdit, setRoyaltyEdit] = useState<string>(String(work.royalty ?? 0));
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
 
@@ -800,6 +803,16 @@ function WorkCard(props: {
       alive = false;
     };
   }, [metaUrl]);
+
+  useEffect(() => {
+    setSellTypeEdit(work.sellType || "exclusive");
+    setRoyaltyEdit(String(work.royalty ?? 0));
+  }, [work.id, work.sellType, work.royalty]);
+
+  useEffect(() => {
+    setSellTypeEdit(work.sellType || "exclusive");
+    setRoyaltyEdit(String(work.royalty ?? 0));
+  }, [work.id, work.sellType, work.royalty]);
 
   // ✅ cover fallback: properties.cover.url -> cover_image -> cover.url -> image
   const coverUrl = useMemo(() => {
@@ -825,8 +838,28 @@ function WorkCard(props: {
   function sellTypeLabel(t?: string) {
     if (t === "exclusive") return "Bán đứt";
     if (t === "license") return "License";
+    if (t === "none") return "Không bán";
     return t || "—";
   }
+
+  async function saveEdit() {
+    if (view === "trash") return;
+    const royaltyNum = Math.max(0, Math.min(100, Math.floor(Number(royaltyEdit || 0))));
+    setSavingEdit(true);
+    try {
+      updateWorkConfig({
+        workId: work.id,
+        sellType: sellTypeEdit as any,
+        royalty: royaltyNum,
+      });
+      showToast("Đã cập nhật sellType/royalty.", "success");
+    } catch (e: any) {
+      showToast(e?.message || "Cập nhật thất bại", "error");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
 
   return (
     <div
@@ -991,8 +1024,12 @@ function WorkDetailModal(props: {
     syncingOwner,
   } = props;
 
+  const { showToast } = useToast();
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
+  const [sellTypeEdit, setSellTypeEdit] = useState<string>(work.sellType || "exclusive");
+  const [royaltyEdit, setRoyaltyEdit] = useState<string>(String(work.royalty ?? 0));
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
 
@@ -1013,6 +1050,11 @@ function WorkDetailModal(props: {
       alive = false;
     };
   }, [metaUrl]);
+
+  useEffect(() => {
+    setSellTypeEdit(work.sellType || "exclusive");
+    setRoyaltyEdit(String(work.royalty ?? 0));
+  }, [work.id, work.sellType, work.royalty]);
 
   const coverUrl = useMemo(() => {
     const cover =
@@ -1048,7 +1090,26 @@ function WorkDetailModal(props: {
   function sellTypeLabel(t?: string) {
     if (t === "exclusive") return "Bán đứt";
     if (t === "license") return "License";
+    if (t === "none") return "Không bán";
     return t || "—";
+  }
+
+  async function saveEdit() {
+    if (view === "trash") return;
+    const royaltyNum = Math.max(0, Math.min(100, Math.floor(Number(royaltyEdit || 0))));
+    setSavingEdit(true);
+    try {
+      updateWorkConfig({
+        workId: work.id,
+        sellType: sellTypeEdit as any,
+        royalty: royaltyNum,
+      });
+      showToast("Đã cập nhật sellType/royalty.", "success");
+    } catch (e: any) {
+      showToast(e?.message || "Cập nhật thất bại", "error");
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   return (
@@ -1189,6 +1250,44 @@ function WorkDetailModal(props: {
         </div>
 
         {meta?.description ? <div className={styles.metaDesc}>{meta.description}</div> : null}
+
+        <div className={styles.editBox}>
+          <div className={styles.editTitle}>Cập nhật bán & royalty</div>
+          <div className={styles.editRow}>
+            <label className={styles.editLabel}>Hình thức</label>
+            <select
+              className={styles.editSelect}
+              value={sellTypeEdit}
+              onChange={(e) => setSellTypeEdit(e.target.value)}
+              disabled={view === "trash" || disableGlobal || savingEdit}
+            >
+              <option value="exclusive">Bán đứt</option>
+              <option value="license">License</option>
+              <option value="none">Không bán</option>
+            </select>
+          </div>
+
+          <div className={styles.editRow}>
+            <label className={styles.editLabel}>Royalty (%)</label>
+            <input
+              className={styles.editInput}
+              value={royaltyEdit}
+              onChange={(e) => setRoyaltyEdit(e.target.value)}
+              inputMode="numeric"
+              disabled={view === "trash" || disableGlobal || savingEdit}
+            />
+          </div>
+
+          <div className={styles.editActions}>
+            <button
+              className={styles.btnPrimary}
+              onClick={saveEdit}
+              disabled={view === "trash" || disableGlobal || savingEdit}
+            >
+              {savingEdit ? "Đang lưu..." : "Lưu thay đổi"}
+            </button>
+          </div>
+        </div>
 
         <div className={styles.licenseBox}>
           <div className={styles.licenseHead}>

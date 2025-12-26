@@ -42,15 +42,18 @@ function isPlainObject(v: unknown): v is Record<string, any> {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
-/** normalize ipfs/cid/url -> gateway */
+/** normalize walrus/url -> gateway (chỉ dùng Walrus) */
 export function toGateway(urlOrCid?: string) {
   if (!urlOrCid) return "";
   const v = String(urlOrCid).trim();
   if (!v) return "";
   if (v.startsWith("http")) return v;
-  if (v.startsWith("ipfs://")) return `https://gateway.pinata.cloud/ipfs/${v.replace("ipfs://", "")}`;
-  // nếu đưa thẳng CID
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  if (v.startsWith("walrus:"))
+    return `/api/walrus/blob/${v.replace("walrus:", "")}`;
+  if (v.startsWith("walrus://"))
+    return `/api/walrus/blob/${v.replace("walrus://", "")}`;
+  return "";
 }
 
 /** merge sâu tối thiểu cho profile (tránh mất socials/options khi update 1 phần) */

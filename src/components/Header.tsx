@@ -170,10 +170,12 @@ export default function Header() {
     </Link>
   );
 
-  const navProtected = (href: string, label: string, allowed: boolean) => (
-    <div className={styles.navItemWrap}>
+  const navProtected = (href: string, label: string, allowed: boolean) => {
+    const isActive = pathname === href;
+    return (
+      <div className={styles.navItemWrap}>
       <button
-        className={`${styles.link} ${styles.linkBtn}`}
+        className={`${styles.link} ${styles.linkBtn} ${isActive ? styles.active : ""}`}
         onClick={() => {
           if (!user) {
             saveRedirect();
@@ -207,8 +209,9 @@ export default function Header() {
           <div className={styles.tooltip}>Yêu cầu Membership phù hợp</div>
         </div>
       )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   if (!mounted) return null;
 
@@ -228,6 +231,7 @@ export default function Header() {
           <nav className={styles.nav}>
             {navLink("/", "Trang chủ")}
             {navLink("/search", "Tra cứu")}
+            {navLink("/leaderboard/authors", "Bảng xếp hạng")}
             {navProtected("/manage", "Quản lý", !!ent.canManage)}
             {navProtected("/register-work", "Đăng ký", !!ent.canRegister)}
             {navProtected("/marketplace", "Giao dịch", !!ent.canTrade)}
@@ -320,6 +324,7 @@ export default function Header() {
       <div className={`${styles.mobileMenu} ${menuOpen ? styles.open : ""}`} ref={mobileRef}>
         {navLink("/", "Trang chủ")}
         {navLink("/search", "Tra cứu")}
+        {navLink("/leaderboard/authors", "Bảng xếp hạng")}
         {navProtected("/manage", "Quản lý", !!ent.canManage)}
         {navProtected("/register-work", "Đăng ký", !!ent.canRegister)}
         {navProtected("/marketplace", "Giao dịch", !!ent.canTrade)}

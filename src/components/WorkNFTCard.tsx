@@ -18,12 +18,10 @@ function toGateway(input?: string) {
   let v = String(input).trim();
   if (!v) return "";
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
-  if (v.startsWith("ipfs://")) v = v.slice("ipfs://".length);
-  v = v.replace(/^\/+/, "");
-  if (v.startsWith("ipfs/")) v = v.slice("ipfs/".length);
-  // chặn rác
-  if (!v.startsWith("Qm") && !v.startsWith("bafy")) return "";
-  return `https://gateway.pinata.cloud/ipfs/${v}`;
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  if (v.startsWith("walrus:")) return `/api/walrus/blob/${v.slice("walrus:".length)}`;
+  if (v.startsWith("walrus://")) return `/api/walrus/blob/${v.slice("walrus://".length)}`;
+  return "";
 }
 
 function normalizeIpfsUrl(url?: string) {
