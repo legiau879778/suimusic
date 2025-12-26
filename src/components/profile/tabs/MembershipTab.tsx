@@ -65,9 +65,9 @@ export default function MembershipTab() {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      pushToast("success", "Đã copy");
+      pushToast("success", "Copied");
     } catch {
-      pushToast("warning", "Không copy được");
+      pushToast("warning", "Copy failed");
     }
   };
 
@@ -124,7 +124,7 @@ export default function MembershipTab() {
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
-      setCountdown(`${d} ngày ${h}h ${m}m`);
+      setCountdown(`${d} days ${h}h ${m}m`);
     };
 
     tick();
@@ -134,31 +134,31 @@ export default function MembershipTab() {
 
   async function ensureWalletLinked() {
     if (!memberKey) {
-      pushToast("error", "Bạn cần đăng nhập trước");
+      pushToast("error", "You need to sign in first");
       return false;
     }
     if (!isConnected) {
-      pushToast("error", "Vui lòng kết nối ví SUI");
+      pushToast("error", "Please connect a SUI wallet");
       return false;
     }
     if (!walletAddress) {
-      pushToast("error", "Không lấy được địa chỉ ví");
+      pushToast("error", "Unable to get wallet address");
       return false;
     }
 
     if (!linkedWallet) {
       try {
         await saveProfile(memberKey, { walletAddress });
-        pushToast("success", "✅ Đã liên kết ví với hồ sơ");
+        pushToast("success", "Wallet linked to profile");
         return true;
       } catch {
-        pushToast("error", "Không thể liên kết ví (lỗi lưu profile)");
+        pushToast("error", "Unable to link wallet (profile save failed)");
         return false;
       }
     }
 
     if (!isWalletLinkedToUser) {
-      pushToast("warning", "Ví đang kết nối không khớp ví đã liên kết");
+      pushToast("warning", "Connected wallet does not match linked wallet");
       return false;
     }
 
@@ -179,17 +179,17 @@ export default function MembershipTab() {
             Membership music <br />
             <span>Copyright Mode</span>
           </h1>
-          <p className={styles.membershipSub}>Chọn gói phù hợp để mở khóa quyền Manage / Register / Trade.</p>
+          <p className={styles.membershipSub}>Choose a plan to unlock Manage / Register / Trade.</p>
         </div>
 
         <div className={styles.web3Box}>
-          <div className={styles.web3Title}>Trạng thái Web3</div>
+          <div className={styles.web3Title}>Web3 status</div>
 
           <div className={styles.web3Row}>
-            <div className={styles.web3Label}>Ví đang kết nối (extension)</div>
+            <div className={styles.web3Label}>Connected wallet (extension)</div>
             <div className={styles.web3Right}>
               <span className={styles.addrPill} title={walletAddress || ""}>
-                {walletAddress ? shortAddr(walletAddress) : "Chưa kết nối"}
+                {walletAddress ? shortAddr(walletAddress) : "Not connected"}
               </span>
               <button className={styles.copyMini} onClick={() => copy(walletAddress)} disabled={!walletAddress} type="button">
                 COPY
@@ -198,10 +198,10 @@ export default function MembershipTab() {
           </div>
 
           <div className={styles.web3Row}>
-            <div className={styles.web3Label}>Ví đã liên kết (hồ sơ)</div>
+            <div className={styles.web3Label}>Linked wallet (profile)</div>
             <div className={styles.web3Right}>
               <span className={styles.addrPill} title={linkedWallet || ""}>
-                {linkedWallet ? shortAddr(linkedWallet) : "Chưa liên kết"}
+                {linkedWallet ? shortAddr(linkedWallet) : "Not linked"}
               </span>
               <button className={styles.copyMini} onClick={() => copy(linkedWallet)} disabled={!linkedWallet} type="button">
                 COPY
@@ -211,24 +211,24 @@ export default function MembershipTab() {
 
           <div className={`${styles.web3StatusPill} ${statusOk ? styles.web3Ok : styles.web3Warn}`}>
             <span className={`${styles.web3Dot} ${statusOk ? styles.web3DotOk : styles.web3DotWarn} ${statusOk ? styles.web3PulseDot : ""}`} />
-            <span className={statusOk ? styles.web3PulseText : ""}>{statusOk ? "Đã khớp" : "Chưa khớp"}</span>
+            <span className={statusOk ? styles.web3PulseText : ""}>{statusOk ? "Matched" : "Not matched"}</span>
           </div>
 
           <div className={styles.web3Meta}>
             <div>
-              Quyền hiện tại:&nbsp;
+              Current access:&nbsp;
               <strong className={membership ? styles.okText : styles.warnText}>
-                {membership ? getMembershipBadgeLabel(membership) : "Chưa có"}
+                {membership ? getMembershipBadgeLabel(membership) : "None"}
               </strong>
             </div>
             <div>
-              Mở khóa menu:&nbsp;
+              Menu unlocked:&nbsp;
               <strong className={unlockedText !== "—" ? styles.okText : styles.warnText}>{unlockedText}</strong>
             </div>
           </div>
 
           <div className={styles.web3Tip}>
-            Tip: Quản lý ví tại tab <b>Thông tin cá nhân</b>. Bảng này chỉ hiển thị trạng thái.
+            Tip: Manage your wallet in <b>Personal info</b>. This panel only shows status.
           </div>
         </div>
       </div>
@@ -236,53 +236,53 @@ export default function MembershipTab() {
       {membership && (
         <div className={styles.currentMembership}>
           <div>
-            Bạn đang là <strong>{getMembershipBadgeLabel(membership)}</strong>
+            You are <strong>{getMembershipBadgeLabel(membership)}</strong>
           </div>
-          <small>Còn lại: {countdown}</small>
+          <small>Remaining: {countdown}</small>
         </div>
       )}
 
       <div className={styles.membershipGrid}>
         <Card
           title="Artist"
-          desc="Mở Manage + Register"
+          desc="Unlock Manage + Register"
           icon={<ArtistIcon />}
-          price="Từ 2.5 SUI / tháng"
-          duration="~ 30 ngày"
-          bullets={["1 tháng: 2.5 SUI", "3 tháng: 7.5 SUI", "1 năm: 30 SUI"]}
+          price="From 2.5 SUI / month"
+          duration="~ 30 days"
+          bullets={["1 month: 2.5 SUI", "3 months: 7.5 SUI", "1 year: 30 SUI"]}
           active={membership?.type === "artist"}
           onClick={() => openModal("artist")}
         />
 
         <Card
           title="Creator"
-          desc="Thuê / sử dụng bản quyền"
+          desc="License / use rights"
           icon={<CreatorIcon />}
-          price="Từ 5 SUI / tháng"
-          duration="~ 30 ngày"
-          bullets={["Starter / Pro / Studio", "Chỉ dùng Trade"]}
+          price="From 5 SUI / month"
+          duration="~ 30 days"
+          bullets={["Starter / Pro / Studio", "Trade only"]}
           active={membership?.type === "creator"}
           onClick={() => openModal("creator")}
         />
 
         <Card
           title="Business"
-          desc="Bản quyền thương mại"
+          desc="Commercial rights"
           icon={<BusinessIcon />}
-          price="60 SUI / năm"
-          duration="~ 365 ngày"
-          bullets={["Kinh doanh hợp pháp", "Trade thương mại"]}
+          price="60 SUI / year"
+          duration="~ 365 days"
+          bullets={["Legal business use", "Commercial trading"]}
           active={membership?.type === "business"}
           onClick={() => openModal("business")}
         />
 
         <Card
           title="AI / Platform"
-          desc="Huấn luyện AI hợp pháp"
+          desc="Legal AI training"
           icon={<AiIcon />}
-          price="Sắp mở"
+          price="Coming soon"
           duration="—"
-          bullets={["Gói riêng cho nền tảng"]}
+          bullets={["Platform-specific plans"]}
           locked
           onClick={() => {}}
         />
@@ -299,7 +299,7 @@ export default function MembershipTab() {
             setToastTx(m?.txHash || "");
             setToastOpen(true);
 
-            pushToast("success", "🎉 Membership đã được kích hoạt");
+            pushToast("success", "Membership activated");
 
             await refresh();
             await loadMembership();
@@ -352,12 +352,12 @@ function Card({
       </ul>
 
       {active ? (
-        <span className={styles.ownedBadge}>Đang dùng</span>
+        <span className={styles.ownedBadge}>In use</span>
       ) : locked ? (
-        <span className={styles.lockBadge}>Sắp mở</span>
+        <span className={styles.lockBadge}>Coming soon</span>
       ) : (
         <button className={styles.confirmBtnWhite} onClick={onClick} type="button">
-          Mua
+          Buy
         </button>
       )}
     </div>

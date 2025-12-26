@@ -61,7 +61,7 @@ function daysInMonth(m: number, y: number) {
 
 function validateDMY(dmy: string) {
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) {
-    return { ok: false, reason: "Định dạng phải là dd/mm/yyyy" };
+    return { ok: false, reason: "Format must be dd/mm/yyyy" };
   }
 
   const [dS, mS, yS] = dmy.split("/");
@@ -70,15 +70,15 @@ function validateDMY(dmy: string) {
   const y = Number(yS);
 
   if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) {
-    return { ok: false, reason: "Ngày không hợp lệ" };
+    return { ok: false, reason: "Invalid date" };
   }
 
   const nowY = new Date().getFullYear();
-  if (y < 1900 || y > nowY + 1) return { ok: false, reason: "Năm không hợp lệ" };
-  if (m < 1 || m > 12) return { ok: false, reason: "Tháng phải từ 01 đến 12" };
+  if (y < 1900 || y > nowY + 1) return { ok: false, reason: "Invalid year" };
+  if (m < 1 || m > 12) return { ok: false, reason: "Month must be 01 to 12" };
 
   const dim = daysInMonth(m, y);
-  if (d < 1 || d > dim) return { ok: false, reason: `Ngày phải từ 01 đến ${dim}` };
+  if (d < 1 || d > dim) return { ok: false, reason: `Day must be 01 to ${dim}` };
 
   return { ok: true as const, reason: "" };
 }
@@ -112,7 +112,7 @@ function InternalQR({
     const canvas = ref.current;
     if (!canvas) return;
 
-    // ✅ tránh vẽ QR khi value rỗng
+    // avoid drawing QR when value is empty
     if (!value) {
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
@@ -168,8 +168,8 @@ export default function InfoTab() {
   }, [profile.birthday]);
 
   const birthdayValidation = useMemo(() => {
-    if (!birthdayText) return { state: "idle" as const, msg: "Nhập theo định dạng dd/mm/yyyy" };
-    if (birthdayText.length < 10) return { state: "idle" as const, msg: "Nhập đủ 8 số (ddmmyyyy)" };
+    if (!birthdayText) return { state: "idle" as const, msg: "Enter in dd/mm/yyyy format" };
+    if (birthdayText.length < 10) return { state: "idle" as const, msg: "Enter 8 digits (ddmmyyyy)" };
 
     const v = validateDMY(birthdayText);
     if (!v.ok) return { state: "bad" as const, msg: v.reason };
@@ -243,7 +243,7 @@ export default function InfoTab() {
 
   const connectWallet = async () => {
     if (!wallets.length) {
-      alert("Chưa cài ví SUI (Suiet / Martian)");
+      alert("SUI wallet not installed (Suiet / Martian)");
       return;
     }
     await connect({ wallet: wallets[0] });
@@ -305,29 +305,29 @@ export default function InfoTab() {
     <div className={styles.infoGrid2}>
       {/* LEFT: PROFILE */}
       <section className={styles.card}>
-        <h2>Thông tin cá nhân</h2>
+        <h2>Personal info</h2>
 
         <div className={styles.formGrid}>
           <Field
-            label="Họ và tên"
+            label="Full name"
             value={profile.name}
             onChange={(v) => setProfile((p) => ({ ...p, name: v }))}
           />
 
           <Field
-            label="Số điện thoại"
+            label="Phone number"
             value={profile.phone}
             onChange={(v) => setProfile((p) => ({ ...p, phone: v }))}
           />
 
           <Field
-            label="Căn cước công dân"
+            label="ID number"
             value={profile.cccd}
             onChange={(v) => setProfile((p) => ({ ...p, cccd: v }))}
           />
 
           <Field
-            label="Ngày sinh (dd/mm/yyyy)"
+            label="Date of birth (dd/mm/yyyy)"
             value={birthdayText}
             placeholder="dd/mm/yyyy"
             inputMode="numeric"
@@ -348,47 +348,47 @@ export default function InfoTab() {
           <Field label="Email" value={user?.email || ""} readOnly />
 
           <Field
-            label="Quốc gia"
+            label="Country"
             value={profile.country}
             onChange={(v) => setProfile((p) => ({ ...p, country: v }))}
           />
 
           <FieldFull
-            label="Địa chỉ"
+            label="Address"
             value={profile.address}
             onChange={(v) => setProfile((p) => ({ ...p, address: v }))}
           />
         </div>
 
-        <div className={styles.autoSaveHint}>✔ Thông tin được lưu tự động</div>
+        <div className={styles.autoSaveHint}>✔ Info is saved automatically</div>
       </section>
 
       {/* RIGHT: WALLET */}
       <section className={styles.card}>
-        <h2>Ví Blockchain SUI</h2>
+        <h2>SUI blockchain wallet</h2>
 
         {!isConnected || !currentAccount ? (
           <div className={styles.walletConnectBox}>
-            <p>Bạn chưa kết nối ví SUI</p>
+            <p>You have not connected a SUI wallet</p>
             <button className={styles.connectBtn} onClick={connectWallet} type="button">
-              Kết nối ví
+              Connect wallet
             </button>
 
-            {/* QR nội bộ vẫn hiện để “nhận diện user” */}
+            {/* Internal QR still shows for user identification */}
             <div className={styles.qrWrap}>
               <div className={styles.qrHeader}>
-                <div className={styles.qrTitle}>QR nội bộ</div>
-                <div className={styles.qrSub}>Nhận diện tài khoản trong hệ thống</div>
+                <div className={styles.qrTitle}>Internal QR</div>
+                <div className={styles.qrSub}>Identify account in the system</div>
               </div>
 
               <div className={styles.qrGrid}>
                 <div className={styles.qrMeta}>
                   <div className={styles.qrMetaRow}>
-                    <span>Mã nội bộ</span>
+                    <span>Internal ID</span>
                     <strong className={styles.qrMono}>{String(userId)}</strong>
                   </div>
                   <div className={styles.qrMetaRow}>
-                    <span>Ví</span>
+                    <span>Wallet</span>
                     <strong className={styles.qrMono}>—</strong>
                   </div>
                 </div>
@@ -401,7 +401,7 @@ export default function InfoTab() {
           </div>
         ) : (
           <div className={styles.walletStack}>
-            <label>Địa chỉ ví</label>
+            <label>Wallet address</label>
 
             <div className={styles.walletRow}>
               <input value={currentAccount.address} readOnly />
@@ -411,33 +411,33 @@ export default function InfoTab() {
             </div>
 
             <div className={styles.balanceBox}>
-              <span>Số dư hiện tại</span>
+              <span>Current balance</span>
               <strong>{balance} SUI</strong>
             </div>
 
             <button className={styles.disconnectBtn} onClick={disconnectWallet} type="button">
-              Ngắt kết nối ví
+              Disconnect wallet
             </button>
 
-            {/* QR nội bộ + info */}
+            {/* Internal QR + info */}
             <div className={styles.qrWrap}>
               <div className={styles.qrHeader}>
-                <div className={styles.qrTitle}>QR nội bộ</div>
-                <div className={styles.qrSub}>Quét để lấy user + ví</div>
+                <div className={styles.qrTitle}>Internal QR</div>
+                <div className={styles.qrSub}>Scan to get user + wallet</div>
               </div>
 
               <div className={styles.qrGrid}>
                 <div className={styles.qrMeta}>
                   <div className={styles.qrMetaRow}>
-                    <span>Ví wallet</span>
+                    <span>Wallet</span>
                     <strong>{currentWallet?.name || "SUI Wallet"}</strong>
                   </div>
                   <div className={styles.qrMetaRow}>
-                    <span>Mã nội bộ</span>
+                    <span>Internal ID</span>
                     <strong className={styles.qrMono}>{String(userId)}</strong>
                   </div>
                   <div className={styles.qrMetaRow}>
-                    <span>Địa chỉ rút gọn</span>
+                    <span>Short address</span>
                     <strong className={styles.qrMono}>{shortAddr(currentAccount.address)}</strong>
                   </div>
                 </div>
