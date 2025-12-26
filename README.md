@@ -1,51 +1,51 @@
 ﻿# Project Copyright Next.js
 
-# 🎵 SuiMusic – Blockchain Music Copyright Platform
+# SuiMusic – Blockchain Music Copyright Platform
 
 SuiMusic is a **Web3-based music copyright registration and management platform** built on the **Sui blockchain**.  
 The project enables artists to **secure ownership of their music**, **mint NFTs**, and **manage licensing and verification** through transparent on-chain mechanisms.
 
 ---
 
-## 🚀 Overview
+## Overview
 
 In the digital era, music creators face challenges in proving ownership, protecting copyright, and managing distribution.  
 **SuiMusic** addresses these issues by combining **blockchain technology**, **NFTs**, and a **modern web interface** to create a trusted and decentralized copyright registry for music works.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-### 🎼 Music Copyright Registration
+### Music Copyright Registration
 - Register original music works on-chain
 - Immutable proof of authorship and timestamp
 - Transparent and verifiable ownership records
 
-### 🧾 NFT Minting & Ownership
+### NFT Minting & Ownership
 - Each music work can be linked to an NFT
 - Ownership and transfers are handled by Sui Move smart contracts
 - Supports future extensions for resale and licensing
 
-### 🧑‍🎤 Artist Profiles
+### Artist Profiles
 - Public artist profiles with verified works
 - Display metadata such as title, genre, language, and duration
 - Wallet-based identity using Sui addresses
 
-### 🔐 On-chain Verification
+### On-chain Verification
 - Anyone can verify:
   - Author
   - Ownership
   - Registration time
 - Eliminates disputes and fake claims
 
-### 🌐 Modern Web Interface
+### Modern Web Interface
 - Built with **Next.js + TypeScript**
 - Responsive, fast, and user-friendly UI
 - Integrated Web3 wallet connection
 
 ---
 
-## 🧱 Architecture
+## Architecture
 
 ### Frontend
 - **Next.js (App Router)**
@@ -64,7 +64,7 @@ In the digital era, music creators face challenges in proving ownership, protect
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |------|-----------|
@@ -76,7 +76,7 @@ In the digital era, music creators face challenges in proving ownership, protect
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 suimusic/
@@ -90,3 +90,4 @@ suimusic/
 ├── data/               # Metadata / seed data
 ├── package.json
 └── next.config.ts
+
