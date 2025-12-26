@@ -11,10 +11,12 @@ import {
 import { toGateway } from "@/lib/profileStore";
 import { useSyncWorkOwner } from "@/hooks/useSyncWorkOwner";
 import { explorerObjectUrl, shortAddr } from "@/lib/suiExplorer";
+import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
+import { useSuiClient } from "@mysten/dapp-kit";
 import styles from "./marketplace.module.css";
 
 type Filter = "all" | "exclusive" | "license";
-type SortKey = "newest" | "oldest" | "title" | "royalty";
+type SortKey = "newest" | "oldest" | "title" | "royalty" | "top";
 
 type MetaPreview = {
   title?: string;
@@ -75,27 +77,20 @@ function getWorkTime(w: any): number {
 }
 
 export default function MarketplacePage() {
+  const suiClient = useSuiClient();
   const [filter, setFilter] = useState<Filter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("newest");
-  const [list, setList] = useState<Work[]>([]);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [languageFilter, setLanguageFilter] = useState("all");
+  const [baseList, setBaseList] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
   const [metaCache, setMetaCache] = useState<Record<string, MetaPreview>>({});
+  const [voteCache, setVoteCache] = useState<Record<string, number>>({});
 
   function load() {
     const works = getVerifiedWorks();
-    const filtered =
-      filter === "all" ? works : works.filter(w => w.sellType === filter);
-    const sorted = [...filtered];
-    if (sortKey === "newest") {
-      sorted.sort((a, b) => getWorkTime(b) - getWorkTime(a));
-    } else if (sortKey === "oldest") {
-      sorted.sort((a, b) => getWorkTime(a) - getWorkTime(b));
-    } else if (sortKey === "title") {
-      sorted.sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
-    } else if (sortKey === "royalty") {
-      sorted.sort((a, b) => Number(b.royalty || 0) - Number(a.royalty || 0));
-    }
-    setList(sorted);
+    setBaseList(works);
   }
 
   useEffect(() => {
@@ -113,11 +108,13 @@ export default function MarketplacePage() {
       alive = false;
       window.removeEventListener("works_updated", load);
     };
-  }, [filter, sortKey]);
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    const queue = list.slice(0, 24).filter((w) => w?.id && !metaCache[w.id]);
+    const queue = baseList
+      .slice(0, 60)
+      .filter((w) => w?.id && !metaCache[w.id]);
 
     async function run() {
       for (const w of queue) {
@@ -163,7 +160,109 @@ export default function MarketplacePage() {
     return () => {
       alive = false;
     };
-  }, [list, metaCache]);
+  }, [baseList, metaCache]);
+
+  const categories = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of baseList) {
+      const meta = metaCache[w.id];
+      const raw = String(meta?.category || w.category || "").trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) map.set(key, raw);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [baseList, metaCache]);
+
+  const languages = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of baseList) {
+      const meta = metaCache[w.id];
+      const raw = String(meta?.language || w.language || "").trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) map.set(key, raw);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [baseList, metaCache]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return baseList.filter((w) => {
+      if (filter !== "all" && w.sellType !== filter) return false;
+
+      const meta = metaCache[w.id];
+      const cat = String(meta?.category || w.category || "").trim().toLowerCase();
+      const lang = String(meta?.language || w.language || "").trim().toLowerCase();
+
+      if (categoryFilter !== "all" && cat !== categoryFilter) return false;
+      if (languageFilter !== "all" && lang !== languageFilter) return false;
+
+      if (!q) return true;
+      const title = resolveTitleFromMeta(meta, w).toLowerCase();
+      const author = String(w.authorName || "").toLowerCase();
+      const wallet = String(w.authorWallet || "").toLowerCase();
+      return title.includes(q) || author.includes(q) || wallet.includes(q);
+    });
+  }, [baseList, metaCache, filter, categoryFilter, languageFilter, search]);
+
+  useEffect(() => {
+    let alive = true;
+    if (sortKey !== "top" || !canUseWorkVote() || !suiClient) return;
+
+    const ids = filtered
+      .map((w) => String(w.id || "").trim())
+      .filter(Boolean)
+      .slice(0, 60);
+    const queue = ids.filter((id) => voteCache[id] == null);
+
+    async function run() {
+      const CONC = 6;
+      let i = 0;
+
+      async function worker() {
+        while (alive) {
+          const idx = i++;
+          if (idx >= queue.length) break;
+          const id = queue[idx];
+          const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
+          if (!alive) return;
+          setVoteCache((prev) => (prev[id] == null ? { ...prev, [id]: n } : prev));
+          await new Promise((r) => setTimeout(r, 40));
+        }
+      }
+
+      await Promise.all(Array.from({ length: Math.min(CONC, queue.length) }, () => worker()));
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [sortKey, filtered, suiClient, voteCache]);
+
+  const list = useMemo(() => {
+    const sorted = [...filtered];
+    if (sortKey === "newest") {
+      sorted.sort((a, b) => getWorkTime(b) - getWorkTime(a));
+    } else if (sortKey === "oldest") {
+      sorted.sort((a, b) => getWorkTime(a) - getWorkTime(b));
+    } else if (sortKey === "title") {
+      sorted.sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
+    } else if (sortKey === "royalty") {
+      sorted.sort((a, b) => Number(b.royalty || 0) - Number(a.royalty || 0));
+    } else if (sortKey === "top") {
+      if (canUseWorkVote()) {
+        sorted.sort(
+          (a, b) =>
+            Number(voteCache[b.id] || 0) - Number(voteCache[a.id] || 0)
+        );
+      } else {
+        sorted.sort((a, b) => getWorkTime(b) - getWorkTime(a));
+      }
+    }
+    return sorted;
+  }, [filtered, sortKey, voteCache]);
 
   const hasData = list.length > 0;
 
@@ -176,6 +275,14 @@ export default function MarketplacePage() {
         </div>
 
         <div className={styles.filters}>
+          <input
+            className={styles.searchInput}
+            placeholder="Search title / author / wallet..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search works"
+          />
+
           {(["all", "exclusive", "license"] as Filter[]).map(f => (
             <button
               key={f}
@@ -185,6 +292,35 @@ export default function MarketplacePage() {
               {f === "all" ? "Tất cả" : f === "exclusive" ? "Bán đứt" : "License"}
             </button>
           ))}
+
+          <select
+            className={styles.filterSelect}
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            aria-label="Filter by category"
+          >
+            <option value="all">All categories</option>
+            {categories.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={styles.filterSelect}
+            value={languageFilter}
+            onChange={(e) => setLanguageFilter(e.target.value)}
+            aria-label="Filter by language"
+          >
+            <option value="all">All languages</option>
+            {languages.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+
           <select
             className={styles.sortSelect}
             value={sortKey}
@@ -195,6 +331,7 @@ export default function MarketplacePage() {
             <option value="oldest">Oldest</option>
             <option value="title">Title A–Z</option>
             <option value="royalty">Royalty</option>
+            <option value="top">Top</option>
           </select>
         </div>
       </div>
