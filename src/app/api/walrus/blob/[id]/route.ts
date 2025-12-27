@@ -60,14 +60,18 @@ export async function GET(
     for (const base of READ_BASES) {
       const candidates = buildReadCandidates(base, id);
       for (const url of candidates) {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await fetch(url);
-        if (!res.ok) continue;
-        const buf = Buffer.from(await res.arrayBuffer());
-        const contentType = res.headers.get("content-type") || "application/octet-stream";
-        return new NextResponse(buf, {
-          headers: { "Content-Type": contentType },
-        });
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const buf = Buffer.from(await res.arrayBuffer());
+          const contentType = res.headers.get("content-type") || "application/octet-stream";
+          return new NextResponse(buf, {
+            headers: { "Content-Type": contentType },
+          });
+        } catch {
+          // ignore network errors and fall through to next candidate/mock
+        }
       }
     }
   }

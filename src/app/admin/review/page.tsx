@@ -42,12 +42,17 @@ export default function AdminReviewPage() {
 
   async function loadProofs() {
     try {
-      const res = await fetch("/api/proof");
+      const res = await fetch("/api/proof", { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok && Array.isArray(data.proofs)) {
-        const list = (data.proofs as ProofRecord[]).filter(
-          (p) => p.status === "submitted" || p.status === "tsa_attested"
-        );
+        const list = (data.proofs as ProofRecord[])
+          .filter((p) => {
+            const s = String(p?.status || "").trim().toLowerCase();
+            return s === "submitted" || s === "tsa_attested";
+          })
+          .sort(
+            (a, b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || ""))
+          );
         setProofs(list);
       }
     } catch {}

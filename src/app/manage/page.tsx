@@ -105,7 +105,11 @@ function normalizeWalrusId(v: string) {
 
 function resolveMetaInput(work: Work) {
   const raw = String(
-    work?.walrusMetaId || work?.metadataCid || work?.metadata || work?.hash || ""
+    work?.walrusMetaId ||
+      (work as any)?.metadataCid ||
+      (work as any)?.metadata ||
+      work?.hash ||
+      ""
   ).trim();
   if (!raw) return "";
   const clean = normalizeWalrusId(raw);

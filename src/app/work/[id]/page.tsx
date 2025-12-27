@@ -115,6 +115,7 @@ export default function WorkDetailPage() {
   const [meta, setMeta] = useState<any | null>(null);
   const [usageTick, setUsageTick] = useState(0);
   const [relatedPage, setRelatedPage] = useState(0);
+  const [canPlay, setCanPlay] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -163,7 +164,7 @@ export default function WorkDetailPage() {
     window.addEventListener("usage_updated", onUsage);
     return () => window.removeEventListener("usage_updated", onUsage);
   }, []);
-
+  
   const membership = getActiveMembership((user?.membership as any) || null);
   const userId = user?.id || "";
   const listenLimit = 3;
@@ -200,6 +201,17 @@ export default function WorkDetailPage() {
     return Array.from(map.values());
   }, [work]);
 
+  const cover = useMemo(() => (work ? resolveCover(meta, work) : ""), [meta, work]);
+  const mediaUrl = useMemo(() => (work ? resolveMedia(meta, work) : ""), [meta, work]);
+  const mediaKind = useMemo(
+    () => (mediaUrl ? guessMediaKind(meta, mediaUrl) : "other"),
+    [meta, mediaUrl]
+  );
+
+  useEffect(() => {
+    setCanPlay(false);
+  }, [mediaUrl, membership, userId, usageTick]);
+
   if (!work) {
     return (
       <p style={{ padding: 40 }}>
@@ -207,10 +219,6 @@ export default function WorkDetailPage() {
       </p>
     );
   }
-
-  const cover = resolveCover(meta, work);
-  const mediaUrl = resolveMedia(meta, work);
-  const mediaKind = mediaUrl ? guessMediaKind(meta, mediaUrl) : "other";
 
   async function handleListen() {
     if (!mediaUrl) return;
@@ -227,6 +235,7 @@ export default function WorkDetailPage() {
       incUsage(userId, "music_use", 1);
       setUsageTick((x) => x + 1);
     }
+    setCanPlay(true);
     audioRef.current?.play();
   }
 
@@ -317,6 +326,12 @@ export default function WorkDetailPage() {
               controls
               preload="metadata"
               src={mediaUrl}
+              onPlay={(e) => {
+                if (!canPlay) {
+                  e.preventDefault();
+                  audioRef.current?.pause();
+                }
+              }}
               className={`${styles.audio} ${
                 membership || (usageStatus && usageStatus.remaining > 0) ? "" : styles.audioLocked
               }`}
