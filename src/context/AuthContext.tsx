@@ -48,6 +48,14 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+const ADMIN_EMAILS = ["phugiau.2004@gmail.com"];
+
+function isAdminEmail(email: string) {
+  const normalized = (email || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return ADMIN_EMAILS.some((e) => e.toLowerCase() === normalized);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,29 +69,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const userRef = doc(db, "users", firebaseUser.uid);
     const userDoc = await getDoc(userRef);
+    const email = firebaseUser.email || "";
+    const shouldBeAdmin = isAdminEmail(email);
 
     if (userDoc.exists()) {
       const data = userDoc.data();
+      const role = shouldBeAdmin ? "admin" : data.role || "user";
       setUser({
         id: firebaseUser.uid,
-        email: firebaseUser.email || "",
+        email,
         avatar: firebaseUser.photoURL || "",
-        role: data.role || "user",
+        role,
         walletAddress: data.walletAddress,
         wallet: data.wallet,
         internalWallet: data.internalWallet,
         membership: data.membership,
       });
+      if (shouldBeAdmin && data.role !== "admin") {
+        await setDoc(userRef, { role: "admin" }, { merge: true });
+      }
     } else {
       const mnemonic = bip39.generateMnemonic();
       const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
       const internalAddress = keypair.getPublicKey().toSuiAddress();
+      const role: UserRole = shouldBeAdmin ? "admin" : "user";
 
       const newUser: User = {
         id: firebaseUser.uid,
-        email: firebaseUser.email || "",
+        email,
         avatar: firebaseUser.photoURL || "",
-        role: "user",
+        role,
         internalWallet: {
           address: internalAddress,
           mnemonic: mnemonic,
@@ -92,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await setDoc(userRef, {
         email: newUser.email,
-        role: "user",
+        role,
         internalWallet: newUser.internalWallet,
         createdAt: new Date(),
       });
