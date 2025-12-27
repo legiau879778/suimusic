@@ -14,7 +14,7 @@ import { toGateway } from "@/lib/profileStore";
 import { useSyncWorkOwner } from "@/hooks/useSyncWorkOwner";
 import { explorerObjectUrl, shortAddr } from "@/lib/suiExplorer";
 import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
-impoz sssrt { useSuiClient } from "@mysten/dapp-kit";
+import { useSuiClient } from "@mysten/dapp-kit";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
 import styles from "./marketplace.module.css";
 

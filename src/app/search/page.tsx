@@ -28,6 +28,15 @@ type MetaPreview = {
   image?: string;
   category?: string;
   language?: string;
+  duration?: number | string;
+  properties?: {
+    duration?: number | string;
+    cover?: {
+      url?: string;
+    };
+    cover_image?: string;
+    image?: string;
+  };
 };
 
 function resolveMetaInput(w: any) {
