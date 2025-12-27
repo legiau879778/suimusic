@@ -65,6 +65,9 @@ function toGateway(input?: string) {
   let v = String(input).trim();
 
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
+  if (v.startsWith("/api/walrus/blob/")) return v;
+  if (v.startsWith("walrus:")) return `/api/walrus/blob/${v.slice("walrus:".length)}`;
+  if (v.startsWith("walrus://")) return `/api/walrus/blob/${v.slice("walrus://".length)}`;
 
   if (v.startsWith("ipfs://")) v = v.slice("ipfs://".length);
 
@@ -89,6 +92,33 @@ function normalizeIpfsUrl(url?: string) {
 }
 function cidToGateway(cidOrUrl?: string) {
   return toGateway(cidOrUrl);
+}
+
+function normalizeWalrusId(v: string) {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(raw.slice(2))) {
+    return raw.slice(2);
+  }
+  return raw;
+}
+
+function resolveMetaInput(work: Work) {
+  const raw = String(
+    work?.walrusMetaId || work?.metadataCid || work?.metadata || work?.hash || ""
+  ).trim();
+  if (!raw) return "";
+  const clean = normalizeWalrusId(raw);
+  if (
+    clean.startsWith("http://") ||
+    clean.startsWith("https://") ||
+    clean.startsWith("walrus:") ||
+    clean.startsWith("walrus://") ||
+    clean.startsWith("/api/walrus/blob/")
+  ) {
+    return clean;
+  }
+  return `walrus:${clean}`;
 }
 
 /** ISO -> dd/mm/yyyy */
@@ -830,7 +860,8 @@ function WorkCard(props: {
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
 
-  const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
+  const metaInput = useMemo(() => resolveMetaInput(work), [work]);
+  const metaUrl = useMemo(() => cidToGateway(metaInput), [metaInput]);
 
   useEffect(() => {
     let alive = true;
@@ -852,11 +883,20 @@ function WorkCard(props: {
     const cover =
       normalizeIpfsUrl(meta?.properties?.cover?.url) ||
       normalizeIpfsUrl(meta?.cover_image) ||
-      normalizeIpfsUrl(meta?.cover?.url);
+      normalizeIpfsUrl(meta?.cover?.url) ||
+      normalizeIpfsUrl(meta?.properties?.cover_image) ||
+      normalizeIpfsUrl(meta?.properties?.image);
 
     const img = normalizeIpfsUrl(meta?.image);
-    return cover || img || "";
-  }, [meta]);
+    const fromWork =
+      normalizeIpfsUrl(work?.metaImage) ||
+      normalizeIpfsUrl((work as any)?.image) ||
+      normalizeIpfsUrl((work as any)?.cover) ||
+      "";
+    const coverId = String(work?.walrusCoverId || "").trim();
+    const fromCoverId = coverId ? normalizeIpfsUrl(`walrus:${coverId}`) : "";
+    return cover || img || fromWork || fromCoverId || "";
+  }, [meta, work]);
 
   const kind = useMemo(() => guessKindFromFile(meta), [meta]);
   const createdText = useMemo(() => pickCreatedDate(work, meta), [work, meta]);
@@ -1040,7 +1080,8 @@ function WorkDetailModal(props: {
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
 
-  const metaUrl = useMemo(() => cidToGateway(work.hash), [work.hash]);
+  const metaInput = useMemo(() => resolveMetaInput(work), [work]);
+  const metaUrl = useMemo(() => cidToGateway(metaInput), [metaInput]);
 
   useEffect(() => {
     let alive = true;
@@ -1064,19 +1105,30 @@ function WorkDetailModal(props: {
     const cover =
       normalizeIpfsUrl(meta?.properties?.cover?.url) ||
       normalizeIpfsUrl(meta?.cover_image) ||
-      normalizeIpfsUrl(meta?.cover?.url);
+      normalizeIpfsUrl(meta?.cover?.url) ||
+      normalizeIpfsUrl(meta?.properties?.cover_image) ||
+      normalizeIpfsUrl(meta?.properties?.image);
 
     const img = normalizeIpfsUrl(meta?.image);
-    return cover || img || "";
-  }, [meta]);
+    const fromWork =
+      normalizeIpfsUrl(work?.metaImage) ||
+      normalizeIpfsUrl((work as any)?.image) ||
+      normalizeIpfsUrl((work as any)?.cover) ||
+      "";
+    const coverId = String(work?.walrusCoverId || "").trim();
+    const fromCoverId = coverId ? normalizeIpfsUrl(`walrus:${coverId}`) : "";
+    return cover || img || fromWork || fromCoverId || "";
+  }, [meta, work]);
 
   const mediaUrl = useMemo(() => {
     const a = normalizeIpfsUrl(meta?.animation_url);
     const f =
       normalizeIpfsUrl(meta?.file?.url) ||
       normalizeIpfsUrl(meta?.properties?.file?.url);
-    return a || f || "";
-  }, [meta]);
+    const fileId = String(work?.walrusFileId || "").trim();
+    const fromFileId = fileId ? normalizeIpfsUrl(`walrus:${fileId}`) : "";
+    return a || f || fromFileId || "";
+  }, [meta, work]);
 
   const kind = useMemo(() => guessKindFromFile(meta), [meta]);
   const createdText = useMemo(() => pickCreatedDate(work, meta), [work, meta]);

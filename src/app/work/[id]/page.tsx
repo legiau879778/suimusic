@@ -16,16 +16,26 @@ import { getUsageStatus, incUsage } from "@/lib/featureUsageStore";
 function resolveMetaInput(w: any) {
   const raw = String(w?.walrusMetaId || w?.metadataCid || w?.metadata || w?.hash || "").trim();
   if (!raw) return "";
+  const clean =
+    raw.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(raw.slice(2)) ? raw.slice(2) : raw;
   if (
-    raw.startsWith("http://") ||
-    raw.startsWith("https://") ||
-    raw.startsWith("walrus:") ||
-    raw.startsWith("walrus://") ||
-    raw.startsWith("/api/walrus/blob/")
+    clean.startsWith("http://") ||
+    clean.startsWith("https://") ||
+    clean.startsWith("walrus:") ||
+    clean.startsWith("walrus://") ||
+    clean.startsWith("/api/walrus/blob/")
   ) {
-    return raw;
+    return clean;
   }
-  return `walrus:${raw}`;
+  return `walrus:${clean}`;
+}
+
+function pickAttr(meta: any, key: string) {
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
+  const hit = attrs.find(
+    (a: any) => String(a?.trait_type || "").trim().toLowerCase() === key
+  );
+  return String(hit?.value ?? "").trim();
 }
 
 function resolveCover(meta: any, w: any) {
@@ -250,12 +260,22 @@ export default function WorkDetailPage() {
 
           <p className={styles.meta}>
             <strong>Category:</strong>{" "}
-            {meta?.category || meta?.properties?.category || work.metaCategory || work.category || "—"}
+            {meta?.category ||
+              meta?.properties?.category ||
+              pickAttr(meta, "category") ||
+              work.metaCategory ||
+              work.category ||
+              "—"}
           </p>
 
           <p className={styles.meta}>
             <strong>Language:</strong>{" "}
-            {meta?.language || meta?.properties?.language || work.metaLanguage || work.language || "—"}
+            {meta?.language ||
+              meta?.properties?.language ||
+              pickAttr(meta, "language") ||
+              work.metaLanguage ||
+              work.language ||
+              "—"}
           </p>
 
           <p className={styles.meta}>

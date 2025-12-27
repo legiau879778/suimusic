@@ -56,9 +56,7 @@ export async function GET(
   }
 
   const READ_BASES = getReadBases();
-  const useMock = READ_BASES.length === 0 || process.env.WALRUS_MOCK === "1";
-
-  if (!useMock) {
+  if (READ_BASES.length > 0) {
     for (const base of READ_BASES) {
       const candidates = buildReadCandidates(base, id);
       for (const url of candidates) {

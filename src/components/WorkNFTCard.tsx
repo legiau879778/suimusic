@@ -73,21 +73,31 @@ function pickCreatedDate(work: WorkLite, meta: any | null) {
   return "—";
 }
 
+function normalizeWalrusId(v: string) {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(raw.slice(2))) {
+    return raw.slice(2);
+  }
+  return raw;
+}
+
 function resolveMetaInput(work: WorkLite) {
   const raw = String(
     work?.walrusMetaId || work?.metadataCid || work?.metadata || work?.hash || ""
   ).trim();
   if (!raw) return "";
+  const clean = normalizeWalrusId(raw);
   if (
-    raw.startsWith("http://") ||
-    raw.startsWith("https://") ||
-    raw.startsWith("walrus:") ||
-    raw.startsWith("walrus://") ||
-    raw.startsWith("/api/walrus/blob/")
+    clean.startsWith("http://") ||
+    clean.startsWith("https://") ||
+    clean.startsWith("walrus:") ||
+    clean.startsWith("walrus://") ||
+    clean.startsWith("/api/walrus/blob/")
   ) {
-    return raw;
+    return clean;
   }
-  return `walrus:${raw}`;
+  return `walrus:${clean}`;
 }
 
 function pickAttr(meta: any, key: string) {

@@ -44,16 +44,26 @@ function resolveMetaInput(w: any) {
     w?.walrusMetaId || w?.metadataCid || w?.metadata || w?.hash || ""
   ).trim();
   if (!raw) return "";
+  const clean =
+    raw.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(raw.slice(2)) ? raw.slice(2) : raw;
   if (
-    raw.startsWith("http://") ||
-    raw.startsWith("https://") ||
-    raw.startsWith("walrus:") ||
-    raw.startsWith("walrus://") ||
-    raw.startsWith("/api/walrus/blob/")
+    clean.startsWith("http://") ||
+    clean.startsWith("https://") ||
+    clean.startsWith("walrus:") ||
+    clean.startsWith("walrus://") ||
+    clean.startsWith("/api/walrus/blob/")
   ) {
-    return raw;
+    return clean;
   }
-  return `walrus:${raw}`;
+  return `walrus:${clean}`;
+}
+
+function pickAttr(meta: any, key: string) {
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
+  const hit = attrs.find(
+    (a: any) => String(a?.trait_type || "").trim().toLowerCase() === key
+  );
+  return String(hit?.value ?? "").trim();
 }
 
 function resolveCoverFromMeta(meta: any, w: any) {
@@ -159,8 +169,12 @@ export default function SearchPage() {
           const preview: MetaPreview = {
             title: String(json?.name || json?.title || "").trim(),
             image: resolveCoverFromMeta(json, w),
-            category: String(json?.category || json?.properties?.category || "").trim(),
-            language: String(json?.language || json?.properties?.language || "").trim(),
+            category: String(
+              json?.category || json?.properties?.category || pickAttr(json, "category") || ""
+            ).trim(),
+            language: String(
+              json?.language || json?.properties?.language || pickAttr(json, "language") || ""
+            ).trim(),
           };
 
           if (!alive) return;

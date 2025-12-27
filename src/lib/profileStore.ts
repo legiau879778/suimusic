@@ -65,10 +65,14 @@ export function toGateway(input?: string) {
   if (v.startsWith("/api/walrus/blob/")) return v;
   // walrus:ID hoặc walrus://ID
   if (v.startsWith("walrus:")) {
-    return `/api/walrus/blob/${v.replace("walrus:", "")}`;
+    const id = v.replace("walrus:", "");
+    const clean = id.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(id.slice(2)) ? id.slice(2) : id;
+    return `/api/walrus/blob/${clean}`;
   }
   if (v.startsWith("walrus://")) {
-    return `/api/walrus/blob/${v.replace("walrus://", "")}`;
+    const id = v.replace("walrus://", "");
+    const clean = id.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(id.slice(2)) ? id.slice(2) : id;
+    return `/api/walrus/blob/${clean}`;
   }
   return "";
 }

@@ -83,6 +83,15 @@ function decodeBytes(v: any): string {
   return "";
 }
 
+function normalizeWalrusId(v: string) {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("0x") && /^[0-9a-fA-F]{64}$/.test(raw.slice(2))) {
+    return raw.slice(2);
+  }
+  return raw;
+}
+
 function sellTypeFromU8(v: any) {
   const n = Number(v);
   if (n === 1) return "exclusive";
@@ -130,8 +139,8 @@ function extractWorksFromObjects(
     const content: any = it?.data?.content || it?.content;
     if (!id || !content || content.dataType !== "moveObject") continue;
     const fields: any = content.fields || {};
-    const walrusFileId = decodeBytes(fields.walrus_file_id);
-    const walrusMetaId = decodeBytes(fields.walrus_meta_id);
+    const walrusFileId = normalizeWalrusId(decodeBytes(fields.walrus_file_id));
+    const walrusMetaId = normalizeWalrusId(decodeBytes(fields.walrus_meta_id));
     const proofId = decodeBytes(fields.proof_id);
 
     items.push({
