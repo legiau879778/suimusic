@@ -54,12 +54,57 @@ export function getMembershipBadgeLabel(m: Membership): string {
   return `${m.type.toUpperCase()}${p}`;
 }
 
+export type MembershipPolicy = {
+  canManage: boolean;
+  canRegister: boolean;
+  canTrade: boolean;
+  uploadFeeSuiPerTrack?: number;
+  revenueSplit?: { artist: number; platform: number };
+  subscriptionSplit?: { artist: number; platform: number };
+  canUseLicensedMusic?: boolean;
+};
+
+const MEMBERSHIP_POLICY: Record<MembershipType, MembershipPolicy> = {
+  artist: {
+    canManage: true,
+    canRegister: true,
+    canTrade: false,
+    uploadFeeSuiPerTrack: 5,
+    subscriptionSplit: { artist: 90, platform: 10 },
+  },
+  creator: {
+    canManage: false,
+    canRegister: false,
+    canTrade: true,
+    canUseLicensedMusic: true,
+    revenueSplit: { artist: 75, platform: 25 },
+  },
+  business: {
+    canManage: true,
+    canRegister: true,
+    canTrade: true,
+    uploadFeeSuiPerTrack: 20,
+    revenueSplit: { artist: 75, platform: 25 },
+  },
+};
+
+export function getMembershipPolicy(m: Membership | null): MembershipPolicy {
+  if (!m) {
+    return {
+      canManage: false,
+      canRegister: false,
+      canTrade: false,
+    };
+  }
+  return MEMBERSHIP_POLICY[m.type];
+}
+
 export function getMembershipEntitlements(m: Membership | null) {
-  const type = m?.type;
+  const policy = getMembershipPolicy(m);
   return {
-    canManage: type === "artist",
-    canRegister: type === "artist",
-    canTrade: type === "creator" || type === "business",
+    canManage: policy.canManage,
+    canRegister: policy.canRegister,
+    canTrade: policy.canTrade,
   };
 }
 

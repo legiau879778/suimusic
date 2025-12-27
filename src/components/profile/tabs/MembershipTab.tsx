@@ -114,9 +114,42 @@ export default function MembershipTab() {
       </div>
 
       <div className={styles.membershipGrid}>
-        <Card title="Artist" desc="Manage + Register" price="Từ 0.01 SUI" active={membership?.type === "artist"} onClick={() => openModal("artist")} bullets={["Phát hành nhạc", "Quản lý bản quyền"]} />
-        <Card title="Creator" desc="Thuê bản quyền" price="Từ 0.01 SUI" active={membership?.type === "creator"} onClick={() => openModal("creator")} bullets={["Sử dụng nhạc", "Trade License"]} />
-        <Card title="Business" desc="Thương mại" price="0.05 SUI" active={membership?.type === "business"} onClick={() => openModal("business")} bullets={["Kinh doanh", "Huấn luyện AI"]} />
+        <Card
+          title="Artist"
+          desc="Quyền Manage + Register"
+          price="Từ 0.01 SUI"
+          active={membership?.type === "artist"}
+          onClick={() => openModal("artist")}
+          bullets={[
+            "Truy cập Manage + Register",
+            "Phí upload: 5 SUI / track",
+            "Chia subscription: Artist 90% • Platform 10%",
+          ]}
+        />
+        <Card
+          title="Creator"
+          desc="Quyền Marketplace"
+          price="Từ 0.01 SUI"
+          active={membership?.type === "creator"}
+          onClick={() => openModal("creator")}
+          bullets={[
+            "Dùng nhạc có bản quyền chứng nhận",
+            "Chia lợi nhuận: Artist 75% • Platform 25%",
+            "Hỗ trợ giao dịch license",
+          ]}
+        />
+        <Card
+          title="Business"
+          desc="Manage + Register + Marketplace"
+          price="0.05 SUI"
+          active={membership?.type === "business"}
+          onClick={() => openModal("business")}
+          bullets={[
+            "Phí upload: 20 SUI / track",
+            "Chia lợi nhuận: Artist 75% • Platform 25%",
+            "Sử dụng thương mại",
+          ]}
+        />
       </div>
 
       {open && (

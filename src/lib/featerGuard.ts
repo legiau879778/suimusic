@@ -1,7 +1,7 @@
 // src/lib/featureGuard.ts
 import type { Membership } from "./membershipStore";
 import { getFeaturePolicy } from "./membershipStore";
-import { getUsage } from "./featureUsageStore";
+import { getUsageStatus } from "./featureUsageStore";
 
 /**
  * Check feature-level quyền "sử dụng nhạc"
@@ -13,22 +13,25 @@ export function canUseMusicFeature(params: {
   const { userId, membership } = params;
   const policy = getFeaturePolicy(membership);
 
-  // chỉ creator mới có use music theo gói
-  if (!membership || membership.type !== "creator") {
-    return { ok: false, reason: "Bạn cần gói CREATOR để sử dụng nhạc" };
-  }
-
-  if (policy.musicUseUnlimited) {
+  if (membership) {
     return { ok: true, remaining: Infinity as any };
   }
 
-  const limit = policy.musicUseLimit;
-  const used = getUsage(userId, "music_use");
-  const remaining = Math.max(0, limit - used);
+  const limit = Math.max(1, Number(policy.musicUseLimit || 3));
+  const status = getUsageStatus(userId, "music_use", limit);
 
-  if (remaining <= 0) {
-    return { ok: false, reason: `Bạn đã dùng hết ${limit} lượt (Starter). Nâng cấp Pro/Studio để không giới hạn.` };
+  if (status.remaining <= 0) {
+    return {
+      ok: false,
+      remaining: 0,
+      resetAt: status.resetAt,
+      reason: `Bạn đã dùng hết ${limit} lượt hôm nay. Vui lòng thử lại sau.`,
+    };
   }
 
-  return { ok: true, remaining };
+  return {
+    ok: true,
+    remaining: status.remaining,
+    resetAt: status.resetAt,
+  };
 }

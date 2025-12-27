@@ -143,16 +143,17 @@ function SocialField({
 
   return (
     <div className={styles.socialField}>
-      <label>{label}</label>
-
-      <div className={styles.socialInputWrap}>
-        <span className={styles.socialIcon} aria-hidden>
+      <div className={styles.socialLabelRow}>
+        <span className={styles.socialLabel}>{label}</span>
+        <span className={styles.socialLabelIcon} aria-hidden>
           {kind === "twitter" && <TwitterIcon />}
           {kind === "facebook" && <FacebookIcon />}
           {kind === "instagram" && <InstagramIcon />}
           {kind === "website" && <GlobeIcon />}
         </span>
+      </div>
 
+      <div className={styles.socialInputWrap}>
         <input
           value={v}
           placeholder={placeholder || `Enter ${label} link`}
