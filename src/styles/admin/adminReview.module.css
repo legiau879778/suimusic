@@ -138,6 +138,11 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+.link {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
 /* ===== Badge ===== */
 
 .badge {

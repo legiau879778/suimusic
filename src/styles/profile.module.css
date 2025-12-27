@@ -318,6 +318,32 @@
   opacity: 0.85;
 }
 
+.quotaBox {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  justify-content: center;
+  font-size: 12.5px;
+}
+
+.quotaLabel {
+  opacity: 0.8;
+}
+
+.quotaValue {
+  font-weight: 900;
+  color: #fde047;
+}
+
+.quotaReset {
+  opacity: 0.75;
+}
+
 /* =====================================================
    MEMBERSHIP GRID + CARD
 ===================================================== */
@@ -552,6 +578,39 @@
   cursor: not-allowed;
   border-color: rgba(148, 163, 184, 0.18);
 }
+.formField input::placeholder,
+.formFieldFull input::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.ghostBtn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.03);
+  color: #e5e7eb;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.ghostBtn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(250, 204, 21, 0.25);
+}
+.ghostBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
 
 /* autosave hint */
 .autoSaveHint {
@@ -775,9 +834,29 @@
   gap: 7px;
 }
 
-.socialField label {
+.socialLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 13px;
-  opacity: 0.85;
+  opacity: 0.9;
+}
+
+.socialLabel {
+  font-weight: 700;
+}
+
+.socialLabelIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: rgba(56, 189, 248, 0.95);
 }
 
 /* input (match InfoTab style) */
@@ -921,23 +1000,9 @@
   align-items: center;
 }
 
-.socialIcon {
-  position: absolute;
-  left: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  opacity: 0.85;
-  color: rgba(56, 189, 248, 0.9);
-  pointer-events: none;
-}
-
 .socialInput {
   width: 100%;
-  padding-left: 42px; /* chừa chỗ icon */
-  padding-right: 42px; /* chừa chỗ status */
+  padding-right: 52px; /* chừa chỗ status */
 }
 
 .socialStatus {
@@ -2337,6 +2402,15 @@
   justify-content: space-between;
   gap: 10px;
   align-items: center;
+}
+.qrMetaRowStack {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.qrMetaValueRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .qrMetaRow span {

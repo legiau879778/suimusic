@@ -97,6 +97,14 @@ export type Work = {
 
   verifiedAt?: number | string;
   reviewedAt?: number | string;
+
+  /** optional derived fields (UI/cache) */
+  votes?: number;
+  featured?: boolean;
+  metaTitle?: string;
+  metaImage?: string;
+  metaCategory?: string;
+  metaLanguage?: string;
 };
 
 /* ================= INTERNAL ================= */
@@ -111,13 +119,22 @@ function uid() {
   return `w_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function load(): Work[] {
-  const works = safeLoad<Work[]>(STORAGE_KEY);
+function getDefaultNetwork() {
+  return process.env.NEXT_PUBLIC_SUI_NETWORK || "devnet";
+}
+
+function storageKey(net?: string) {
+  const n = String(net || getDefaultNetwork() || "devnet").toLowerCase();
+  return `${STORAGE_KEY}_${n}`;
+}
+
+function load(net?: string): Work[] {
+  const works = safeLoad<Work[]>(storageKey(net));
   return Array.isArray(works) ? works : [];
 }
 
-function save(data: Work[]) {
-  safeSave(STORAGE_KEY, data);
+function save(data: Work[], net?: string) {
+  safeSave(storageKey(net), data);
 
   // ✅ realtime notify (ManagePage / Admin Dashboard / etc.)
   if (typeof window !== "undefined") {
@@ -218,8 +235,8 @@ export const countWorksByAuthor = (authorId: string) =>
 const ONCHAIN_SYNC_KEY = "chainstorm_onchain_sync";
 const ONCHAIN_SYNC_TTL_MS = 20_000;
 
-function getDefaultNetwork() {
-  return process.env.NEXT_PUBLIC_SUI_NETWORK || "devnet";
+function syncKey(net?: string) {
+  return `${ONCHAIN_SYNC_KEY}_${String(net || getDefaultNetwork() || "devnet").toLowerCase()}`;
 }
 
 function buildDefaults(input: Partial<Work>): Work {
@@ -237,8 +254,8 @@ function buildDefaults(input: Partial<Work>): Work {
   } as Work;
 }
 
-function mergeOnchainWorks(list: Partial<Work>[]) {
-  const current = load();
+function mergeOnchainWorks(list: Partial<Work>[], net?: string) {
+  const current = load(net);
   const map = new Map(current.map((w) => [w.id, w]));
 
   for (const raw of list) {
@@ -260,6 +277,12 @@ function mergeOnchainWorks(list: Partial<Work>[]) {
       category: existing.category || on.category,
       language: existing.language || on.language,
       createdDate: existing.createdDate || on.createdDate,
+      metaTitle: existing.metaTitle || on.metaTitle,
+      metaImage: existing.metaImage || on.metaImage,
+      metaCategory: existing.metaCategory || on.metaCategory,
+      metaLanguage: existing.metaLanguage || on.metaLanguage,
+      votes: existing.votes ?? on.votes,
+      featured: existing.featured ?? on.featured,
       approvalMap: existing.approvalMap || on.approvalMap || {},
       rejectionBy: existing.rejectionBy || on.rejectionBy || [],
       licenses: existing.licenses || on.licenses || [],
@@ -269,7 +292,7 @@ function mergeOnchainWorks(list: Partial<Work>[]) {
   }
 
   const mergedList = Array.from(map.values());
-  save(mergedList);
+  save(mergedList, net);
   return mergedList.length;
 }
 
@@ -280,21 +303,22 @@ export async function syncWorksFromChain(options?: {
   if (typeof window === "undefined") return 0;
 
   const now = Date.now();
-  const lastRaw = safeLoad<number>(ONCHAIN_SYNC_KEY);
+  const lastRaw = safeLoad<number>(syncKey(options?.network));
   const last = Number(lastRaw || 0);
   if (!options?.force && now - last < ONCHAIN_SYNC_TTL_MS) return 0;
 
   const net = options?.network || getDefaultNetwork();
   try {
-    const res = await fetch(
-      `/api/chainstorm/works?network=${encodeURIComponent(net)}`,
-      { cache: "no-store" }
-    );
+    const params = new URLSearchParams({ network: net });
+    if (options?.force) params.set("force", "1");
+    const res = await fetch(`/api/chainstorm/works?${params.toString()}`, {
+      cache: "no-store",
+    });
     if (!res.ok) return 0;
     const data = await res.json();
     if (!data?.ok || !Array.isArray(data?.works)) return 0;
-    const count = mergeOnchainWorks(data.works as Partial<Work>[]);
-    safeSave(ONCHAIN_SYNC_KEY, now);
+    const count = mergeOnchainWorks(data.works as Partial<Work>[], net);
+    safeSave(syncKey(net), now);
     return count;
   } catch {
     return 0;
@@ -569,6 +593,42 @@ export function patchWork(workId: string, patch: Partial<Work>) {
   Object.assign(w, patch);
   save(works);
 }
+
+export function setWorkVotes(workId: string, votes: number) {
+  const works = load();
+  const w = works.find((x) => x.id === workId);
+  if (!w) return;
+  w.votes = Math.max(0, Math.floor(Number(votes) || 0));
+  save(works);
+}
+
+export function setWorkFeatured(workId: string, featured: boolean) {
+  const works = load();
+  const w = works.find((x) => x.id === workId);
+  if (!w) return;
+  w.featured = Boolean(featured);
+  save(works);
+}
+
+export function setWorkMetadata(params: {
+  workId: string;
+  title?: string;
+  image?: string;
+  category?: string;
+  language?: string;
+}) {
+  const works = load();
+  const w = works.find((x) => x.id === params.workId);
+  if (!w) return;
+  if (params.title) w.metaTitle = params.title;
+  if (params.image) w.metaImage = params.image;
+  if (params.category) w.metaCategory = params.category;
+  if (params.language) w.metaLanguage = params.language;
+  save(works);
+}
+
+export const getFeaturedWorks = () =>
+  load().filter((w) => w.featured && !w.deletedAt);
 
 export function patchWorkByProofId(proofId: string, patch: Partial<Work>) {
   const works = load();

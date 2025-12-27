@@ -1,6 +1,7 @@
 "use client";
 
 import type { SuiClient } from "@mysten/sui/client";
+import { Transaction } from "@mysten/sui/transactions";
 
 export const WORK_VOTE = {
   PACKAGE_ID: process.env.NEXT_PUBLIC_WORK_VOTE_PACKAGE_ID || "",
@@ -13,6 +14,19 @@ export const WORK_VOTE = {
 
 export function canUseWorkVote() {
   return !!WORK_VOTE.PACKAGE_ID && !!WORK_VOTE.BOARD_ID;
+}
+
+export function buildVoteWorkTx(workId: string) {
+  if (!canUseWorkVote()) throw new Error("Work vote config missing");
+  const wid = String(workId || "").trim();
+  if (!wid) throw new Error("Missing workId");
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${WORK_VOTE.PACKAGE_ID}::${WORK_VOTE.MODULE}::${WORK_VOTE.VOTE_FN}`,
+    arguments: [tx.object(WORK_VOTE.BOARD_ID), tx.pure.string(wid)],
+  });
+  return tx;
 }
 
 /**
