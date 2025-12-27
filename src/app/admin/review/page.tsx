@@ -112,7 +112,12 @@ export default function AdminReviewPage() {
       }
       // load() will be triggered via works_updated (save() dispatches event), but call now for smoother UI
       load();
-      showToast("Approved TSA and updated status", "success");
+      const notify = data?.notify;
+      if (notify?.email || notify?.webhook) {
+        showToast("Approved and notification sent", "success");
+      } else {
+        showToast("Approved TSA and updated status", "success");
+      }
     } catch (e: any) {
       showToast(e?.message || "Unable to approve TSA", "error");
     } finally {
@@ -153,7 +158,12 @@ export default function AdminReviewPage() {
       }
 
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
-      showToast("Approved TSA for profile", "success");
+      const notify = data?.notify;
+      if (notify?.email || notify?.webhook) {
+        showToast("Approved and notification sent", "success");
+      } else {
+        showToast("Approved TSA for profile", "success");
+      }
     } catch (e: any) {
       showToast(e?.message || "Unable to approve TSA", "error");
     } finally {
@@ -194,7 +204,12 @@ export default function AdminReviewPage() {
         });
       }
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
-      showToast("Profile rejected", "warning");
+      const notify = data?.notify;
+      if (notify?.email || notify?.webhook) {
+        showToast("Rejected and notification sent", "warning");
+      } else {
+        showToast("Profile rejected", "warning");
+      }
     } catch (e: any) {
       showToast(e?.message || "Unable to reject", "error");
     } finally {
@@ -226,6 +241,9 @@ export default function AdminReviewPage() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) {
           throw new Error(data?.error || "Reject failed");
+        }
+        if (data?.notify?.email || data?.notify?.webhook) {
+          showToast("Rejected and notification sent", "warning");
         }
       }
       rejectWork({
@@ -289,6 +307,16 @@ export default function AdminReviewPage() {
                 {pendingProofs.map((p) => {
                   const title =
                     String(p.metadata?.name || p.metadata?.title || "Untitled");
+                  const authorEmail =
+                    String(
+                      p.metadata?.properties?.author?.email ||
+                        p.metadata?.author?.email ||
+                        p.metadata?.email ||
+                        ""
+                    ).trim();
+                  const metaLink = p.walrusMetaId
+                    ? `/api/walrus/blob/${p.walrusMetaId}`
+                    : "";
                   const sellType = String(
                     p.metadata?.attributes?.find?.((a: any) => a?.trait_type === "sellType")
                       ?.value || "-"
@@ -303,6 +331,14 @@ export default function AdminReviewPage() {
                           {p.wallet && (
                             <span className={styles.mono}>Owner: {p.wallet.slice(0, 8)}…</span>
                           )}
+                          {authorEmail ? (
+                            <span className={styles.mono}>Email: {authorEmail}</span>
+                          ) : null}
+                          {metaLink ? (
+                            <a className={styles.link} href={metaLink} target="_blank" rel="noreferrer">
+                              Metadata
+                            </a>
+                          ) : null}
                         </div>
                       </td>
 

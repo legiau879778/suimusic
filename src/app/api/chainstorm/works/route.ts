@@ -91,60 +91,165 @@ function sellTypeFromU8(v: any) {
   return String(v ?? "");
 }
 
-async function fetchOnChainWorks(
-  net: SuiNet,
+async function queryObjectsCompat(
+  client: any,
+  params: {
+    query?: { MoveStructType?: string; StructType?: string };
+    cursor?: string | null;
+    limit?: number;
+    options?: { showContent?: boolean; showType?: boolean };
+  }
+) {
+  if (typeof client.queryObjects === "function") {
+    return client.queryObjects(params);
+  }
+
+  const structType =
+    params.query?.StructType || params.query?.MoveStructType || "";
+  if (typeof client.call === "function") {
+    return client.call("suix_queryObjects", [
+      {
+        filter: structType ? { StructType: structType } : null,
+        options: params.options || null,
+      },
+      params.cursor ?? null,
+      params.limit ?? null,
+    ]);
+  }
+
+  throw new Error("Sui client does not support queryObjects");
+}
+
+function extractWorksFromObjects(
+  cfg: { packageId: string },
+  objects: Array<any>
+) {
+  const items: any[] = [];
+  for (const it of objects) {
+    const id = it?.data?.objectId || it?.objectId;
+    const content: any = it?.data?.content || it?.content;
+    if (!id || !content || content.dataType !== "moveObject") continue;
+    const fields: any = content.fields || {};
+    const walrusFileId = decodeBytes(fields.walrus_file_id);
+    const walrusMetaId = decodeBytes(fields.walrus_meta_id);
+    const proofId = decodeBytes(fields.proof_id);
+
+    items.push({
+      id,
+      nftObjectId: id,
+      nftPackageId: cfg.packageId,
+      authorId: String(fields.author || ""),
+      authorWallet: String(fields.author || ""),
+      fileHash: String(fields.file_hash || ""),
+      metaHash: String(fields.meta_hash || ""),
+      walrusFileId: walrusFileId || undefined,
+      walrusMetaId: walrusMetaId || undefined,
+      walrusCoverId: undefined,
+      proofId: proofId || undefined,
+      sellType: sellTypeFromU8(fields.sell_type),
+      royalty: Number(fields.royalty ?? 0),
+      status: "verified",
+      hash: walrusMetaId ? `walrus:${walrusMetaId}` : undefined,
+      txDigest: String(it?.data?.previousTransaction || it?.previousTransaction || ""),
+    });
+  }
+  return items;
+}
+
+async function fetchOnChainWorksByType(
+  client: SuiClient,
   cfg: { packageId: string; module?: string }
 ) {
-  const client = new SuiClient({ url: getFullnodeUrl(net) });
   const type = `${cfg.packageId}::${cfg.module || "chainstorm_nft"}::WorkNFT`;
-
   let cursor: string | null = null;
   const items: any[] = [];
 
   while (items.length < MAX_ITEMS) {
     // eslint-disable-next-line no-await-in-loop
-    const page: any = await (client as any).queryObjects({
+    const page: any = await queryObjectsCompat(client as any, {
       query: { MoveStructType: type },
       cursor,
       limit: PAGE_SIZE,
       options: { showContent: true, showType: true },
     });
 
-    for (const it of page.data || []) {
-      const id = it.data?.objectId;
-      const content: any = it.data?.content;
-      if (!id || !content || content.dataType !== "moveObject") continue;
-      const fields: any = content.fields || {};
-      const walrusFileId = decodeBytes(fields.walrus_file_id);
-      const walrusMetaId = decodeBytes(fields.walrus_meta_id);
-      const proofId = decodeBytes(fields.proof_id);
-
-      items.push({
-        id,
-        nftObjectId: id,
-        nftPackageId: cfg.packageId,
-        authorId: String(fields.author || ""),
-        authorWallet: String(fields.author || ""),
-        fileHash: String(fields.file_hash || ""),
-        metaHash: String(fields.meta_hash || ""),
-        walrusFileId: walrusFileId || undefined,
-        walrusMetaId: walrusMetaId || undefined,
-        walrusCoverId: undefined,
-        proofId: proofId || undefined,
-        sellType: sellTypeFromU8(fields.sell_type),
-        royalty: Number(fields.royalty ?? 0),
-        status: "verified",
-        hash: walrusMetaId ? `walrus:${walrusMetaId}` : undefined,
-        txDigest: String(it.data?.previousTransaction || ""),
-      });
-      if (items.length >= MAX_ITEMS) break;
-    }
-
+    items.push(...extractWorksFromObjects(cfg, page.data || []));
+    if (items.length >= MAX_ITEMS) break;
     if (!page.hasNextPage || !page.nextCursor) break;
     cursor = page.nextCursor;
   }
 
-  return items;
+  return items.slice(0, MAX_ITEMS);
+}
+
+async function fetchOnChainWorksByMints(
+  client: SuiClient,
+  cfg: { packageId: string; module?: string }
+) {
+  const moduleName = cfg.module || "chainstorm_nft";
+  const type = `${cfg.packageId}::${moduleName}::WorkNFT`;
+  let cursor: string | null = null;
+  const items: any[] = [];
+  const seen = new Set<string>();
+
+  while (items.length < MAX_ITEMS) {
+    // eslint-disable-next-line no-await-in-loop
+    const page: any = await (client as any).queryTransactionBlocks({
+      filter: {
+        MoveFunction: {
+          package: cfg.packageId,
+          module: moduleName,
+          function: "mint",
+        },
+      },
+      cursor,
+      limit: PAGE_SIZE,
+      options: { showObjectChanges: true, showType: true },
+    });
+
+    const ids: string[] = [];
+    for (const tx of page.data || []) {
+      for (const change of tx.objectChanges || []) {
+        if (change.type !== "created") continue;
+        if (String(change.objectType || "") !== type) continue;
+        const id = String(change.objectId || "");
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+
+    if (ids.length) {
+      // eslint-disable-next-line no-await-in-loop
+      const objs = await (client as any).multiGetObjects({
+        ids,
+        options: { showContent: true, showType: true },
+      });
+      items.push(...extractWorksFromObjects(cfg, objs || []));
+    }
+
+    if (items.length >= MAX_ITEMS) break;
+    if (!page.hasNextPage || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
+
+  return items.slice(0, MAX_ITEMS);
+}
+
+async function fetchOnChainWorks(
+  net: SuiNet,
+  cfg: { packageId: string; module?: string }
+) {
+  const client = new SuiClient({ url: getFullnodeUrl(net) });
+  try {
+    return await fetchOnChainWorksByType(client, cfg);
+  } catch (e: any) {
+    const msg = String(e?.message || "");
+    if (msg.toLowerCase().includes("method not found")) {
+      return await fetchOnChainWorksByMints(client, cfg);
+    }
+    throw e;
+  }
 }
 
 export async function GET(req: Request) {

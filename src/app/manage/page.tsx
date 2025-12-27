@@ -14,8 +14,10 @@ import {
   softDeleteWork,
   updateNFTOwner,
   bindNFTToWork,
+  syncWorksFromChain,
 } from "@/lib/workStore";
 import type { Work } from "@/lib/workStore";
+import { addTrade } from "@/lib/tradeStore";
 
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -223,15 +225,36 @@ export default function ManagePage() {
 
   const userId = user?.id || "";
   const userRole = (user as any)?.role || "";
+  const userWallets = useMemo(() => {
+    const list = [
+      user?.internalWallet?.address,
+      user?.walletAddress,
+      currentAccount?.address,
+    ]
+      .filter(Boolean)
+      .map((w) => String(w).toLowerCase());
+    return Array.from(new Set(list));
+  }, [currentAccount?.address, user?.internalWallet?.address, user?.walletAddress]);
+
+  const isWorkOwner = useCallback(
+    (w: Work) => {
+      if (userRole === "admin") return true;
+      if (!userId && userWallets.length === 0) return false;
+      if (userId && w.authorId === userId) return true;
+      const authorWallet = String(w.authorWallet || w.authorId || "").toLowerCase();
+      return authorWallet && userWallets.includes(authorWallet);
+    },
+    [userId, userRole, userWallets]
+  );
 
   const load = useCallback(() => {
-    if (!userId) {
+    if (!userId && userWallets.length === 0 && userRole !== "admin") {
       setWorks([]);
       return;
     }
 
     const base = view === "trash" ? getTrashWorks() : getActiveWorks();
-    let list = userRole === "admin" ? base : base.filter((w) => w.authorId === userId);
+    let list = base.filter(isWorkOwner);
 
     if (filter !== "all") {
       list = list.filter(
@@ -259,12 +282,11 @@ export default function ManagePage() {
     });
 
     setWorks(list as Work[]);
-  }, [filter, showToast, userId, userRole, view]);
+  }, [filter, showToast, userId, userRole, userWallets.length, view, isWorkOwner]);
 
   useEffect(() => {
     autoCleanTrash();
-
-    load();
+    syncWorksFromChain({ force: true }).then(load).catch(() => load());
     window.addEventListener("works_updated", load);
     return () => window.removeEventListener("works_updated", load);
   }, [load]);
@@ -362,7 +384,7 @@ export default function ManagePage() {
       showToast(reason || "Auto-syncing NFTs from chain...", "info");
 
       const base = getActiveWorks();
-      const list = userRole === "admin" ? base : base.filter((x) => x.authorId === userId);
+      const list = base.filter(isWorkOwner);
 
       const candidates = list.filter((w) => !!w.hash || !!w.nftObjectId);
 
@@ -393,7 +415,7 @@ export default function ManagePage() {
       void (async () => {
         try {
           const base = getActiveWorks();
-          const list = userRole === "admin" ? base : base.filter((x) => x.authorId === userId);
+          const list = base.filter(isWorkOwner);
 
           const candidates = list.filter((w) => !!w.hash || !!w.nftObjectId);
           const need = candidates.filter((w) => !w.nftObjectId || !w.authorWallet);
@@ -499,6 +521,18 @@ export default function ManagePage() {
         txDigest: (result as any).digest,
         priceMist: priceMist.toString(),
       });
+      if (userId) {
+        addTrade(userId, {
+          id: crypto.randomUUID(),
+          type: "sell",
+          title: work.title || "Sell NFT",
+          amountSui: Number(priceStr) || 0,
+          txHash: (result as any).digest,
+          status: "pending",
+          createdAt: Date.now(),
+          workId: work.id,
+        });
+      }
 
       showToast("🎉 Bán NFT thành công", "success");
     } catch (e) {
@@ -554,6 +588,18 @@ export default function ManagePage() {
         royalty,
         txDigest: (result as any).digest,
       });
+      if (userId) {
+        addTrade(userId, {
+          id: crypto.randomUUID(),
+          type: "license",
+          title: work.title || "Issue License",
+          amountSui: 0,
+          txHash: (result as any).digest,
+          status: "pending",
+          createdAt: Date.now(),
+          workId: work.id,
+        });
+      }
 
       showToast("✅ Cấp license thành công", "success");
     } catch (e) {

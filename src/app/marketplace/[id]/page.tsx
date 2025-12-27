@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   bindLicenseToWork,
@@ -10,6 +10,8 @@ import {
 } from "@/lib/workStore";
 import { useToast } from "@/context/ToastContext";
 import { toGateway } from "@/lib/profileStore";
+import { useAuth } from "@/context/AuthContext";
+import { addTrade } from "@/lib/tradeStore";
 
 /* ===== SUI SDK (NEW) ===== */
 import {
@@ -22,6 +24,7 @@ import { Transaction } from "@mysten/sui/transactions";
 
 /* ✅ CONFIG (network-aware) */
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
+import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
 
 /* ================= HELPERS ================= */
 
@@ -94,7 +97,7 @@ function resolveMedia(meta: any, w: any) {
   return "";
 }
 
-function guessMediaKind(meta: any, url: string): "audio" | "video" | "image" | "other" {
+function guessMediaKind(meta: any, url: string): "audio" | "video" | "image" | "pdf" | "other" {
   const mime =
     String(meta?.file?.mime || meta?.file?.type || meta?.properties?.file?.type || "")
       .toLowerCase()
@@ -102,12 +105,84 @@ function guessMediaKind(meta: any, url: string): "audio" | "video" | "image" | "
   if (mime.startsWith("audio/")) return "audio";
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("image/")) return "image";
+  if (mime.includes("pdf")) return "pdf";
 
   const u = url.toLowerCase();
   if (/\.(mp3|wav|ogg|m4a|flac)$/.test(u)) return "audio";
   if (/\.(mp4|webm|mov|mkv)$/.test(u)) return "video";
   if (/\.(png|jpg|jpeg|webp|gif|bmp|svg)$/.test(u)) return "image";
+  if (/\.(pdf)$/.test(u)) return "pdf";
   return "other";
+}
+
+function Waveform({ url }: { url: string }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function draw() {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const buf = await res.arrayBuffer();
+        if (cancelled) return;
+
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audio = await ctx.decodeAudioData(buf.slice(0));
+        if (cancelled) return;
+
+        const channel = audio.getChannelData(0);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const g = canvas.getContext("2d");
+        if (!g) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const step = Math.max(1, Math.floor(channel.length / width));
+
+        g.clearRect(0, 0, width, height);
+        g.fillStyle = "rgba(250,204,21,0.85)";
+
+        for (let x = 0; x < width; x += 1) {
+          let min = 1.0;
+          let max = -1.0;
+          const start = x * step;
+          const end = Math.min(channel.length, start + step);
+          for (let i = start; i < end; i += 1) {
+            const v = channel[i];
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+          const y = ((1 + min) / 2) * height;
+          const h = Math.max(1, (max - min) * height);
+          g.fillRect(x, height - y - h / 2, 1, h);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    draw();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={640}
+      height={88}
+      style={{
+        width: "100%",
+        height: 88,
+        background: "rgba(15,23,42,.65)",
+        borderRadius: 10,
+      }}
+    />
+  );
 }
 
 /* ================= COMPONENT ================= */
@@ -117,6 +192,7 @@ export default function MarketplaceDetailPage() {
   const workId = params?.id;
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const suiClient = useSuiClient();
   const suiCtx = useSuiClientContext();
@@ -181,12 +257,7 @@ export default function MarketplaceDetailPage() {
       }
       setMetaLoading(true);
       try {
-        const res = await fetch(metaUrl, { cache: "force-cache" });
-        if (!res.ok) {
-          if (alive) setMeta(null);
-          return;
-        }
-        const json = await res.json();
+        const json = await fetchWalrusMetadata(metaInput);
         if (alive) setMeta(json);
       } catch {
         if (alive) setMeta(null);
@@ -295,6 +366,19 @@ export default function MarketplaceDetailPage() {
         ],
       }));
 
+      if (user?.id) {
+        addTrade(user.id, {
+          id: crypto.randomUUID(),
+          type: "license",
+          title: work.title || "License",
+          amountSui: 0,
+          txHash: result.digest,
+          status: "pending",
+          createdAt: Date.now(),
+          workId: work.id,
+        });
+      }
+
       showToast("✅ Mua license thành công", "success");
     } catch (e) {
       console.error(e);
@@ -341,7 +425,13 @@ export default function MarketplaceDetailPage() {
               }}
             >
               {cover ? (
-                <img src={cover} alt="Cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img
+                  src={cover}
+                  alt="Cover"
+                  loading="lazy"
+                  decoding="async"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               ) : (
                 <div
                   style={{
@@ -403,11 +493,26 @@ export default function MarketplaceDetailPage() {
             </div>
             {mediaUrl ? (
               mediaKind === "audio" ? (
-                <audio controls src={mediaUrl} style={{ width: "100%" }} />
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Waveform url={mediaUrl} />
+                  <audio controls preload="metadata" src={mediaUrl} style={{ width: "100%" }} />
+                </div>
               ) : mediaKind === "video" ? (
-                <video controls src={mediaUrl} style={{ width: "100%", maxHeight: 360 }} />
+                <video controls preload="metadata" src={mediaUrl} style={{ width: "100%", maxHeight: 360 }} />
               ) : mediaKind === "image" ? (
-                <img src={mediaUrl} alt="Preview" style={{ width: "100%", maxHeight: 360, objectFit: "contain" }} />
+                <img
+                  src={mediaUrl}
+                  alt="Preview"
+                  loading="lazy"
+                  decoding="async"
+                  style={{ width: "100%", maxHeight: 360, objectFit: "contain" }}
+                />
+              ) : mediaKind === "pdf" ? (
+                <iframe
+                  title="PDF preview"
+                  src={mediaUrl}
+                  style={{ width: "100%", height: 520, border: "none" }}
+                />
               ) : (
                 <a href={mediaUrl} target="_blank" rel="noreferrer">
                   Open file
