@@ -7,6 +7,13 @@ type WorkLite = {
   id: string;
   title: string;
   hash?: string; // metadata cid/url
+  walrusMetaId?: string;
+  metadataCid?: string;
+  metadata?: string;
+  walrusCoverId?: string;
+  metaImage?: string;
+  metaCategory?: string;
+  metaLanguage?: string;
   royalty?: number;
   category?: string;
   language?: string;
@@ -31,6 +38,9 @@ function normalizeIpfsUrl(url?: string) {
 function pickCover(meta: any) {
   return (
     normalizeIpfsUrl(meta?.properties?.cover?.url) ||
+    normalizeIpfsUrl(meta?.cover_image) ||
+    normalizeIpfsUrl(meta?.properties?.cover_image) ||
+    normalizeIpfsUrl(meta?.properties?.image) ||
     normalizeIpfsUrl(meta?.image) ||
     normalizeIpfsUrl(meta?.properties?.cover) ||
     normalizeIpfsUrl(meta?.cover) ||
@@ -61,6 +71,66 @@ function pickCreatedDate(work: WorkLite, meta: any | null) {
   if (mIso) return toDDMMYYYY(mIso);
 
   return "—";
+}
+
+function resolveMetaInput(work: WorkLite) {
+  const raw = String(
+    work?.walrusMetaId || work?.metadataCid || work?.metadata || work?.hash || ""
+  ).trim();
+  if (!raw) return "";
+  if (
+    raw.startsWith("http://") ||
+    raw.startsWith("https://") ||
+    raw.startsWith("walrus:") ||
+    raw.startsWith("walrus://") ||
+    raw.startsWith("/api/walrus/blob/")
+  ) {
+    return raw;
+  }
+  return `walrus:${raw}`;
+}
+
+function pickAttr(meta: any, key: string) {
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
+  const hit = attrs.find(
+    (a: any) => String(a?.trait_type || "").trim().toLowerCase() === key
+  );
+  return String(hit?.value ?? "").trim();
+}
+
+function pickCategory(work: WorkLite, meta: any | null) {
+  const raw =
+    String(work.metaCategory || "").trim() ||
+    String(work.category || "").trim() ||
+    String(meta?.category || "").trim() ||
+    String(meta?.properties?.category || "").trim() ||
+    pickAttr(meta, "category");
+  return raw || "—";
+}
+
+function pickLanguage(work: WorkLite, meta: any | null) {
+  const raw =
+    String(work.metaLanguage || "").trim() ||
+    String(work.language || "").trim() ||
+    String(meta?.language || "").trim() ||
+    String(meta?.properties?.language || "").trim() ||
+    pickAttr(meta, "language");
+  return raw || "—";
+}
+
+function resolveCover(meta: any | null, work: WorkLite) {
+  const byMeta = meta ? pickCover(meta) : "";
+  if (byMeta) return byMeta;
+
+  const raw =
+    work?.metaImage || (work as any)?.image || (work as any)?.cover || "";
+  const byWork = toGateway(raw);
+  if (byWork) return byWork;
+
+  const coverId = String(work?.walrusCoverId || "").trim();
+  if (coverId) return toGateway(`walrus:${coverId}`);
+
+  return "";
 }
 
 /* ===== in-memory cache (shared) ===== */
@@ -123,7 +193,8 @@ export default function WorkNFTCard(props: {
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
 
-  const metaUrl = useMemo(() => toGateway(work.hash), [work.hash]);
+  const metaInput = useMemo(() => resolveMetaInput(work), [work]);
+  const metaUrl = useMemo(() => toGateway(metaInput), [metaInput]);
 
   useEffect(() => {
     let alive = true;
@@ -146,8 +217,10 @@ export default function WorkNFTCard(props: {
     };
   }, [metaUrl]);
 
-  const coverUrl = useMemo(() => (meta ? pickCover(meta) : ""), [meta]);
+  const coverUrl = useMemo(() => resolveCover(meta, work), [meta, work]);
   const createdText = useMemo(() => pickCreatedDate(work, meta), [work, meta]);
+  const categoryText = useMemo(() => pickCategory(work, meta), [work, meta]);
+  const languageText = useMemo(() => pickLanguage(work, meta), [work, meta]);
 
   return (
     <Link href={href} className={`${s.card} ${className || ""}`} aria-label={`View ${work.title}`}>
@@ -199,11 +272,11 @@ export default function WorkNFTCard(props: {
       <div className={s.info}>
         <div className={s.kv}>
           <span className={s.k}>Thể loại</span>
-          <span className={s.v}>{work.category || "—"}</span>
+          <span className={s.v}>{categoryText}</span>
         </div>
         <div className={s.kv}>
           <span className={s.k}>Ngôn ngữ</span>
-          <span className={s.v}>{work.language || "—"}</span>
+          <span className={s.v}>{languageText}</span>
         </div>
         <div className={s.kv}>
           <span className={s.k}>Royalty</span>
