@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getVerifiedWorks,
   patchWork,
+  setWorkMetadata,
+  setWorkVotes,
   syncWorksFromChain,
   type Work,
 } from "@/lib/workStore";
@@ -12,7 +14,8 @@ import { toGateway } from "@/lib/profileStore";
 import { useSyncWorkOwner } from "@/hooks/useSyncWorkOwner";
 import { explorerObjectUrl, shortAddr } from "@/lib/suiExplorer";
 import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
-import { useSuiClient } from "@mysten/dapp-kit";
+impoz sssrt { useSuiClient } from "@mysten/dapp-kit";
+import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
 import styles from "./marketplace.module.css";
 
 type Filter = "all" | "exclusive" | "license";
@@ -45,6 +48,7 @@ function resolveMetaInput(w: any) {
 
 function resolveCoverFromMeta(meta: any, w: any) {
   const raw =
+    w?.metaImage ||
     meta?.image ||
     meta?.cover ||
     meta?.properties?.cover?.url ||
@@ -60,6 +64,7 @@ function resolveCoverFromMeta(meta: any, w: any) {
 
 function resolveTitleFromMeta(meta: any, w: any) {
   return (
+    String(w?.metaTitle || "").trim() ||
     String(meta?.name || meta?.title || "").trim() ||
     String(w?.title || "").trim() ||
     "Untitled"
@@ -117,15 +122,18 @@ export default function MarketplacePage() {
       .filter((w) => w?.id && !metaCache[w.id]);
 
     async function run() {
-      for (const w of queue) {
-        if (!alive) return;
-        const metaInput = resolveMetaInput(w);
-        const metaUrl = toGateway(metaInput);
-        if (!metaUrl) continue;
-        try {
-          const res = await fetch(metaUrl, { cache: "force-cache" });
-          if (!res.ok) continue;
-          const json = await res.json();
+      const CONC = 6;
+      let i = 0;
+
+      async function worker() {
+        while (alive) {
+          const idx = i++;
+          if (idx >= queue.length) break;
+          const w = queue[idx];
+          const metaInput = resolveMetaInput(w);
+          const json = await fetchWalrusMetadata(metaInput);
+          if (!alive || !json) continue;
+
           const preview: MetaPreview = {
             title: String(json?.name || json?.title || "").trim(),
             image: resolveCoverFromMeta(json, w),
@@ -138,6 +146,7 @@ export default function MarketplacePage() {
             category: String(json?.category || json?.properties?.category || "").trim(),
             language: String(json?.language || json?.properties?.language || "").trim(),
           };
+
           if (!alive) return;
           setMetaCache((prev) => ({ ...prev, [w.id]: preview }));
 
@@ -150,10 +159,18 @@ export default function MarketplacePage() {
             patch.durationSec = Math.max(0, Math.floor(durNum));
           }
           if (Object.keys(patch).length) patchWork(w.id, patch);
-        } catch {
-          // ignore
+
+          setWorkMetadata({
+            workId: w.id,
+            title: preview.title,
+            image: preview.image,
+            category: preview.category,
+            language: preview.language,
+          });
         }
       }
+
+      await Promise.all(Array.from({ length: Math.min(CONC, queue.length) }, () => worker()));
     }
 
     run();
@@ -166,7 +183,7 @@ export default function MarketplacePage() {
     const map = new Map<string, string>();
     for (const w of baseList) {
       const meta = metaCache[w.id];
-      const raw = String(meta?.category || w.category || "").trim();
+      const raw = String(meta?.category || w.metaCategory || w.category || "").trim();
       if (!raw) continue;
       const key = raw.toLowerCase();
       if (!map.has(key)) map.set(key, raw);
@@ -178,7 +195,7 @@ export default function MarketplacePage() {
     const map = new Map<string, string>();
     for (const w of baseList) {
       const meta = metaCache[w.id];
-      const raw = String(meta?.language || w.language || "").trim();
+      const raw = String(meta?.language || w.metaLanguage || w.language || "").trim();
       if (!raw) continue;
       const key = raw.toLowerCase();
       if (!map.has(key)) map.set(key, raw);
@@ -192,8 +209,8 @@ export default function MarketplacePage() {
       if (filter !== "all" && w.sellType !== filter) return false;
 
       const meta = metaCache[w.id];
-      const cat = String(meta?.category || w.category || "").trim().toLowerCase();
-      const lang = String(meta?.language || w.language || "").trim().toLowerCase();
+      const cat = String(meta?.category || w.metaCategory || w.category || "").trim().toLowerCase();
+      const lang = String(meta?.language || w.metaLanguage || w.language || "").trim().toLowerCase();
 
       if (categoryFilter !== "all" && cat !== categoryFilter) return false;
       if (languageFilter !== "all" && lang !== languageFilter) return false;
@@ -228,6 +245,7 @@ export default function MarketplacePage() {
           const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
           if (!alive) return;
           setVoteCache((prev) => (prev[id] == null ? { ...prev, [id]: n } : prev));
+          setWorkVotes(id, n);
           await new Promise((r) => setTimeout(r, 40));
         }
       }
@@ -255,7 +273,7 @@ export default function MarketplacePage() {
       if (canUseWorkVote()) {
         sorted.sort(
           (a, b) =>
-            Number(voteCache[b.id] || 0) - Number(voteCache[a.id] || 0)
+            Number(voteCache[b.id] ?? b.votes ?? 0) - Number(voteCache[a.id] ?? a.votes ?? 0)
         );
       } else {
         sorted.sort((a, b) => getWorkTime(b) - getWorkTime(a));
@@ -356,16 +374,29 @@ function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
   const { owner } = useSyncWorkOwner({ workId: work.id, nftObjectId: work.nftObjectId });
   const cover = resolveCoverFromMeta(meta, work);
   const title = resolveTitleFromMeta(meta, work);
+  const licenseCount = Array.isArray(work?.licenses) ? work.licenses.length : 0;
 
   return (
     <div className={styles.card}>
       <div className={styles.cover}>
-        {cover ? <img className={styles.coverImg} src={cover} alt={title} /> : null}
+        {cover ? (
+          <img
+            className={styles.coverImg}
+            src={cover}
+            alt={title}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
         {!cover ? <div className={styles.coverFallback}>No cover</div> : null}
       </div>
       <div className={styles.badges}>
         <span className={styles.badge}>{work.sellType}</span>
         <span className={styles.badgeSoft}>{work.status}</span>
+        {work.featured ? <span className={styles.badgeSoft}>Featured</span> : null}
+        {typeof work.votes === "number" ? (
+          <span className={styles.badgeSoft}>🔥 {work.votes}</span>
+        ) : null}
       </div>
 
       <h3 className={styles.cardTitle}>{title}</h3>
@@ -375,6 +406,12 @@ function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
           <span className={styles.metaLabel}>Owner</span>
           <span className={styles.metaValue}>{shortAddr(owner ?? work.authorWallet)}</span>
         </div>
+        {work.sellType === "license" ? (
+          <div>
+            <span className={styles.metaLabel}>Licenses</span>
+            <span className={styles.metaValue}>{licenseCount}</span>
+          </div>
+        ) : null}
 
         {work.nftObjectId && (
           <a

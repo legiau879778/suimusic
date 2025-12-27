@@ -1,43 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./search.module.css";
-import { getVerifiedWorks, syncWorksFromChain } from "@/lib/workStore";
-
-/* profileStore */
-import { loadProfile, type UserProfile, toGateway } from "@/lib/profileStore";
-
-/* membershipStore */
-import {
-  type Membership,
-  getActiveMembership,
-  getCachedMembership,
-  getMembershipBadgeLabel,
-} from "@/lib/membershipStore";
+import { getVerifiedWorks, setWorkMetadata, syncWorksFromChain } from "@/lib/workStore";
+import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
+import { toGateway } from "@/lib/profileStore";
+import { buildVoteWorkTx, canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
+import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 
 /* ===== Phosphor Icons ===== */
-import { MagnifyingGlass, UsersThree, ShieldCheck, ArrowRight } from "@phosphor-icons/react";
+import { MagnifyingGlass, Sparkle, ClockClockwise, ClockCounterClockwise } from "@phosphor-icons/react";
 
 type Work = any;
-
-type AuthorRow = {
-  authorId: string;
-  rep: Work; // representative work for fallback
-};
-
-type ViewModel = {
-  authorId: string;
-  name: string;
-  email: string;
-  avatar: string;
-  membership: Membership | null;
-};
-
-function shortText(v?: string) {
-  const s = (v || "").trim();
-  return s || "—";
-}
 
 function useDebounce<T>(value: T, delay = 300) {
   const [debounced, setDebounced] = useState(value);
@@ -48,65 +23,98 @@ function useDebounce<T>(value: T, delay = 300) {
   return debounced;
 }
 
-/** prioritize profileStore, fallback from rep work */
-function buildVM(authorId: string, rep: Work): ViewModel {
-  const p: UserProfile = loadProfile(authorId) || {};
+type MetaPreview = {
+  title?: string;
+  image?: string;
+  category?: string;
+  language?: string;
+};
 
-  const name =
-    String(p?.name || "").trim() ||
-    String(rep?.authorName || "").trim() ||
-    "Author";
-
-  const email =
-    String(p?.email || "").trim() ||
-    String(rep?.authorEmail || rep?.email || "").trim() ||
-    "—";
-
-  const avatarRaw =
-    String(p?.avatar || "").trim() ||
-    String(rep?.authorAvatar || rep?.avatar || "").trim();
-
-  const avatar = toGateway(avatarRaw);
-
-  // membership: use cache first for immediate UI
-  const cached = getCachedMembership(authorId, email);
-
-  return {
-    authorId,
-    name,
-    email,
-    avatar,
-    membership: cached || null,
-  };
+function resolveMetaInput(w: any) {
+  const raw = String(
+    w?.walrusMetaId || w?.metadataCid || w?.metadata || w?.hash || ""
+  ).trim();
+  if (!raw) return "";
+  if (
+    raw.startsWith("http://") ||
+    raw.startsWith("https://") ||
+    raw.startsWith("walrus:") ||
+    raw.startsWith("walrus://") ||
+    raw.startsWith("/api/walrus/blob/")
+  ) {
+    return raw;
+  }
+  return `walrus:${raw}`;
 }
 
-/** shallow compare 2 vmMap by key + 4 basic fields */
-function sameVM(a: ViewModel, b: ViewModel) {
-  const aKey = a.membership ? `${a.membership.type}:${a.membership.expireAt}` : "";
-  const bKey = b.membership ? `${b.membership.type}:${b.membership.expireAt}` : "";
+function resolveCoverFromMeta(meta: any, w: any) {
+  const raw =
+    w?.metaImage ||
+    meta?.image ||
+    meta?.cover ||
+    meta?.properties?.cover?.url ||
+    meta?.properties?.cover_image ||
+    meta?.properties?.image ||
+    "";
+  const byMeta = toGateway(raw);
+  if (byMeta) return byMeta;
+  const coverId = String(w?.walrusCoverId || "").trim();
+  if (coverId) return toGateway(`walrus:${coverId}`);
+  return "";
+}
+
+function resolveTitleFromMeta(meta: any, w: any) {
   return (
-    a.authorId === b.authorId &&
-    a.name === b.name &&
-    a.email === b.email &&
-    a.avatar === b.avatar &&
-    aKey === bKey
+    String(w?.metaTitle || "").trim() ||
+    String(meta?.name || meta?.title || "").trim() ||
+    String(w?.title || "").trim() ||
+    "Untitled"
   );
 }
 
-type VmMap = Record<string, ViewModel>;
+function getWorkTime(w: any): number {
+  const a =
+    Date.parse(w?.createdDate || "") ||
+    Date.parse(w?.mintedAt || "") ||
+    (typeof w?.verifiedAt === "number" ? w.verifiedAt : Date.parse(w?.verifiedAt || "")) ||
+    (typeof w?.reviewedAt === "number" ? w.reviewedAt : Date.parse(w?.reviewedAt || "")) ||
+    0;
+  return Number.isFinite(a) ? a : 0;
+}
+
+function formatDuration(sec: number) {
+  if (!Number.isFinite(sec) || sec <= 0) return "—";
+  const s = Math.floor(sec);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m < 60) return `${m}:${String(r).padStart(2, "0")}`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h}:${String(mm).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}
 
 export default function SearchPage() {
+  const suiClient = useSuiClient();
+  const { mutateAsync: signAndExecuteTransaction, isPending } =
+    useSignAndExecuteTransaction();
   const [works, setWorks] = useState<Work[]>([]);
 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const debouncedQ = useDebounce(q);
+  const [metaCache, setMetaCache] = useState<Record<string, MetaPreview>>({});
+  const [voteCache, setVoteCache] = useState<Record<string, number>>({});
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [languageFilter, setLanguageFilter] = useState("all");
+  const [votingId, setVotingId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
 
     async function loadWorks() {
-      await syncWorksFromChain();
+      const local = (getVerifiedWorks() as unknown as Work[]) || [];
+      if (alive) setWorks(local);
+      await syncWorksFromChain({ force: local.length === 0 });
       if (!alive) return;
       setWorks((getVerifiedWorks() as unknown as Work[]) || []);
     }
@@ -122,91 +130,73 @@ export default function SearchPage() {
     };
   }, []);
 
-  /* ===== group works -> authors ===== */
-  const authorRows = useMemo<AuthorRow[]>(() => {
-    const map = new Map<string, Work>();
-
-    for (const w of works) {
-      const id = String(w?.authorId || "").trim();
-      if (!id) continue;
-      if (!map.has(id)) map.set(id, w);
-    }
-
-    const rows: AuthorRow[] = [];
-    for (const [authorId, rep] of map.entries()) {
-      rows.push({ authorId, rep });
-    }
-
-    // sort by fallback name (for stable UI)
-    rows.sort((a, b) => {
-      const pa = loadProfile(a.authorId) || {};
-      const pb = loadProfile(b.authorId) || {};
-      const na = String(pa?.name || a.rep?.authorName || a.authorId);
-      const nb = String(pb?.name || b.rep?.authorName || b.authorId);
-      return na.localeCompare(nb);
-    });
-
-    return rows;
-  }, [works]);
-
-  /** ✅ stable deps instead of [authorRows] */
-  const authorKey = useMemo(
-    () => authorRows.map((x) => x.authorId).join("|"),
-    [authorRows]
-  );
-
-  /** init vmMap once per authorKey */
-  const [vmMap, setVmMap] = useState<VmMap>(() => {
-    const next: VmMap = {};
-    for (const r of authorRows) next[r.authorId] = buildVM(r.authorId, r.rep);
-    return next;
-  });
-
-  /** keep ref so membership effect doesn't need vmMap deps */
-  const vmRef = useRef(vmMap);
   useEffect(() => {
-    vmRef.current = vmMap;
-  }, [vmMap]);
+    let alive = true;
+    const queue = works.slice(0, 60).filter((w) => w?.id && !metaCache[w.id]);
 
-  /** ✅ Sync profile/email/avatar when authorKey changes (no loop) */
-  useEffect(() => {
-    const next: VmMap = {};
-    for (const r of authorRows) next[r.authorId] = buildVM(r.authorId, r.rep);
+    async function run() {
+      const CONC = 6;
+      let i = 0;
 
-    setVmMap((prev) => {
-      // if keys same and each item same -> don't setState
-      const prevKeys = Object.keys(prev);
-      const nextKeys = Object.keys(next);
-      if (prevKeys.length === nextKeys.length) {
-        let allSame = true;
-        for (const k of nextKeys) {
-          const a = prev[k];
-          const b = next[k];
-          if (!a || !b || !sameVM(a, b)) {
-            allSame = false;
-            break;
-          }
+      async function worker() {
+        while (alive) {
+          const idx = i++;
+          if (idx >= queue.length) break;
+          const w = queue[idx];
+          const metaInput = resolveMetaInput(w);
+          const json = await fetchWalrusMetadata(metaInput);
+          if (!alive || !json) continue;
+
+          const preview: MetaPreview = {
+            title: String(json?.name || json?.title || "").trim(),
+            image: resolveCoverFromMeta(json, w),
+            category: String(json?.category || json?.properties?.category || "").trim(),
+            language: String(json?.language || json?.properties?.language || "").trim(),
+          };
+
+          if (!alive) return;
+          setMetaCache((prev) => ({ ...prev, [w.id]: preview }));
+
+          setWorkMetadata({
+            workId: w.id,
+            title: preview.title,
+            image: preview.image,
+            category: preview.category,
+            language: preview.language,
+          });
         }
-        if (allSame) return prev;
       }
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authorKey]);
 
-  /** ===== FILTER ===== */
+      await Promise.all(Array.from({ length: Math.min(CONC, queue.length) }, () => worker()));
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [works, metaCache]);
+
   const filtered = useMemo(() => {
     const k = debouncedQ.trim().toLowerCase();
-    if (!k) return authorRows;
-
-    return authorRows.filter((r) => {
-      const vm = vmMap[r.authorId];
-      const name = (vm?.name || "").toLowerCase();
-      const email = (vm?.email || "").toLowerCase();
-      const id = (r.authorId || "").toLowerCase();
-      return name.includes(k) || email.includes(k) || id.includes(k);
+    return works.filter((w) => {
+      const meta = metaCache[w.id];
+      const title = resolveTitleFromMeta(meta, w).toLowerCase();
+      const author = String(w.authorName || "").toLowerCase();
+      const wallet = String(w.authorWallet || "").toLowerCase();
+      const category = String(meta?.category || w.metaCategory || w.category || "").toLowerCase();
+      const language = String(meta?.language || w.metaLanguage || w.language || "").toLowerCase();
+      if (categoryFilter !== "all" && category !== categoryFilter) return false;
+      if (languageFilter !== "all" && language !== languageFilter) return false;
+      if (!k) return true;
+      return (
+        title.includes(k) ||
+        author.includes(k) ||
+        wallet.includes(k) ||
+        category.includes(k) ||
+        language.includes(k)
+      );
     });
-  }, [authorRows, debouncedQ, vmMap]);
+  }, [works, debouncedQ, metaCache, categoryFilter, languageFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -214,154 +204,321 @@ export default function SearchPage() {
     return () => clearTimeout(t);
   }, [debouncedQ]);
 
-  /** ===== membership truth (actual "purchased") ===== */
   useEffect(() => {
     let alive = true;
+    if (!canUseWorkVote() || !suiClient) return;
+    const ids = filtered
+      .map((w) => String(w.id || "").trim())
+      .filter(Boolean)
+      .slice(0, 40);
+    const queue = ids.filter((id) => voteCache[id] == null);
 
     async function run() {
-      // run lightly: only resolve for currently displayed list (max 30)
-      const list = filtered.slice(0, 30);
+      const CONC = 6;
+      let i = 0;
 
-      for (const r of list) {
-        if (!alive) return;
-
-        const current = vmRef.current[r.authorId];
-        if (!current) continue;
-
-        // nếu email chưa có thì bỏ qua (không đoán)
-        const email = String(current.email || "").trim();
-        if (!email || email === "—") continue;
-
-        try {
-          const truth = await getActiveMembership({ userId: r.authorId, email });
+      async function worker() {
+        while (alive) {
+          const idx = i++;
+          if (idx >= queue.length) break;
+          const id = queue[idx];
+          const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
           if (!alive) return;
-
-          setVmMap((prev) => {
-            const p = prev[r.authorId];
-            if (!p) return prev;
-
-            const prevKey = p.membership ? `${p.membership.type}:${p.membership.expireAt}` : "";
-            const newKey = truth ? `${truth.type}:${truth.expireAt}` : "";
-            if (prevKey === newKey) return prev;
-
-            return { ...prev, [r.authorId]: { ...p, membership: truth } };
-          });
-        } catch {
-          // ignore -> giữ cached/null
+          setVoteCache((prev) => (prev[id] == null ? { ...prev, [id]: n } : prev));
+          await new Promise((r) => setTimeout(r, 40));
         }
-
-        // delay nhỏ chống spam
-        await new Promise((x) => setTimeout(x, 60));
       }
+
+      await Promise.all(Array.from({ length: Math.min(CONC, queue.length) }, () => worker()));
     }
 
-    if (filtered.length > 0) run();
-
+    run();
     return () => {
       alive = false;
     };
-  }, [filtered]); // ✅ filtered thay đổi theo search, OK
+  }, [filtered, voteCache, suiClient]);
+
+  const featured = useMemo(() => {
+    const featuredList = filtered.filter((w) => w.featured);
+    const list = featuredList.length ? featuredList : [...filtered];
+    if (canUseWorkVote()) {
+      list.sort(
+        (a, b) => Number(voteCache[b.id] ?? b.votes ?? 0) - Number(voteCache[a.id] ?? a.votes ?? 0)
+      );
+    } else {
+      list.sort((a, b) => getWorkTime(b) - getWorkTime(a));
+    }
+    return list.slice(0, 8);
+  }, [filtered, voteCache]);
+
+  const newest = useMemo(() => {
+    return [...filtered].sort((a, b) => getWorkTime(b) - getWorkTime(a)).slice(0, 8);
+  }, [filtered]);
+
+  const oldest = useMemo(() => {
+    return [...filtered].sort((a, b) => getWorkTime(a) - getWorkTime(b)).slice(0, 8);
+  }, [filtered]);
+
+  const categories = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of works) {
+      const meta = metaCache[w.id];
+      const raw = String(meta?.category || w.metaCategory || w.category || "").trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) map.set(key, raw);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [works, metaCache]);
+
+  const languages = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of works) {
+      const meta = metaCache[w.id];
+      const raw = String(meta?.language || w.metaLanguage || w.language || "").trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) map.set(key, raw);
+    }
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [works, metaCache]);
+
+  async function handleVote(workId: string) {
+    if (!suiClient) return;
+    setVotingId(workId);
+    try {
+      const tx = buildVoteWorkTx(workId);
+      await signAndExecuteTransaction({ transaction: tx });
+      const n = await getVoteCountForWork({ suiClient: suiClient as any, workId });
+      setVoteCache((prev) => ({ ...prev, [workId]: n }));
+    } catch {
+      // ignore
+    } finally {
+      setVotingId((prev) => (prev === workId ? null : prev));
+    }
+  }
 
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        {/* HERO */}
-        <section className={styles.hero}>
-          <div className={styles.heroTop}>
-            <div className={styles.heroIcon}>
-              <UsersThree size={22} weight="fill" />
-            </div>
-            <div>
-              <h1 className={styles.title}>Search Authors</h1>
-              <p className={styles.subtitle}>
-                Display basic information (avatar, email, membership). Click to view details.
-              </p>
-            </div>
+        <section className={styles.top}>
+          <div>
+            <h1 className={styles.h1}>Search works</h1>
+            <p className={styles.hint}>
+              Featured, newest, and oldest works from on-chain + Walrus metadata.
+            </p>
+          </div>
+          <div className={styles.walletPill} data-on={!!canUseWorkVote()}>
+            {canUseWorkVote() ? "Top by votes" : "Top by newest"}
           </div>
         </section>
 
-        {/* SEARCH */}
-        <section className={styles.searchBox}>
-          <div className={styles.searchWrap}>
+        <section className={styles.searchBar}>
+          <div className={styles.searchInputWrap}>
             <MagnifyingGlass size={18} weight="bold" className={styles.searchIcon} />
             <input
               className={styles.searchInput}
-              placeholder="Author Name / Email / ID…"
+              placeholder="Search by title / author / wallet / category / language…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-        </section>
-
-        {/* GRID */}
-        <section className={styles.grid}>
-          {loading &&
-            Array.from({ length: 8 }).map((_, i) => <div key={i} className={styles.skeleton} />)}
-
-          {!loading &&
-            filtered.map((r) => {
-              const vm = vmMap[r.authorId];
-              const name = vm?.name || "Author";
-              const email = vm?.email || "—";
-              const avatar = vm?.avatar || "";
-              const mem = vm?.membership;
-
-              const memLabel = mem ? getMembershipBadgeLabel(mem) : "Free";
-
-              return (
-                <Link
-                  key={r.authorId}
-                  href={`/author/${encodeURIComponent(r.authorId)}`}
-                  className={styles.authorCard}
-                >
-                  <div className={styles.cardTop}>
-                    <div className={styles.avatarRow}>
-                      <div className={styles.avatarWrap}>
-                        {avatar ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={avatar} alt={name} className={styles.avatarImg} />
-                        ) : (
-                          <div className={styles.avatarFallback}>
-                            {name?.[0]?.toUpperCase() || "A"}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className={styles.badgeCol}>
-                        <span className={styles.verifiedPill}>
-                          <ShieldCheck size={14} weight="fill" /> Verified
-                        </span>
-
-                        <span className={styles.memberPill} data-tier={String(mem?.type || "").toLowerCase()}>
-                          {memLabel}
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3 className={styles.cardTitle}>{shortText(name)}</h3>
-
-                    <div className={styles.emailRow}>{shortText(email)}</div>
-
-                    <div className={styles.idRow}>
-                      ID: <span className={styles.mono}>{r.authorId}</span>
-                    </div>
-                  </div>
-
-                  <div className={styles.hoverCta}>
-                    View details <ArrowRight size={16} weight="bold" />
-                  </div>
-                </Link>
-              );
-            })}
-
-          {!loading && filtered.length === 0 && (
-            <div className={styles.empty}>
-              <div className={styles.emptyIcon}>🔍</div>
-              <p>No authors found</p>
+          <div className={styles.filters}>
+            <div className={styles.filter}>
+              <select
+                className={styles.select}
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                aria-label="Filter by category"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+            <div className={styles.filter}>
+              <select
+                className={styles.select}
+                value={languageFilter}
+                onChange={(e) => setLanguageFilter(e.target.value)}
+                aria-label="Filter by language"
+              >
+                <option value="all">All languages</option>
+                {languages.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </section>
+
+        {loading ? (
+          <div className={styles.empty}>
+            <div className={styles.emptyIcon}>⏳</div>
+            <p>Loading works…</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className={styles.empty}>
+            <div className={styles.emptyIcon}>🔍</div>
+            <p>No works found</p>
+          </div>
+        ) : (
+          <>
+            <WorkBlock
+              title="Featured works"
+              subtitle={canUseWorkVote() ? "Ranked by votes" : "Ranked by time"}
+              icon={<Sparkle size={16} weight="fill" />}
+              works={featured}
+              metaCache={metaCache}
+              voteCache={voteCache}
+              onVote={canUseWorkVote() ? handleVote : undefined}
+              votingId={votingId}
+              votingDisabled={isPending}
+            />
+            <WorkBlock
+              title="Newest works"
+              subtitle="Sorted by most recent"
+              icon={<ClockClockwise size={16} weight="fill" />}
+              works={newest}
+              metaCache={metaCache}
+              onVote={canUseWorkVote() ? handleVote : undefined}
+              votingId={votingId}
+              votingDisabled={isPending}
+            />
+            <WorkBlock
+              title="Oldest works"
+              subtitle="Sorted by oldest"
+              icon={<ClockCounterClockwise size={16} weight="fill" />}
+              works={oldest}
+              metaCache={metaCache}
+              onVote={canUseWorkVote() ? handleVote : undefined}
+              votingId={votingId}
+              votingDisabled={isPending}
+            />
+          </>
+        )}
       </div>
     </main>
+  );
+}
+
+function WorkBlock({
+  title,
+  subtitle,
+  icon,
+  works,
+  metaCache,
+  voteCache,
+  onVote,
+  votingId,
+  votingDisabled,
+}: {
+  title: string;
+  subtitle: string;
+  icon: ReactNode;
+  works: Work[];
+  metaCache: Record<string, MetaPreview>;
+  voteCache?: Record<string, number>;
+  onVote?: (workId: string) => void;
+  votingId?: string | null;
+  votingDisabled?: boolean;
+}) {
+  return (
+    <section className={styles.block}>
+      <div className={styles.blockHead}>
+        <div>
+          <h2 className={styles.blockTitle}>
+            {icon} {title}
+          </h2>
+          <p className={styles.blockSub}>{subtitle}</p>
+        </div>
+      </div>
+
+      <div className={styles.grid8}>
+        {works.map((w) => {
+          const meta = metaCache[w.id];
+          const cover = resolveCoverFromMeta(meta, w);
+          const titleText = resolveTitleFromMeta(meta, w);
+          const authorText =
+            String(w.authorName || w.authorId || w.authorWallet || "").trim() || "Unknown";
+          const categoryText =
+            String(meta?.category || w.metaCategory || w.category || "").trim() || "Uncategorized";
+          const languageText =
+            String(meta?.language || w.metaLanguage || w.language || "").trim() || "—";
+          const rawDuration =
+            Number(meta?.duration || meta?.properties?.duration || w.durationSec || 0) || 0;
+          const vote = voteCache
+            ? Number(voteCache[w.id] ?? w.votes ?? 0)
+            : Number(w.votes ?? 0) || null;
+          return (
+            <div key={w.id} className={styles.card}>
+              <Link className={styles.cardLink} href={`/work/${w.id}`}>
+                <div className={styles.cover}>
+                  {cover ? (
+                    <img
+                      className={styles.coverImg}
+                      src={cover}
+                      alt={titleText}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className={styles.coverFallback}>No cover</div>
+                  )}
+                  <div className={styles.chips}>
+                    <span className={styles.chip}>{String(w.sellType || "").toUpperCase()}</span>
+                    {vote != null ? <span className={styles.chip}>🔥 {vote}</span> : null}
+                    {w.featured ? <span className={styles.chip}>Featured</span> : null}
+                  </div>
+                </div>
+
+                <div className={styles.body}>
+                  <div className={styles.titleRow}>
+                    <h3 className={styles.cardTitle}>{titleText}</h3>
+                  </div>
+
+                  <div className={styles.metaLine}>
+                    <span className={styles.metaItem}>
+                      {categoryText}
+                    </span>
+                    <span className={styles.dot}>•</span>
+                    <span className={styles.metaItem}>
+                      {languageText}
+                    </span>
+                    <span className={styles.dot}>•</span>
+                    <span className={styles.metaItem}>
+                      {formatDuration(rawDuration)}
+                    </span>
+                  </div>
+
+                  <div className={styles.authorLine}>
+                    <span className={styles.authorName}>
+                      {authorText}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+              {onVote ? (
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.voteBtn}
+                    onClick={() => onVote(w.id)}
+                    disabled={votingDisabled || votingId === w.id}
+                  >
+                    {votingId === w.id ? "Voting..." : "Like"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

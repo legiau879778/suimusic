@@ -11,7 +11,8 @@ import ProfileInfoPanel from "@/components/profile/tabs/InfoTab";
 import TradeHistoryPanel from "@/components/profile/tabs/HistoryTab";
 import SettingsPanel from "@/components/profile/tabs/SettingsTab";
 
-import { type Membership, getMembershipBadgeLabel } from "@/lib/membershipStore";
+import { type Membership } from "@/lib/membershipStore";
+import { getUsageStatus } from "@/lib/featureUsageStore";
 
 type Tab = "membership" | "info" | "history" | "settings";
 
@@ -30,6 +31,8 @@ export default function ProfilePage() {
   const [tab, setTab] = useState<Tab>("membership");
   const [timeLeft, setTimeLeft] = useState("");
   const [dbMembership, setDbMembership] = useState<Membership | null>(null);
+  const [usageLeft, setUsageLeft] = useState<string>("");
+  const [resetLeft, setResetLeft] = useState<string>("");
 
   // 1. Listen to Realtime from Firebase to update Role/Membership immediately
   useEffect(() => {
@@ -80,6 +83,33 @@ export default function ProfilePage() {
     };
   }, [membershipType]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const userId = user.id;
+    const limit = 3;
+
+    function tick() {
+      if (membership) {
+        setUsageLeft("Unlimited");
+        setResetLeft("");
+        return;
+      }
+      const status = getUsageStatus(userId, "music_use", limit);
+      setUsageLeft(`${status.remaining}/${limit}`);
+      const ms = Math.max(0, status.resetAt - Date.now());
+      setResetLeft(formatLeft(ms));
+    }
+
+    tick();
+    const t = setInterval(tick, 1000);
+    const onUsage = () => tick();
+    window.addEventListener("usage_updated", onUsage);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("usage_updated", onUsage);
+    };
+  }, [user?.id, membership]);
+
   if (!user) return null;
 
   return (
@@ -117,6 +147,14 @@ export default function ProfilePage() {
                 <small>Remaining: {timeLeft}</small>
               </div>
             )}
+
+            <div className={styles.quotaBox}>
+              <span className={styles.quotaLabel}>Listen quota:</span>
+              <span className={styles.quotaValue}>{usageLeft || "0/3"}</span>
+              {!membership && resetLeft ? (
+                <span className={styles.quotaReset}>Reset in: {resetLeft}</span>
+              ) : null}
+            </div>
           </div>
 
           <nav className={styles.sideNav}>

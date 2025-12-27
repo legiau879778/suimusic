@@ -105,11 +105,17 @@
   outline:none;
   border:none;
   background: transparent;
-  color: rgba(229,231,235,.92);
+  color: #f8fafc;
   font-size: 13.5px;
+  min-width: 160px;
 }
 .select option{
   background: #0b1224;
+  color: #e5e7eb;
+}
+.select:focus-visible{
+  outline: 2px solid rgba(250,204,21,.45);
+  outline-offset: 2px;
 }
 
 .block{
@@ -132,6 +138,9 @@
   margin:0;
   font-size: 18px;
   letter-spacing: .2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .blockSub{

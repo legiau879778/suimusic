@@ -288,3 +288,4 @@ function Field({ label, value, onChange, readOnly, placeholder, className, hint,
 function FieldFull({ label, value, onChange, readOnly }: any) {
   return ( <div className={styles.formFieldFull}><label>{label}</label><input value={value ?? ""} readOnly={readOnly} onChange={(e) => onChange?.(e.target.value)} /></div> );
 }
+
