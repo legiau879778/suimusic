@@ -136,7 +136,7 @@ export default function Header() {
 
   const navProtected = (href: string, label: string, allowed: boolean) => (
     <div className={styles.navItemWrap}>
-      <button className={`${styles.link} ${styles.linkBtn}`} onClick={() => {
+      <button className={`${styles.link} ${styles.linkBtn} ${pathname === href ? styles.active : ""}`} onClick={() => {
         if (!user) { saveRedirect(); openLogin(); return; }
         if (!allowed) { saveRedirect(); openPermission(); return; }
         setMenuOpen(false); setUserMenuOpen(false); router.push(href);
@@ -166,6 +166,7 @@ export default function Header() {
           <nav className={styles.nav}>
             {navLink("/", "Home")}
             {navLink("/search", "Search")}
+            {navLink("/leaderboard/authors", "Leaderboard")}
             {navProtected("/manage", "Manage", !!ent.canManage)}
             {navProtected("/register-work", "Register", !!ent.canRegister)}
             {navProtected("/marketplace", "Marketplace", !!ent.canTrade)}
@@ -217,6 +218,7 @@ export default function Header() {
       <div className={`${styles.mobileMenu} ${menuOpen ? styles.open : ""}`} ref={mobileRef}>
         {navLink("/", "Home")}
         {navLink("/search", "Search")}
+        {navLink("/leaderboard/authors", "Leaderboard")}
         {navProtected("/manage", "Manage", !!ent.canManage)}
         {navProtected("/register-work", "Register", !!ent.canRegister)}
         {navProtected("/marketplace", "Marketplace", !!ent.canTrade)}

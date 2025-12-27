@@ -171,7 +171,13 @@ export default function WorkNFTCard(props: {
           <div className={s.previewEmpty}>Loading…</div>
         ) : coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className={s.previewImg} src={coverUrl} alt={work.title} />
+          <img
+            className={s.previewImg}
+            src={coverUrl}
+            alt={work.title}
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className={s.previewEmpty}>NO COVER</div>
         )}

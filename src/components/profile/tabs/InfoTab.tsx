@@ -38,14 +38,14 @@ function maskDMY(input: string) {
 }
 
 function validateDMY(dmy: string) {
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) return { ok: false, reason: "Định dạng dd/mm/yyyy" };
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) return { ok: false, reason: "Use dd/mm/yyyy format" };
   const [dS, mS, yS] = dmy.split("/");
   const d = Number(dS), m = Number(mS), y = Number(yS);
   const nowY = new Date().getFullYear();
-  if (y < 1900 || y > nowY + 1) return { ok: false, reason: "Năm không hợp lệ" };
-  if (m < 1 || m > 12) return { ok: false, reason: "Tháng 01-12" };
+  if (y < 1900 || y > nowY + 1) return { ok: false, reason: "Invalid year" };
+  if (m < 1 || m > 12) return { ok: false, reason: "Month must be 01-12" };
   const dim = new Date(y, m, 0).getDate();
-  if (d < 1 || d > dim) return { ok: false, reason: `Ngày 01-${dim}` };
+  if (d < 1 || d > dim) return { ok: false, reason: `Day must be 01-${dim}` };
   return { ok: true as const, reason: "" };
 }
 
@@ -83,7 +83,8 @@ export default function InfoTab() {
   const suiClient = useSuiClient();
 
   const [balance, setBalance] = useState("0.000");
-  const [copied, setCopied] = useState(false);
+  const [copiedExternal, setCopiedExternal] = useState(false);
+  const [copiedInternal, setCopiedInternal] = useState(false);
 
   // --- LOGIC ĐỒNG BỘ VÍ ---
   const storageKey = useMemo(() => user?.id ? `wallet_active_${user.id}` : null, [user?.id]);
@@ -122,25 +123,21 @@ export default function InfoTab() {
     return { ...p, birthday: p.birthday || p.dob };
   });
   const [birthdayText, setBirthdayText] = useState(() => isoToDMY(profile.birthday));
+  const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => { 
-    const t = setTimeout(() => saveProfile(userId, { ...profile, dob: profile.birthday }), 600);
-    return () => clearTimeout(t);
-  }, [profile, userId]);
-
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string, setFlag: (v: boolean) => void, message: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-    pushToast("success", "Đã copy địa chỉ");
+    setFlag(true);
+    setTimeout(() => setFlag(false), 1200);
+    pushToast("success", message);
   };
 
   // --- KẾT NỐI VÀ LƯU FIREBASE ---
   const handleConnect = () => {
     if (!storageKey) return;
     if (wallets.length === 0) {
-      pushToast("warning", "Vui lòng cài đặt ví Slush");
+      pushToast("warning", "Please install Slush wallet");
       return;
     }
 
@@ -161,11 +158,11 @@ export default function InfoTab() {
               lastConnected: new Date().toISOString()
             });
             
-            pushToast("success", "Đã kết nối và lưu ví vào Firebase");
+            pushToast("success", "Wallet connected and saved");
             if (refresh) await refresh(); // Cập nhật lại Auth Context để nhận ví mới
           } catch (error) {
             console.error("Lỗi Firebase:", error);
-            pushToast("warning", "Kết nối ví thành công nhưng lỗi khi lưu dữ liệu");
+            pushToast("warning", "Wallet connected, but failed to save");
           }
         }
       }
@@ -177,76 +174,95 @@ export default function InfoTab() {
       localStorage.removeItem(storageKey);
       setIsManualConnected(false);
       disconnect();
-      pushToast("warning", "Đã ngắt kết nối");
+      pushToast("warning", "Disconnected");
     }
   };
 
   const birthdayValidation = useMemo(() => {
-    if (!birthdayText) return { state: "idle", msg: "dd/mm/yyyy" };
-    if (birthdayText.length < 10) return { state: "idle", msg: "Nhập đủ ngày" };
+    if (!birthdayText) return { state: "idle", msg: "" };
+    if (birthdayText.length < 10) return { state: "idle", msg: "" };
     const v = validateDMY(birthdayText);
     return v.ok ? { state: "ok", msg: "" } : { state: "bad", msg: v.reason };
   }, [birthdayText]);
 
+  const handleSaveProfile = () => {
+    saveProfile(userId, { ...profile, dob: profile.birthday });
+    setIsEditing(false);
+    pushToast("success", "Profile saved");
+  };
+
   return (
     <div className={styles.infoGrid2}>
       <section className={styles.card}>
-        <h2>Thông tin cá nhân</h2>
+        <h2>Personal information</h2>
         <div className={styles.formGrid}>
-          <Field label="Họ và tên" value={profile.name} onChange={(v: string) => setProfile(p => ({ ...p, name: v }))} />
-          <Field label="Số điện thoại" value={profile.phone} onChange={(v: string) => setProfile(p => ({ ...p, phone: v }))} />
-          <Field label="CCCD" value={profile.cccd} onChange={(v: string) => setProfile(p => ({ ...p, cccd: v }))} />
+          <Field label="Full name" value={profile.name} readOnly={!isEditing} onChange={(v: string) => setProfile(p => ({ ...p, name: v }))} />
+          <Field label="Phone number" value={profile.phone} readOnly={!isEditing} onChange={(v: string) => setProfile(p => ({ ...p, phone: v }))} />
+          <Field label="National ID" value={profile.cccd} readOnly={!isEditing} onChange={(v: string) => setProfile(p => ({ ...p, cccd: v }))} />
           <Field 
-            label="Ngày sinh" value={birthdayText} 
+            label="Date of birth"
+            value={birthdayText}
+            readOnly={!isEditing}
+            placeholder="dd/mm/yyyy"
             onChange={(v: string) => {
               const m = maskDMY(v); setBirthdayText(m);
               if (m.length === 10 && validateDMY(m).ok) setProfile(p => ({ ...p, birthday: dmyToISO(m) }));
             }}
             className={birthdayValidation.state === "bad" ? styles.inputBad : birthdayValidation.state === "ok" ? styles.inputOk : ""}
-            hint={birthdayValidation.msg} hintTone={birthdayValidation.state as any}
+            hint={birthdayValidation.state === "bad" ? birthdayValidation.msg : ""} hintTone={birthdayValidation.state as any}
           />
-          <Field label="Email định danh" value={user?.email || ""} readOnly />
-          <Field label="Quốc gia" value={profile.country} onChange={(v: string) => setProfile(p => ({ ...p, country: v }))} />
-          <FieldFull label="Địa chỉ liên hệ" value={profile.address} onChange={(v: string) => setProfile(p => ({ ...p, address: v }))} />
+          <Field label="Verified email" value={user?.email || ""} readOnly />
+          <Field label="Country" value={profile.country} readOnly={!isEditing} onChange={(v: string) => setProfile(p => ({ ...p, country: v }))} />
+          <FieldFull label="Contact address" value={profile.address} readOnly={!isEditing} onChange={(v: string) => setProfile(p => ({ ...p, address: v }))} />
+        </div>
+        <div className={styles.formActions}>
+          <button className={styles.ghostBtn} onClick={() => setIsEditing(true)} disabled={isEditing}>
+            Edit
+          </button>
+          <button className={styles.primaryBtn} onClick={handleSaveProfile} disabled={!isEditing}>
+            Save
+          </button>
         </div>
       </section>
 
       <section className={styles.card}>
         <div className={styles.cardHeaderFlex}>
-          <h2>Ví Blockchain (Testnet)</h2>
+          <h2>Blockchain wallet (Testnet)</h2>
           <span className={isConnected ? styles.externalTag : styles.internalTag}>
-            {isConnected ? "Slush Wallet Active" : "Chưa kết nối"}
+            {isConnected ? "Slush wallet active" : "Not connected"}
           </span>
         </div>
 
         <div className={styles.walletStack}>
-          <label>Địa chỉ ví active (Slush)</label>
+          <label>Active wallet address (Slush)</label>
           <div className={styles.walletRow}>
-            <input value={activeAddress} readOnly className={styles.addressInput} placeholder="Nhấn kết nối ví Slush..." />
-            <button className={styles.copyBtn} onClick={() => copyToClipboard(activeAddress)} disabled={!isConnected}>
-              {copied ? "✓" : "COPY"}
+            <input value={activeAddress} readOnly className={styles.addressInput} placeholder="Connect Slush wallet..." />
+            <button className={styles.copyBtn} onClick={() => copyToClipboard(activeAddress, setCopiedExternal, "Address copied")} disabled={!isConnected}>
+              {copiedExternal ? "Copied" : "Copy"}
             </button>
           </div>
           <div className={styles.balanceBox}>
-            <span>Số dư hiện tại (Testnet)</span>
+            <span>Current balance (Testnet)</span>
             <strong style={{ color: '#f1c40f' }}>{balance} SUI</strong>
           </div>
           <div className={styles.walletActions}>
-            {!isConnected ? <button className={styles.connectBtn} onClick={handleConnect}>Kết nối ví Slush</button> : <button className={styles.disconnectBtn} onClick={handleDisconnect}>Ngắt kết nối</button>}
+            {!isConnected ? <button className={styles.connectBtn} onClick={handleConnect}>Connect Slush wallet</button> : <button className={styles.disconnectBtn} onClick={handleDisconnect}>Disconnect</button>}
           </div>
 
           <div className={styles.qrWrap}>
             <div className={styles.qrHeader}>
-              <div className={styles.qrTitle}>Mã định danh Heritage</div>
-              <div className={styles.qrSub}>Quét địa chỉ ví nội bộ hệ thống</div>
+              <div className={styles.qrTitle}>Heritage ID</div>
+              <div className={styles.qrSub}>Scan the internal wallet address</div>
             </div>
             <div className={styles.qrGrid}>
               <div className={styles.qrMeta}>
-                <div className={styles.qrMetaRow}>
-                  <span>Ví nội bộ</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className={`${styles.qrMetaRow} ${styles.qrMetaRowStack}`}>
+                  <span>Internal wallet</span>
+                  <div className={styles.qrMetaValueRow}>
                     <strong className={styles.qrMono}>{shortAddr(internalWalletAddress)}</strong>
-                    <button className={styles.copyBtn} style={{ padding: '2px 8px', fontSize: '10px', height: 'auto', minWidth: 'auto' }} onClick={() => copyToClipboard(internalWalletAddress)}>COPY</button>
+                    <button className={styles.copyBtn} style={{ padding: '2px 8px', fontSize: '10px', height: 'auto', minWidth: 'auto' }} onClick={() => copyToClipboard(internalWalletAddress, setCopiedInternal, "Internal wallet copied")}>
+                      {copiedInternal ? "Copied" : "Copy"}
+                    </button>
                   </div>
                 </div>
                 <div className={styles.qrMetaRow}><span>User ID</span><strong className={styles.qrMono}>{userId.slice(0, 8)}...</strong></div>
@@ -265,10 +281,10 @@ function Field({ label, value, onChange, readOnly, placeholder, className, hint,
     <div className={styles.formField}>
       <label>{label}</label>
       <input value={value ?? ""} readOnly={readOnly} placeholder={placeholder} className={className} onChange={(e) => onChange?.(e.target.value)} />
-      {hint && <div className={`${styles.fieldHint} ${styles['hint' + hintTone]}`}>{hint}</div>}
+      {hint ? <div className={`${styles.fieldHint} ${styles['hint' + hintTone]}`}>{hint}</div> : null}
     </div>
   );
 }
-function FieldFull({ label, value, onChange }: any) {
-  return ( <div className={styles.formFieldFull}><label>{label}</label><input value={value ?? ""} onChange={(e) => onChange?.(e.target.value)} /></div> );
+function FieldFull({ label, value, onChange, readOnly }: any) {
+  return ( <div className={styles.formFieldFull}><label>{label}</label><input value={value ?? ""} readOnly={readOnly} onChange={(e) => onChange?.(e.target.value)} /></div> );
 }

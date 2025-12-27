@@ -241,7 +241,13 @@ export default function AuthorNFTCard(props: {
           <div className={s.previewEmpty}>Loading…</div>
         ) : coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className={s.previewImg} src={coverUrl} alt={displayName} />
+          <img
+            className={s.previewImg}
+            src={coverUrl}
+            alt={displayName}
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className={s.previewEmpty}>NO AVATAR</div>
         )}

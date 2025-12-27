@@ -8,6 +8,7 @@ import {
   Phone,
   EnvelopeSimple,
   TwitterLogo,
+  TiktokLogo,
   MusicNotes,
   ShieldCheck,
 } from "@phosphor-icons/react";
@@ -93,6 +94,17 @@ export default function Footer() {
                   <TwitterLogo weight="fill" size={16} />
                 </span>
                 Twitter / X
+              </a>
+              <a
+                href="https://www.tiktok.com/@suimusic"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.link}
+              >
+                <span className={styles.linkIcon} aria-hidden="true">
+                  <TiktokLogo weight="fill" size={16} />
+                </span>
+                TikTok
               </a>
 
               <div className={styles.hint}>

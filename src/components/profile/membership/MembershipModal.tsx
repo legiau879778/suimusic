@@ -118,8 +118,16 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
           txHash: finalTxHash,
           paidAmountSui: priceSui,
         };
+        const membershipPayload = {
+          type: membership.type,
+          expireAt: membership.expireAt,
+          txHash: membership.txHash,
+          paidAmountSui: membership.paidAmountSui,
+          active: true,
+          ...(membership.plan ? { plan: membership.plan } : {}),
+        };
         await updateDoc(doc(db, "users", user.id), {
-          membership: { ...membership, active: true }
+          membership: membershipPayload,
         });
         pushToast("success", "Kích hoạt thành công!");
         onSuccess(membership);

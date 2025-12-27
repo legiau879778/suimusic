@@ -121,6 +121,8 @@ export default function NFTViewerCard(props: {
             <img
               src={previewUrl}
               alt={work.title}
+              loading="lazy"
+              decoding="async"
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           ) : (
