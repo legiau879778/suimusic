@@ -230,4 +230,25 @@ module chainstorm_nft::chainstorm_nft {
 
         transfer::public_transfer(lic, licensee);
     }
+
+    /* =========================
+       BURN / RESET HASH
+    ========================= */
+
+    /// Burn a WorkNFT and remove its file_hash from the registry.
+    /// The caller must own the NFT (move it into this function).
+    entry fun burn_nft(
+        registry: &mut Registry,
+        nft: WorkNFT,
+        ctx: &mut TxContext
+    ) {
+        let _sender = tx_context::sender(ctx);
+        let file_h = nft.file_hash;
+
+        if (table::contains(&registry.hashes, file_h)) {
+            table::remove(&mut registry.hashes, file_h);
+        };
+
+        object::delete(nft.id);
+    }
 }

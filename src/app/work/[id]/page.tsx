@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getWorkById, getVerifiedWorks, syncWorksFromChain, Work } from "@/lib/workStore";
+import { getWorkById, getWorks, syncWorksFromChain, Work } from "@/lib/workStore";
 import styles from "@/styles/work.module.css";
 import Link from "next/link";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
@@ -263,9 +263,10 @@ export default function WorkDetailPage() {
 
   const relatedByAuthor = useMemo(() => {
     if (!work) return [];
-    return getVerifiedWorks()
+    return getWorks()
       .filter((w) => {
         if (w.id === work.id || w.authorId !== work.authorId) return false;
+        if (String(w.status || "") !== "verified") return false;
         const nftId = String(w.nftObjectId || "").toLowerCase();
         if (nftId && deletedMap[nftId]) return false;
         return true;
@@ -286,7 +287,8 @@ export default function WorkDetailPage() {
   const suggestedAuthors = useMemo(() => {
     if (!work) return [];
     const map = new Map<string, Work>();
-    for (const w of getVerifiedWorks()) {
+    for (const w of getWorks()) {
+      if (String(w.status || "") !== "verified") continue;
       const nftId = String(w.nftObjectId || "").toLowerCase();
       if (nftId && deletedMap[nftId]) continue;
       if (w.authorId === work.authorId) continue;

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./leaderboard.module.css";
 
-import { getVerifiedWorks, syncWorksFromChain, type Work } from "@/lib/workStore";
+import { getWorks, syncWorksFromChain, type Work } from "@/lib/workStore";
 import { loadProfile } from "@/lib/profileStore";
 import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
 import { useSuiClient } from "@mysten/dapp-kit";
@@ -42,13 +42,13 @@ export default function AuthorLeaderboardPage() {
   const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
   const [works, setWorks] = useState<Work[]>(
-    () => (getVerifiedWorks() as unknown as Work[]) || []
+    () => (getWorks() as unknown as Work[]) || []
   );
 
   useEffect(() => {
     syncWorksFromChain();
     const onUpdate = () => {
-      setWorks((getVerifiedWorks() as unknown as Work[]) || []);
+      setWorks((getWorks() as unknown as Work[]) || []);
     };
     window.addEventListener("works_updated", onUpdate);
     return () => window.removeEventListener("works_updated", onUpdate);
@@ -75,6 +75,7 @@ export default function AuthorLeaderboardPage() {
 
   const visibleWorks = useMemo(() => {
     return works.filter((w) => {
+      if (String(w.status || "") !== "verified") return false;
       const nftId = String(w.nftObjectId || "").toLowerCase();
       return !(nftId && deletedMap[nftId]);
     });

@@ -130,7 +130,7 @@ async function queryObjectsCompat(
 }
 
 function extractWorksFromObjects(
-  cfg: { packageId: string },
+  cfg: { packageId: string; module?: string },
   objects: Array<any>
 ) {
   const items: any[] = [];
@@ -139,6 +139,12 @@ function extractWorksFromObjects(
     const content: any = it?.data?.content || it?.content;
     if (!id || !content || content.dataType !== "moveObject") continue;
     const fields: any = content.fields || {};
+    const type = String(content.type || it?.data?.type || it?.type || "");
+    const inModule =
+      cfg.packageId &&
+      type.startsWith(`${cfg.packageId}::${cfg.module || "chainstorm_nft"}::`);
+    const hasHashes = fields?.file_hash || fields?.meta_hash;
+    if (!inModule && !hasHashes) continue;
     const walrusFileId = normalizeWalrusId(decodeBytes(fields.walrus_file_id));
     const walrusMetaId = normalizeWalrusId(decodeBytes(fields.walrus_meta_id));
     const proofId = decodeBytes(fields.proof_id);
@@ -176,7 +182,7 @@ async function fetchOnChainWorksByType(
   while (items.length < MAX_ITEMS) {
     // eslint-disable-next-line no-await-in-loop
     const page: any = await queryObjectsCompat(client as any, {
-      query: { MoveStructType: type },
+      query: { StructType: type },
       cursor,
       limit: PAGE_SIZE,
       options: { showContent: true, showType: true },
@@ -220,7 +226,9 @@ async function fetchOnChainWorksByMints(
     for (const tx of page.data || []) {
       for (const change of tx.objectChanges || []) {
         if (change.type !== "created") continue;
-        if (String(change.objectType || "") !== type) continue;
+        const otype = String(change.objectType || "");
+        if (!otype) continue;
+        if (!otype.startsWith(`${cfg.packageId}::${moduleName}::`)) continue;
         const id = String(change.objectId || "");
         if (!id || seen.has(id)) continue;
         seen.add(id);

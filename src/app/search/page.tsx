@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./search.module.css";
-import { getVerifiedWorks, setWorkMetadata, syncWorksFromChain } from "@/lib/workStore";
+import { getWorks, setWorkMetadata, syncWorksFromChain } from "@/lib/workStore";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
 import {
   PROFILE_UPDATED_EVENT,
@@ -160,16 +160,16 @@ export default function SearchPage() {
     let alive = true;
 
     async function loadWorks() {
-      const local = (getVerifiedWorks() as unknown as Work[]) || [];
+      const local = (getWorks() as unknown as Work[]) || [];
       if (alive) setWorks(local);
       await syncWorksFromChain({ force: local.length === 0 });
       if (!alive) return;
-      setWorks((getVerifiedWorks() as unknown as Work[]) || []);
+      setWorks((getWorks() as unknown as Work[]) || []);
     }
 
     loadWorks();
     const onUpdate = () => {
-      setWorks((getVerifiedWorks() as unknown as Work[]) || []);
+      setWorks((getWorks() as unknown as Work[]) || []);
     };
     window.addEventListener("works_updated", onUpdate);
     return () => {
@@ -263,6 +263,7 @@ export default function SearchPage() {
   const filtered = useMemo(() => {
     const k = debouncedQ.trim().toLowerCase();
     return works.filter((w) => {
+      if (String(w.status || "") !== "verified") return false;
       const nftId = String(w.nftObjectId || "").toLowerCase();
       if (nftId && deletedMap[nftId]) return false;
       const meta = metaCache[w.id];

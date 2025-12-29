@@ -10,6 +10,7 @@ import {
   getActiveWorks,
   getTrashWorks,
   markWorkSold,
+  patchWork,
   restoreWork,
   softDeleteWork,
   updateNFTOwner,
@@ -304,6 +305,7 @@ export default function ManagePage() {
   // ✅ per-card busy state
   const [sellingId, setSellingId] = useState<string | null>(null);
   const [licensingId, setLicensingId] = useState<string | null>(null);
+  const [burningId, setBurningId] = useState<string | null>(null);
 
   const [selected, setSelected] = useState<Work | null>(null);
   const [listingMap, setListingMap] = useState<Record<string, any>>({});
@@ -598,6 +600,63 @@ export default function ManagePage() {
       showToast("Sync owner failed", "error");
     } finally {
       setSyncingOwners((m) => ({ ...m, [work.id]: false }));
+    }
+  }
+
+  async function handleBurnNFT(work: Work) {
+    if (!currentAccount) {
+      showToast("Vui lòng kết nối ví", "warning");
+      return;
+    }
+    if (!PACKAGE_ID?.startsWith("0x")) {
+      showToast(`Missing packageId for network ${activeNet}`, "error");
+      return;
+    }
+    if (!cfg?.registryId?.startsWith("0x")) {
+      showToast(`Missing registryId for network ${activeNet}`, "error");
+      return;
+    }
+    if (!work.nftObjectId) {
+      showToast("Work chưa có NFT để burn", "warning");
+      return;
+    }
+
+    const listed = listingMap[String(work.nftObjectId || "").toLowerCase()];
+    if (listed) {
+      showToast("NFT đang được list, vui lòng hủy list trước", "warning");
+      return;
+    }
+
+    const ok = confirm(
+      `Burn NFT của "${work.title}"?\nHash sẽ được reset trong registry để bạn mint lại.`
+    );
+    if (!ok) return;
+
+    try {
+      setBurningId(work.id);
+      showToast("Đang burn NFT...", "info");
+
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${PACKAGE_ID}::${MODULE}::burn_nft`,
+        arguments: [tx.object(cfg.registryId), tx.object(work.nftObjectId)],
+      });
+
+      const result = await signAndExecuteTransaction({ transaction: tx });
+
+      patchWork(work.id, {
+        nftObjectId: "",
+        nftPackageId: "",
+        txDigest: (result as any).digest || "",
+        mintedAt: "",
+      });
+
+      showToast("✅ Burn thành công, bạn có thể mint lại", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Burn thất bại", "error");
+    } finally {
+      setBurningId(null);
     }
   }
 
@@ -916,8 +975,8 @@ export default function ManagePage() {
   async function handleRestore(work: Work) {
     if (!userId) return;
 
-    if (userRole !== "admin") {
-      showToast("Chỉ admin mới được khôi phục", "warning");
+    if (userRole !== "admin" && work.authorId !== userId) {
+      showToast("Bạn không có quyền khôi phục", "warning");
       return;
     }
 
@@ -925,7 +984,11 @@ export default function ManagePage() {
     if (!ok) return;
 
     try {
-      restoreWork({ workId: work.id, actor: { id: userId, role: userRole as any } });
+      if (userRole === "admin") {
+        restoreWork({ workId: work.id, actor: { id: userId, role: userRole as any } });
+      } else {
+        patchWork(work.id, { deletedAt: null });
+      }
       if (work.nftObjectId) {
         await setDoc(
           doc(db, "works", work.nftObjectId),
@@ -1029,12 +1092,14 @@ export default function ManagePage() {
               onSell={() => openSellModal(w)}
               onIssueLicense={() => openLicenseModal(w)}
               onSyncOwner={() => handleSyncOwner(w)}
+              onBurn={() => handleBurnNFT(w)}
               onDelete={() => handleSoftDelete(w)}
               onRestore={() => handleRestore(w)}
               view={view}
               disableGlobal={isPending || syncingAll}
               selling={sellingId === w.id}
               licensing={licensingId === w.id}
+              burning={burningId === w.id}
               syncingOwner={!!syncingOwners[w.id]}
               listing={listingMap[String(w.nftObjectId || "").toLowerCase()]}
             />
@@ -1076,12 +1141,14 @@ export default function ManagePage() {
           onSell={() => openSellModal(selected)}
           onIssueLicense={() => openLicenseModal(selected)}
           onSyncOwner={() => handleSyncOwner(selected)}
+          onBurn={() => handleBurnNFT(selected)}
           onDelete={() => handleSoftDelete(selected)}
           onRestore={() => handleRestore(selected)}
           view={view}
           disableGlobal={isPending || syncingAll}
           selling={sellingId === selected.id}
           licensing={licensingId === selected.id}
+          burning={burningId === selected.id}
           syncingOwner={!!syncingOwners[selected.id]}
         />
       ) : null}
@@ -1193,12 +1260,14 @@ function WorkCard(props: {
   onSell: () => void;
   onIssueLicense: () => void;
   onSyncOwner: () => void;
+  onBurn: () => void;
   onDelete: () => void;
   onRestore: () => void;
   view: ViewMode;
   disableGlobal: boolean;
   selling: boolean;
   licensing: boolean;
+  burning: boolean;
   syncingOwner: boolean;
   listing?: any;
 }) {
@@ -1209,12 +1278,14 @@ function WorkCard(props: {
     onSell,
     onIssueLicense,
     onSyncOwner,
+    onBurn,
     onDelete,
     onRestore,
     view,
     disableGlobal,
     selling,
     licensing,
+    burning,
     syncingOwner,
     listing,
   } = props;
@@ -1378,7 +1449,7 @@ function WorkCard(props: {
         <button
           className={styles.actionPrimary}
           onClick={onSell}
-          disabled={view === "trash" || selling || disableGlobal}
+          disabled={view === "trash" || selling || disableGlobal || burning}
           title={view === "trash" ? "Restore before operation" : "Sell NFT"}
         >
           {selling ? "Selling…" : "Sell"}
@@ -1387,7 +1458,7 @@ function WorkCard(props: {
         <button
           className={styles.actionPrimary}
           onClick={onIssueLicense}
-          disabled={view === "trash" || licensing || disableGlobal}
+          disabled={view === "trash" || licensing || disableGlobal || burning}
           title={view === "trash" ? "Restore before operation" : "Issue license"}
         >
           {licensing ? "Issuing…" : "License"}
@@ -1396,10 +1467,27 @@ function WorkCard(props: {
         <button
           className={styles.actionGhost}
           onClick={onSyncOwner}
-          disabled={!work.nftObjectId || syncingOwner || disableGlobal}
+          disabled={!work.nftObjectId || syncingOwner || disableGlobal || burning}
           title={!work.nftObjectId ? "Chưa có NFT" : "Đọc owner từ chain"}
         >
           {syncingOwner ? "Sync…" : "Sync"}
+        </button>
+
+        <button
+          className={styles.actionDanger}
+          onClick={onBurn}
+          disabled={
+            !work.nftObjectId || view === "trash" || burning || disableGlobal || !!listing
+          }
+          title={
+            !work.nftObjectId
+              ? "Chưa có NFT"
+              : listing
+              ? "NFT đang được list"
+              : "Burn NFT để reset hash"
+          }
+        >
+          {burning ? "Burning…" : "Burn"}
         </button>
 
         {view === "active" ? (
@@ -1423,12 +1511,14 @@ function WorkDetailModal(props: {
   onSell: () => void;
   onIssueLicense: () => void;
   onSyncOwner: () => void;
+  onBurn: () => void;
   onDelete: () => void;
   onRestore: () => void;
   view: ViewMode;
   disableGlobal: boolean;
   selling: boolean;
   licensing: boolean;
+  burning: boolean;
   syncingOwner: boolean;
 }) {
   const {
@@ -1438,12 +1528,14 @@ function WorkDetailModal(props: {
     onSell,
     onIssueLicense,
     onSyncOwner,
+    onBurn,
     onDelete,
     onRestore,
     view,
     disableGlobal,
     selling,
     licensing,
+    burning,
     syncingOwner,
   } = props;
 
@@ -1715,7 +1807,7 @@ function WorkDetailModal(props: {
           <button
             className={styles.actionPrimary}
             onClick={onSell}
-            disabled={view === "trash" || selling || disableGlobal}
+            disabled={view === "trash" || selling || disableGlobal || burning}
           >
             {selling ? "Selling…" : "Sell NFT"}
           </button>
@@ -1723,7 +1815,7 @@ function WorkDetailModal(props: {
           <button
             className={styles.actionPrimary}
             onClick={onIssueLicense}
-            disabled={view === "trash" || licensing || disableGlobal}
+            disabled={view === "trash" || licensing || disableGlobal || burning}
           >
             {licensing ? "Issuing…" : "Issue License"}
           </button>
@@ -1731,9 +1823,18 @@ function WorkDetailModal(props: {
           <button
             className={styles.actionGhost}
             onClick={onSyncOwner}
-            disabled={!work.nftObjectId || syncingOwner || disableGlobal}
+            disabled={!work.nftObjectId || syncingOwner || disableGlobal || burning}
           >
             {syncingOwner ? "Sync…" : "Sync Owner"}
+          </button>
+
+          <button
+            className={styles.actionDanger}
+            onClick={onBurn}
+            disabled={!work.nftObjectId || view === "trash" || burning || disableGlobal}
+            title={!work.nftObjectId ? "Chưa có NFT" : "Burn NFT để reset hash"}
+          >
+            {burning ? "Burning…" : "Burn NFT"}
           </button>
 
           {view === "active" ? (

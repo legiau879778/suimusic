@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  getVerifiedWorks,
+  getWorks,
   patchWork,
   setWorkMetadata,
   setWorkVotes,
@@ -98,7 +98,7 @@ export default function MarketplacePage() {
   const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
   function load() {
-    const works = getVerifiedWorks();
+    const works = getWorks();
     setBaseList(works);
   }
 
@@ -263,6 +263,7 @@ export default function MarketplacePage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return baseList.filter((w) => {
+      if (String(w.status || "") !== "verified") return false;
       const nftId = String(w.nftObjectId || "").toLowerCase();
       if (nftId && deletedMap[nftId]) return false;
       if (filter !== "all" && w.sellType !== filter) return false;

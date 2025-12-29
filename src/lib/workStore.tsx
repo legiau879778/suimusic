@@ -314,7 +314,10 @@ function mergeOnchainWorks(list: Partial<Work>[], net?: string) {
       approvalMap: existing.approvalMap || on.approvalMap || {},
       rejectionBy: existing.rejectionBy || on.rejectionBy || [],
       licenses: existing.licenses || on.licenses || [],
-      status: existing.status || on.status,
+      status:
+        existing.status === "pending"
+          ? on.status || existing.status
+          : existing.status || on.status,
     };
     map.set(existing.id, merged);
   }
@@ -612,6 +615,7 @@ export function bindNFTToWork(params: {
   w.txDigest = params.txDigest;
   w.authorWallet = params.authorWallet;
   w.mintedAt = new Date().toISOString();
+  w.status = "verified";
 
   save(works);
 }
@@ -685,6 +689,7 @@ export function bindNFTToWorkSafe(params: {
     txDigest: params.txDigest,
     authorWallet: params.authorWallet,
     mintedAt: new Date().toISOString(),
+    status: "verified",
   });
 }
 

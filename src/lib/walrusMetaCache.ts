@@ -36,12 +36,16 @@ export async function fetchWalrusMetadata(metaInput: string) {
       if (!url) return null;
 
       const res = await fetch(url, { cache: "force-cache" });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        cache.set(key, { json: null, cachedAt: now() });
+        return null;
+      }
 
       const json = await res.json();
       cache.set(key, { json, cachedAt: now() });
       return json;
     } catch {
+      cache.set(key, { json: null, cachedAt: now() });
       return null;
     } finally {
       pending.delete(key);
