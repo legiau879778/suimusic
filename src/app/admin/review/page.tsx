@@ -16,6 +16,8 @@ import {
 } from "@/lib/workStore";
 import type { ProofRecord } from "@/lib/proofTypes";
 import { signApproveMessage } from "@/lib/signApproveMessage";
+import { db } from "@/lib/firebase";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 export default function AdminReviewPage() {
   const { user } = useAuth();
@@ -80,6 +82,17 @@ export default function AdminReviewPage() {
   const calcTotalWeight = (w: Work) =>
     Object.values(w.approvalMap || {}).reduce((s, v) => s + (Number(v) || 0), 0);
 
+  const updateProofStatus = async (proofId: string, status: string) => {
+    try {
+      await updateDoc(doc(db, "proofs", proofId), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      // ignore firestore errors
+    }
+  };
+
   const onApprove = async (w: Work) => {
     if (!reviewerId) return;
     setBusyId(w.id);
@@ -112,6 +125,9 @@ export default function AdminReviewPage() {
         reviewerRole,
         // no weight passed => store infers from role
       });
+      if (w.proofId) {
+        await updateProofStatus(w.proofId, "approved");
+      }
       if (w.proofId) {
         setProofs((prev) => prev.filter((x) => x.id !== w.proofId));
       }
@@ -162,6 +178,7 @@ export default function AdminReviewPage() {
         });
       }
 
+      await updateProofStatus(p.id, "approved");
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
       const notify = data?.notify;
       if (notify?.email || notify?.webhook) {
@@ -208,6 +225,7 @@ export default function AdminReviewPage() {
           reason,
         });
       }
+      await updateProofStatus(p.id, "rejected");
       setProofs((prev) => prev.filter((x) => x.id !== p.id));
       const notify = data?.notify;
       if (notify?.email || notify?.webhook) {

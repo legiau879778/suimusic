@@ -7,6 +7,9 @@ function isAuthorized(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true;
 
+  const vercelCron = req.headers.get("x-vercel-cron");
+  if (vercelCron === "1") return true;
+
   const auth = req.headers.get("authorization") || "";
   if (auth.startsWith("Bearer ") && auth.slice(7) === secret) return true;
 

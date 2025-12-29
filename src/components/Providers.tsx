@@ -3,7 +3,6 @@
 import { ReactNode, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SuiClientProvider, WalletProvider, createNetworkConfig } from "@mysten/dapp-kit"; // Thêm createNetworkConfig
-import { getFullnodeUrl } from "@mysten/sui.js/client";
 
 import { AuthProvider } from "@/context/AuthContext";
 import { ModalProvider } from "@/context/ModalContext";
@@ -14,11 +13,15 @@ import Footer from "@/components/Footer";
 import AppBootstrap from "@/components/AppBootstrap";
 import WalletSessionGate from "@/components/WalletSessionGate";
 
+const TESTNET_RPC = process.env.NEXT_PUBLIC_SUI_RPC_TESTNET || "https://sui-testnet.publicnode.com";
+const MAINNET_RPC = process.env.NEXT_PUBLIC_SUI_RPC_MAINNET || "https://sui-mainnet.publicnode.com";
+const DEVNET_RPC = process.env.NEXT_PUBLIC_SUI_RPC_DEVNET || "https://sui-devnet.publicnode.com";
+
 // Cấu hình mạng ổn định hơn
 const { networkConfig } = createNetworkConfig({
-  testnet: { url: getFullnodeUrl("testnet") },
-  mainnet: { url: getFullnodeUrl("mainnet") },
-  devnet: { url: getFullnodeUrl("devnet") },
+  testnet: { url: TESTNET_RPC },
+  mainnet: { url: MAINNET_RPC },
+  devnet: { url: DEVNET_RPC },
 });
 
 export default function Providers({ children }: { children: ReactNode }) {

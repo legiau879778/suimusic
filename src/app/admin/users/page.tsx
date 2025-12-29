@@ -17,7 +17,7 @@ export default function AdminUsersPage() {
           </div>
           <div>
             <h1 className={styles.title}>User management</h1>
-            <p className={styles.sub}>List loaded from localStorage key: <b>chainstorm_users</b></p>
+            <p className={styles.sub}>List loaded from Firestore collection: <b>users</b></p>
           </div>
         </div>
 

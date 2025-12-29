@@ -22,6 +22,14 @@ import { addTrade } from "@/lib/tradeStore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import styles from "./manage.module.css";
+import {
+  PROFILE_UPDATED_EVENT,
+  findProfileByEmail,
+  findProfileByWallet,
+  loadProfile,
+} from "@/lib/profileStore";
+import { db } from "@/lib/firebase";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 
 /* ===== SUI SDK (NEW) ===== */
 import {
@@ -46,6 +54,24 @@ function shortAddr(a?: string) {
   if (!a) return "—";
   if (a.length <= 12) return a;
   return a.slice(0, 6) + "…" + a.slice(-4);
+}
+
+function normalizeAddress(input?: string) {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  return raw.toLowerCase().startsWith("0x") ? raw : `0x${raw}`;
+}
+
+function isValidSuiAddress(input?: string) {
+  const raw = normalizeAddress(input);
+  return /^0x[0-9a-fA-F]{64}$/.test(raw);
+}
+
+function parseSuiAmount(input?: string) {
+  const raw = String(input || "").trim().replace(",", ".");
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return n;
 }
 
 function explorerObjUrl(net: "devnet" | "testnet" | "mainnet", objectId: string) {
@@ -101,6 +127,32 @@ function normalizeWalrusId(v: string) {
     return raw.slice(2);
   }
   return raw;
+}
+
+function normalizeHashToAddress(hex?: string) {
+  const raw = String(hex || "").trim().toLowerCase();
+  if (!raw) return "";
+  const cleaned = raw.startsWith("0x") ? raw.slice(2) : raw;
+  if (cleaned.length !== 64) return "";
+  return `0x${cleaned}`;
+}
+
+function resolveAuthorDisplayName(authorId?: string, fallback?: string) {
+  const id = String(authorId || "").trim();
+  if (!id) return String(fallback || "—");
+
+  let p = loadProfile(id);
+  if (!p || Object.keys(p).length === 0) {
+    const byWallet = findProfileByWallet(id);
+    if (byWallet?.profile) p = byWallet.profile;
+  }
+  if (!p || Object.keys(p).length === 0) {
+    const byEmail = findProfileByEmail(id);
+    if (byEmail?.profile) p = byEmail.profile;
+  }
+
+  const name = String((p as any)?.name || "").trim();
+  return name || String(fallback || id);
 }
 
 function resolveMetaInput(work: Work) {
@@ -254,10 +306,23 @@ export default function ManagePage() {
   const [licensingId, setLicensingId] = useState<string | null>(null);
 
   const [selected, setSelected] = useState<Work | null>(null);
+  const [listingMap, setListingMap] = useState<Record<string, any>>({});
+  const [actionModal, setActionModal] = useState<{
+    type: "sell" | "license";
+    work: Work;
+  } | null>(null);
+  const [actionBuyer, setActionBuyer] = useState("");
+  const [actionPrice, setActionPrice] = useState("1");
+  const [actionRoyalty, setActionRoyalty] = useState("10");
+  const [actionError, setActionError] = useState("");
+  const [gasEstimate, setGasEstimate] = useState<string | null>(null);
+  const [gasLoading, setGasLoading] = useState(false);
+  const [gasError, setGasError] = useState("");
 
   /* ================= Load list ================= */
 
   const userId = user?.id || "";
+  const userEmail = String(user?.email || "").trim();
   const userRole = (user as any)?.role || "";
   const userWallets = useMemo(() => {
     const list = [
@@ -273,12 +338,12 @@ export default function ManagePage() {
   const isWorkOwner = useCallback(
     (w: Work) => {
       if (userRole === "admin") return true;
-      if (!userId && userWallets.length === 0) return false;
+      if (!userId && !userEmail) return false;
       if (userId && w.authorId === userId) return true;
-      const authorWallet = String(w.authorWallet || w.authorId || "").toLowerCase();
-      return authorWallet && userWallets.includes(authorWallet);
+      if (userEmail && w.authorId === userEmail) return true;
+      return false;
     },
-    [userId, userRole, userWallets]
+    [userId, userEmail, userRole]
   );
 
   const load = useCallback(() => {
@@ -325,6 +390,34 @@ export default function ManagePage() {
     return () => window.removeEventListener("works_updated", load);
   }, [load]);
 
+  useEffect(() => {
+    let alive = true;
+    async function loadListings() {
+      try {
+        const res = await fetch(`/api/chainstorm/listings?network=${activeNet}`);
+        const data = await res.json();
+        if (!alive) return;
+        if (!data?.ok || !Array.isArray(data?.data)) {
+          setListingMap({});
+          return;
+        }
+        const next: Record<string, any> = {};
+        for (const item of data.data) {
+          const workId = String(item?.workId || "").toLowerCase();
+          if (!workId) continue;
+          next[workId] = item;
+        }
+        setListingMap(next);
+      } catch {
+        if (alive) setListingMap({});
+      }
+    }
+    loadListings();
+    return () => {
+      alive = false;
+    };
+  }, [activeNet]);
+
   useEffect(() => setPage(1), [view, filter]);
 
   /* ================= Pagination ================= */
@@ -358,14 +451,14 @@ export default function ManagePage() {
         return;
       }
 
-      // Case 2: chưa có nftObjectId => scan theo content_hash
-      const cid = String(w.hash || "").trim();
-      if (!cid) return;
+      // Case 2: chưa có nftObjectId => scan theo file_hash / meta_hash
+      const fileHashAddr = normalizeHashToAddress(w.fileHash);
+      const metaHashAddr = normalizeHashToAddress(w.metaHash);
+      if (!fileHashAddr && !metaHashAddr) return;
 
       const ownerToScan = currentAccount?.address || w.authorWallet;
       if (!ownerToScan) return;
 
-      const contentHashAddr = await cidToAddressHex(cid);
       const type = `${PACKAGE_ID}::${MODULE}::WorkNFT`;
 
       let cursor: string | null | undefined = null;
@@ -382,9 +475,13 @@ export default function ManagePage() {
         for (const it of resp.data as any[]) {
           const objectId = it?.data?.objectId as string | undefined;
           const fields = it?.data?.content?.fields;
-          const ch = fields?.content_hash as string | undefined;
+          const fh = String(fields?.file_hash || "").toLowerCase();
+          const mh = String(fields?.meta_hash || "").toLowerCase();
+          const match =
+            (fileHashAddr && fh === fileHashAddr.toLowerCase()) ||
+            (metaHashAddr && mh === metaHashAddr.toLowerCase());
 
-          if (objectId && ch && ch.toLowerCase() === contentHashAddr.toLowerCase()) {
+          if (objectId && match) {
             bindNFTToWork({
               workId: w.id,
               nftObjectId: objectId,
@@ -504,7 +601,7 @@ export default function ManagePage() {
     }
   }
 
-  async function handleSellNFT(work: Work) {
+  async function executeSellNFT(work: Work, buyer: string, priceNum: number) {
     if (!currentAccount) {
       showToast("Please connect your wallet", "warning");
       return;
@@ -518,13 +615,7 @@ export default function ManagePage() {
       return;
     }
 
-    const buyer = prompt("Enter buyer's wallet (0x...):");
-    if (!buyer) return;
-
-    const priceStr = prompt("Nhập giá (SUI)", "1");
-    if (!priceStr) return;
-
-    const priceMist = BigInt(Math.floor(Number(priceStr) * 1_000_000_000));
+    const priceMist = BigInt(Math.floor(priceNum * 1_000_000_000));
     if (priceMist <= BigInt(0)) {
       showToast("Giá không hợp lệ", "warning");
       return;
@@ -560,7 +651,7 @@ export default function ManagePage() {
           id: crypto.randomUUID(),
           type: "sell",
           title: work.title || "Sell NFT",
-          amountSui: Number(priceStr) || 0,
+          amountSui: priceNum || 0,
           txHash: (result as any).digest,
           status: "pending",
           createdAt: Date.now(),
@@ -577,7 +668,7 @@ export default function ManagePage() {
     }
   }
 
-  async function handleIssueLicense(work: Work) {
+  async function executeIssueLicense(work: Work, licensee: string, royalty: number) {
     if (!currentAccount) {
       showToast("Vui lòng kết nối ví", "warning");
       return;
@@ -591,10 +682,6 @@ export default function ManagePage() {
       return;
     }
 
-    const licensee = prompt("Nhập ví người mua license (0x...):");
-    if (!licensee) return;
-
-    const royalty = Number(prompt("Royalty % (0-100)", String(work.royalty ?? 10)));
     if (Number.isNaN(royalty) || royalty < 0 || royalty > 100) {
       showToast("Royalty không hợp lệ", "warning");
       return;
@@ -644,7 +731,153 @@ export default function ManagePage() {
     }
   }
 
-  function handleSoftDelete(work: Work) {
+  function openSellModal(work: Work) {
+    const lastBuyer = String(localStorage.getItem("chainstorm_last_buyer") || "");
+    setActionModal({ type: "sell", work });
+    setActionBuyer(lastBuyer);
+    setActionPrice("1");
+    setActionRoyalty(String(work.royalty ?? 10));
+    setActionError("");
+    setGasEstimate(null);
+    setGasError("");
+  }
+
+  function openLicenseModal(work: Work) {
+    const lastBuyer = String(localStorage.getItem("chainstorm_last_buyer") || "");
+    setActionModal({ type: "license", work });
+    setActionBuyer(lastBuyer);
+    setActionPrice("1");
+    setActionRoyalty(String(work.royalty ?? 10));
+    setActionError("");
+    setGasEstimate(null);
+    setGasError("");
+  }
+
+  async function submitActionModal() {
+    if (!actionModal) return;
+    const { type, work } = actionModal;
+
+    const buyer = normalizeAddress(actionBuyer);
+    if (!isValidSuiAddress(buyer)) {
+      setActionError("Ví người mua không hợp lệ");
+      return;
+    }
+
+    if (type === "sell") {
+      const priceNum = parseSuiAmount(actionPrice);
+      if (!priceNum || priceNum <= 0) {
+        setActionError("Giá không hợp lệ");
+        return;
+      }
+      setActionError("");
+      localStorage.setItem("chainstorm_last_buyer", buyer);
+      await executeSellNFT(work, buyer, priceNum);
+      setActionModal(null);
+      return;
+    }
+
+    const royaltyNum = Number(actionRoyalty);
+    if (Number.isNaN(royaltyNum) || royaltyNum < 0 || royaltyNum > 100) {
+      setActionError("Royalty không hợp lệ");
+      return;
+    }
+    setActionError("");
+    localStorage.setItem("chainstorm_last_buyer", buyer);
+    await executeIssueLicense(work, buyer, Math.floor(royaltyNum));
+    setActionModal(null);
+  }
+
+  async function pasteBuyerFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        showToast("Clipboard trống", "warning");
+        return;
+      }
+      setActionBuyer(text.trim());
+    } catch {
+      showToast("Không đọc được clipboard", "warning");
+    }
+  }
+
+  async function estimateGas() {
+    if (!actionModal) return;
+    if (!currentAccount) {
+      showToast("Vui lòng kết nối ví", "warning");
+      return;
+    }
+    if (!PACKAGE_ID?.startsWith("0x")) {
+      showToast(`Missing packageId for network ${activeNet}`, "error");
+      return;
+    }
+    const { type, work } = actionModal;
+    const buyer = normalizeAddress(actionBuyer);
+    if (!isValidSuiAddress(buyer)) {
+      setGasError("Ví người mua không hợp lệ");
+      return;
+    }
+    setGasError("");
+    setGasEstimate(null);
+    setGasLoading(true);
+    try {
+      const tx = new Transaction();
+      if (type === "sell") {
+        const priceNum = parseSuiAmount(actionPrice);
+        if (!priceNum || priceNum <= 0) {
+          setGasError("Giá không hợp lệ");
+          return;
+        }
+        const priceMist = BigInt(Math.floor(priceNum * 1_000_000_000));
+        const [payment] = tx.splitCoins(tx.gas, [tx.pure.u64(priceMist)]);
+        tx.moveCall({
+          target: `${PACKAGE_ID}::${MODULE}::sell_nft`,
+          arguments: [
+            tx.object(work.nftObjectId || ""),
+            payment,
+            tx.pure.u64(priceMist),
+            tx.pure.address(buyer),
+          ],
+        });
+      } else {
+        const royaltyNum = Number(actionRoyalty);
+        if (Number.isNaN(royaltyNum) || royaltyNum < 0 || royaltyNum > 100) {
+          setGasError("Royalty không hợp lệ");
+          return;
+        }
+        tx.moveCall({
+          target: `${PACKAGE_ID}::${MODULE}::issue_license`,
+          arguments: [
+            tx.object(work.nftObjectId || ""),
+            tx.pure.address(buyer),
+            tx.pure.u8(Math.floor(royaltyNum)),
+          ],
+        });
+      }
+
+      const bytes = await tx.build({ client: suiClient as any });
+      const dry = await (suiClient as any).dryRunTransactionBlock({
+        transactionBlock: bytes,
+      });
+      const gasUsed = dry?.effects?.gasUsed;
+      if (gasUsed) {
+        const total =
+          Number(gasUsed.computationCost || 0) +
+          Number(gasUsed.storageCost || 0) -
+          Number(gasUsed.storageRebate || 0);
+        const sui = total / 1e9;
+        setGasEstimate(`${sui.toFixed(6)} SUI`);
+      } else {
+        setGasEstimate("—");
+      }
+    } catch (e) {
+      console.error(e);
+      setGasError("Không ước lượng được gas");
+    } finally {
+      setGasLoading(false);
+    }
+  }
+
+  async function handleSoftDelete(work: Work) {
     if (!userId) return;
 
     const ok = confirm(`Đưa "${work.title}" vào thùng rác?`);
@@ -656,6 +889,19 @@ export default function ManagePage() {
         actor: { id: userId, role: userRole as any },
         walletAddress: currentAccount?.address,
       });
+      if (work.nftObjectId) {
+        await setDoc(
+          doc(db, "works", work.nftObjectId),
+          {
+            authorId: work.authorId,
+            workId: work.id,
+            nftObjectId: work.nftObjectId,
+            deletedAt: serverTimestamp(),
+            deletedBy: userId,
+          },
+          { merge: true }
+        );
+      }
       showToast("🗑️ Moved to trash", "success");
     } catch (e: any) {
       console.error(e);
@@ -667,7 +913,7 @@ export default function ManagePage() {
     }
   }
 
-  function handleRestore(work: Work) {
+  async function handleRestore(work: Work) {
     if (!userId) return;
 
     if (userRole !== "admin") {
@@ -680,6 +926,20 @@ export default function ManagePage() {
 
     try {
       restoreWork({ workId: work.id, actor: { id: userId, role: userRole as any } });
+      if (work.nftObjectId) {
+        await setDoc(
+          doc(db, "works", work.nftObjectId),
+          {
+            authorId: work.authorId,
+            workId: work.id,
+            nftObjectId: work.nftObjectId,
+            deletedAt: null,
+            restoredAt: serverTimestamp(),
+            restoredBy: userId,
+          },
+          { merge: true }
+        );
+      }
       showToast("♻️ Work restored", "success");
     } catch (e: any) {
       console.error(e);
@@ -721,7 +981,7 @@ export default function ManagePage() {
             className={styles.btnSecondary}
             onClick={() => handleSyncAll("Auto-syncing NFTs from chain...")}
             disabled={syncingAll || isPending}
-            title="Scan WorkNFT in wallet by content_hash = sha256(metadataCid)"
+            title="Scan WorkNFT in wallet by file_hash/meta_hash"
           >
             {syncingAll ? "Syncing..." : "Auto-sync NFT"}
           </button>
@@ -761,23 +1021,24 @@ export default function ManagePage() {
       {/* ===== Grid ===== */}
       <div className={styles.grid}>
         {visible.map((w) => (
-          <WorkCard
-            key={w.id}
-            work={w}
-            net={activeNet}
-            onOpen={() => setSelected(w)}
-            onSell={() => handleSellNFT(w)}
-            onIssueLicense={() => handleIssueLicense(w)}
-            onSyncOwner={() => handleSyncOwner(w)}
-            onDelete={() => handleSoftDelete(w)}
-            onRestore={() => handleRestore(w)}
-            view={view}
-            disableGlobal={isPending || syncingAll}
-            selling={sellingId === w.id}
-            licensing={licensingId === w.id}
-            syncingOwner={!!syncingOwners[w.id]}
-          />
-        ))}
+            <WorkCard
+              key={w.id}
+              work={w}
+              net={activeNet}
+              onOpen={() => setSelected(w)}
+              onSell={() => openSellModal(w)}
+              onIssueLicense={() => openLicenseModal(w)}
+              onSyncOwner={() => handleSyncOwner(w)}
+              onDelete={() => handleSoftDelete(w)}
+              onRestore={() => handleRestore(w)}
+              view={view}
+              disableGlobal={isPending || syncingAll}
+              selling={sellingId === w.id}
+              licensing={licensingId === w.id}
+              syncingOwner={!!syncingOwners[w.id]}
+              listing={listingMap[String(w.nftObjectId || "").toLowerCase()]}
+            />
+          ))}
       </div>
 
       {/* ===== Pagination ===== */}
@@ -812,8 +1073,8 @@ export default function ManagePage() {
           work={selected}
           net={activeNet}
           onClose={() => setSelected(null)}
-          onSell={() => handleSellNFT(selected)}
-          onIssueLicense={() => handleIssueLicense(selected)}
+          onSell={() => openSellModal(selected)}
+          onIssueLicense={() => openLicenseModal(selected)}
           onSyncOwner={() => handleSyncOwner(selected)}
           onDelete={() => handleSoftDelete(selected)}
           onRestore={() => handleRestore(selected)}
@@ -823,6 +1084,101 @@ export default function ManagePage() {
           licensing={licensingId === selected.id}
           syncingOwner={!!syncingOwners[selected.id]}
         />
+      ) : null}
+
+      {actionModal ? (
+        <div className={styles.modalOverlay} role="presentation">
+          <div className={`${styles.modalPro} ${styles.modalCompact}`} role="dialog" aria-modal="true">
+            <div className={styles.modalHeader}>
+              <div>
+                <div className={styles.modalTitle}>
+                  {actionModal.type === "sell" ? "Sell NFT" : "Issue License"}
+                </div>
+                <div className={styles.modalSub}>
+                  <span className={styles.badge2}>{actionModal.work.title}</span>
+                </div>
+              </div>
+              <button className={styles.closeBtn} onClick={() => setActionModal(null)}>
+                ✕
+              </button>
+            </div>
+
+            <div className={styles.editBox}>
+              <div className={styles.editRow}>
+                <div className={styles.editLabel}>Buyer wallet (0x...)</div>
+                <div className={styles.editInline}>
+                  <input
+                    className={styles.editInput}
+                    value={actionBuyer}
+                    onChange={(e) => setActionBuyer(e.target.value)}
+                    placeholder="0x..."
+                  />
+                  <button
+                    type="button"
+                    className={styles.miniBtn}
+                    onClick={pasteBuyerFromClipboard}
+                  >
+                    Paste
+                  </button>
+                </div>
+              </div>
+
+              {actionModal.type === "sell" ? (
+                <div className={styles.editRow}>
+                  <div className={styles.editLabel}>Price (SUI)</div>
+                  <input
+                    className={styles.editInput}
+                    value={actionPrice}
+                    onChange={(e) => setActionPrice(e.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+              ) : null}
+
+              {actionModal.type === "license" ? (
+                <div className={styles.editRow}>
+                  <div className={styles.editLabel}>Royalty % (0-100)</div>
+                  <input
+                    className={styles.editInput}
+                    value={actionRoyalty}
+                    onChange={(e) => setActionRoyalty(e.target.value)}
+                    placeholder="10"
+                  />
+                </div>
+              ) : null}
+
+              {actionError ? <div className={styles.warnText}>{actionError}</div> : null}
+              {gasError ? <div className={styles.warnText}>{gasError}</div> : null}
+              {gasEstimate ? (
+                <div className={styles.mutedSmall}>Estimated gas: {gasEstimate}</div>
+              ) : null}
+
+              <div className={styles.editActions}>
+                <button
+                  className={styles.actionGhost}
+                  onClick={estimateGas}
+                  disabled={gasLoading || isPending || sellingId != null || licensingId != null}
+                >
+                  {gasLoading ? "Estimating..." : "Estimate gas"}
+                </button>
+                <button
+                  className={styles.actionGhost}
+                  onClick={() => setActionModal(null)}
+                  disabled={isPending || sellingId != null || licensingId != null}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={styles.actionPrimary}
+                  onClick={submitActionModal}
+                  disabled={isPending || sellingId != null || licensingId != null}
+                >
+                  {actionModal.type === "sell" ? "Confirm Sell" : "Confirm License"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -844,6 +1200,7 @@ function WorkCard(props: {
   selling: boolean;
   licensing: boolean;
   syncingOwner: boolean;
+  listing?: any;
 }) {
   const {
     work,
@@ -859,6 +1216,7 @@ function WorkCard(props: {
     selling,
     licensing,
     syncingOwner,
+    listing,
   } = props;
 
   const [meta, setMeta] = useState<any | null>(null);
@@ -933,12 +1291,13 @@ function WorkCard(props: {
           {work.title}
         </div>
 
-        <div className={styles.badges}>
-          <span className={styles.badge} data-status={work.status ?? "unknown"}>
-            {statusLabel(work.status)}
-          </span>
-          <span className={styles.badge2}>{sellTypeLabel(work.sellType)}</span>
-        </div>
+      <div className={styles.badges}>
+        <span className={styles.badge} data-status={work.status ?? "unknown"}>
+          {statusLabel(work.status)}
+        </span>
+        <span className={styles.badge2}>{sellTypeLabel(work.sellType)}</span>
+        {listing ? <span className={styles.badge2}>Listed</span> : null}
+      </div>
       </div>
 
       <div className={styles.preview}>
@@ -993,18 +1352,25 @@ function WorkCard(props: {
           </span>
         </div>
 
-        <div className={styles.kv}>
-          <span className={styles.k}>Owner</span>
-          <span className={styles.v}>
-            {work.authorWallet ? shortAddr(work.authorWallet) : "—"}
-          </span>
-        </div>
+      <div className={styles.kv}>
+        <span className={styles.k}>Owner</span>
+        <span className={styles.v}>
+          {work.authorWallet ? shortAddr(work.authorWallet) : "—"}
+        </span>
+      </div>
 
+      {listing ? (
         <div className={styles.kv}>
-          <span className={styles.k}>Royalty</span>
-          <span className={styles.v}>
-            <b>{work.royalty ?? 0}%</b>
-          </span>
+          <span className={styles.k}>Listing</span>
+          <span className={styles.v}>{Number(listing.price || 0) / 1e9} SUI</span>
+        </div>
+      ) : null}
+
+      <div className={styles.kv}>
+        <span className={styles.k}>Royalty</span>
+        <span className={styles.v}>
+          <b>{work.royalty ?? 0}%</b>
+        </span>
         </div>
       </div>
 
@@ -1083,6 +1449,7 @@ function WorkDetailModal(props: {
 
   const [meta, setMeta] = useState<any | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
+  const [profileTick, setProfileTick] = useState(0);
 
   const metaInput = useMemo(() => resolveMetaInput(work), [work]);
   const metaUrl = useMemo(() => cidToGateway(metaInput), [metaInput]);
@@ -1104,6 +1471,18 @@ function WorkDetailModal(props: {
       alive = false;
     };
   }, [metaUrl]);
+
+  useEffect(() => {
+    const onProfile = () => setProfileTick((x) => x + 1);
+    window.addEventListener(PROFILE_UPDATED_EVENT, onProfile as EventListener);
+    return () =>
+      window.removeEventListener(PROFILE_UPDATED_EVENT, onProfile as EventListener);
+  }, []);
+
+  const authorDisplayName = useMemo(
+    () => resolveAuthorDisplayName(work.authorId, work.authorName),
+    [work.authorId, work.authorName, profileTick]
+  );
 
   const coverUrl = useMemo(() => {
     const cover =
@@ -1284,7 +1663,7 @@ function WorkDetailModal(props: {
 
           <KV
             label="Tác giả"
-            value={`${work.authorName || work.authorId || "—"}${
+            value={`${authorDisplayName}${
               work.authorPhone ? ` • ${work.authorPhone}` : ""
             }`}
           />

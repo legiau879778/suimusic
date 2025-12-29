@@ -16,6 +16,8 @@ import { explorerObjectUrl, shortAddr } from "@/lib/suiExplorer";
 import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
 import { useSuiClient } from "@mysten/dapp-kit";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 import styles from "./marketplace.module.css";
 
 type Filter = "all" | "exclusive" | "license";
@@ -92,6 +94,8 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [metaCache, setMetaCache] = useState<Record<string, MetaPreview>>({});
   const [voteCache, setVoteCache] = useState<Record<string, number>>({});
+  const [listingMap, setListingMap] = useState<Record<string, any>>({});
+  const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
   function load() {
     const works = getVerifiedWorks();
@@ -113,6 +117,59 @@ export default function MarketplacePage() {
       alive = false;
       window.removeEventListener("works_updated", load);
     };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadListings() {
+      try {
+        const net =
+          (process.env.NEXT_PUBLIC_SUI_NETWORK || "testnet").toLowerCase().includes("main")
+            ? "mainnet"
+            : (process.env.NEXT_PUBLIC_SUI_NETWORK || "testnet").toLowerCase().includes("dev")
+              ? "devnet"
+              : "testnet";
+        const res = await fetch(`/api/chainstorm/listings?network=${net}`);
+        const data = await res.json();
+        if (!alive) return;
+        if (!data?.ok || !Array.isArray(data?.data)) {
+          setListingMap({});
+          return;
+        }
+        const next: Record<string, any> = {};
+        for (const item of data.data) {
+          const workId = String(item?.workId || "").toLowerCase();
+          if (!workId) continue;
+          next[workId] = item;
+        }
+        setListingMap(next);
+      } catch {
+        if (alive) setListingMap({});
+      }
+    }
+    loadListings();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const ref = collection(db, "works");
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const next: Record<string, boolean> = {};
+        snap.forEach((docSnap) => {
+          const data: any = docSnap.data();
+          if (data?.deletedAt) {
+            next[docSnap.id.toLowerCase()] = true;
+          }
+        });
+        setDeletedMap(next);
+      },
+      () => setDeletedMap({})
+    );
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -206,6 +263,8 @@ export default function MarketplacePage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return baseList.filter((w) => {
+      const nftId = String(w.nftObjectId || "").toLowerCase();
+      if (nftId && deletedMap[nftId]) return false;
       if (filter !== "all" && w.sellType !== filter) return false;
 
       const meta = metaCache[w.id];
@@ -289,7 +348,7 @@ export default function MarketplacePage() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Marketplace</h1>
-          <p className={styles.subtitle}>Approved works + NFT ownership realtime</p>
+          <p className={styles.subtitle}>Buy, rent (license), or explore verified works.</p>
         </div>
 
         <div className={styles.filters}>
@@ -307,7 +366,7 @@ export default function MarketplacePage() {
               className={`${styles.filterBtn} ${filter === f ? styles.active : ""}`}
               onClick={() => setFilter(f)}
             >
-              {f === "all" ? "Tất cả" : f === "exclusive" ? "Bán đứt" : "License"}
+              {f === "all" ? "Tất cả" : f === "exclusive" ? "Bán đứt" : "Thuê (License)"}
             </button>
           ))}
 
@@ -361,7 +420,12 @@ export default function MarketplacePage() {
       ) : (
         <div className={styles.grid}>
           {list.map(w => (
-            <MarketCard key={w.id} work={w} meta={metaCache[w.id]} />
+            <MarketCard
+              key={w.id}
+              work={w}
+              meta={metaCache[w.id]}
+              listing={listingMap[String(w.nftObjectId || "").toLowerCase()]}
+            />
           ))}
         </div>
       )}
@@ -369,7 +433,7 @@ export default function MarketplacePage() {
   );
 }
 
-function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
+function MarketCard({ work, meta, listing }: { work: any; meta?: MetaPreview; listing?: any }) {
   // ✅ auto sync owner -> workStore.authorWallet
   const { owner } = useSyncWorkOwner({ workId: work.id, nftObjectId: work.nftObjectId });
   const cover = resolveCoverFromMeta(meta, work);
@@ -393,6 +457,7 @@ function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
       <div className={styles.badges}>
         <span className={styles.badge}>{work.sellType}</span>
         <span className={styles.badgeSoft}>{work.status}</span>
+        {listing ? <span className={styles.badgeSoft}>Listed</span> : null}
         {work.featured ? <span className={styles.badgeSoft}>Featured</span> : null}
         {typeof work.votes === "number" ? (
           <span className={styles.badgeSoft}>🔥 {work.votes}</span>
@@ -406,6 +471,12 @@ function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
           <span className={styles.metaLabel}>Owner</span>
           <span className={styles.metaValue}>{shortAddr(owner ?? work.authorWallet)}</span>
         </div>
+        {listing ? (
+          <div>
+            <span className={styles.metaLabel}>Listing</span>
+            <span className={styles.metaValue}>{Number(listing.price || 0) / 1e9} SUI</span>
+          </div>
+        ) : null}
         {work.sellType === "license" ? (
           <div>
             <span className={styles.metaLabel}>Licenses</span>
@@ -429,6 +500,15 @@ function MarketCard({ work, meta }: { work: any; meta?: MetaPreview }) {
         <Link className={styles.primaryBtn} href={`/marketplace/${work.id}`}>
           Xem chi tiết
         </Link>
+        {work.sellType === "license" ? (
+          <Link className={styles.ghostBtn} href={`/marketplace/${work.id}#rent`}>
+            Thuê
+          </Link>
+        ) : work.sellType === "exclusive" ? (
+          <Link className={styles.ghostBtn} href={`/marketplace/${work.id}#buy`}>
+            Mua
+          </Link>
+        ) : null}
       </div>
     </div>
   );

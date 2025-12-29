@@ -1,13 +1,15 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "./leaderboard.module.css";
 
 import { getVerifiedWorks, syncWorksFromChain, type Work } from "@/lib/workStore";
 import { loadProfile } from "@/lib/profileStore";
 import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
 import { useSuiClient } from "@mysten/dapp-kit";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 type AuthorRow = {
   authorId: string;
@@ -37,6 +39,7 @@ export default function AuthorLeaderboardPage() {
   const suiClient = useSuiClient();
   const [rows, setRows] = useState<AuthorRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
   const [works, setWorks] = useState<Work[]>(
     () => (getVerifiedWorks() as unknown as Work[]) || []
@@ -52,6 +55,32 @@ export default function AuthorLeaderboardPage() {
   }, []);
 
   useEffect(() => {
+    const ref = collection(db, "works");
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const next: Record<string, boolean> = {};
+        snap.forEach((docSnap) => {
+          const data: any = docSnap.data();
+          if (data?.deletedAt) {
+            next[docSnap.id.toLowerCase()] = true;
+          }
+        });
+        setDeletedMap(next);
+      },
+      () => setDeletedMap({})
+    );
+    return () => unsub();
+  }, []);
+
+  const visibleWorks = useMemo(() => {
+    return works.filter((w) => {
+      const nftId = String(w.nftObjectId || "").toLowerCase();
+      return !(nftId && deletedMap[nftId]);
+    });
+  }, [works, deletedMap]);
+
+  useEffect(() => {
     let alive = true;
 
     async function run() {
@@ -59,7 +88,7 @@ export default function AuthorLeaderboardPage() {
         setLoading(false);
         // still show list without votes
         const byAuthor: Record<string, AuthorRow> = {};
-        for (const w of works) {
+        for (const w of visibleWorks) {
           const authorId = String(w.authorId || "").trim();
           const key = authorId || "unknown";
           if (!byAuthor[key]) {
@@ -87,7 +116,7 @@ export default function AuthorLeaderboardPage() {
       setLoading(true);
       const voteMap: Record<string, number> = {};
 
-      const ids = works.map((w) => String(w.id || "").trim()).filter(Boolean);
+      const ids = visibleWorks.map((w) => String(w.id || "").trim()).filter(Boolean);
       const CONC = 6;
       let i = 0;
 
@@ -110,7 +139,7 @@ export default function AuthorLeaderboardPage() {
       if (!alive) return;
 
       const byAuthor: Record<string, AuthorRow> = {};
-      for (const w of works) {
+      for (const w of visibleWorks) {
         const authorId = String(w.authorId || "").trim();
         const key = authorId || "unknown";
         const votes = Number(voteMap[w.id] ?? 0);
@@ -146,7 +175,7 @@ export default function AuthorLeaderboardPage() {
     return () => {
       alive = false;
     };
-  }, [works, suiClient]);
+  }, [visibleWorks, suiClient]);
 
   return (
     <main className={styles.page}>

@@ -64,6 +64,11 @@ function InternalQR({ value, size = 180, className }: { value: string; size?: nu
   useEffect(() => {
     if (ref.current && value) {
       QRCode.toCanvas(ref.current, value, { width: size, margin: 1 }).catch(() => {});
+      return;
+    }
+    if (ref.current && !value) {
+      const ctx = ref.current.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, ref.current.width, ref.current.height);
     }
   }, [value, size]);
   return <canvas ref={ref} className={className} />;
@@ -125,6 +130,14 @@ export default function InfoTab() {
   const [birthdayText, setBirthdayText] = useState(() => isoToDMY(profile.birthday));
   const [isEditing, setIsEditing] = useState(false);
 
+  useEffect(() => {
+    const p: any = loadProfile(userId) || {};
+    const next = { ...p, birthday: p.birthday || p.dob };
+    setProfile(next);
+    setBirthdayText(isoToDMY(next.birthday));
+    setIsEditing(false);
+  }, [userId]);
+
   const copyToClipboard = (text: string, setFlag: (v: boolean) => void, message: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
@@ -185,10 +198,26 @@ export default function InfoTab() {
     return v.ok ? { state: "ok", msg: "" } : { state: "bad", msg: v.reason };
   }, [birthdayText]);
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     saveProfile(userId, { ...profile, dob: profile.birthday });
     setIsEditing(false);
     pushToast("success", "Profile saved");
+
+    if (user?.id) {
+      try {
+        await updateDoc(doc(db, "users", user.id), {
+          name: profile.name || "",
+          phone: profile.phone || "",
+          country: profile.country || "",
+          address: profile.address || "",
+          birthday: profile.birthday || "",
+          cccd: profile.cccd || "",
+        });
+      } catch (error) {
+        console.error("Lỗi Firebase:", error);
+        pushToast("warning", "Saved locally, but failed to sync");
+      }
+    }
   };
 
   return (
@@ -288,4 +317,3 @@ function Field({ label, value, onChange, readOnly, placeholder, className, hint,
 function FieldFull({ label, value, onChange, readOnly }: any) {
   return ( <div className={styles.formFieldFull}><label>{label}</label><input value={value ?? ""} readOnly={readOnly} onChange={(e) => onChange?.(e.target.value)} /></div> );
 }
-

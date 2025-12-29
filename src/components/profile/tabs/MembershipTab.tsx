@@ -150,6 +150,19 @@ export default function MembershipTab() {
             "Sử dụng thương mại",
           ]}
         />
+        <Card
+          title="AI / Platform"
+          desc="Truy cập dữ liệu, huấn luyện hợp pháp"
+          price="Liên hệ"
+          active={false}
+          actionLabel="Liên hệ"
+          actionHref="mailto:admin@chainstorm.info?subject=AI%20Platform%20Membership"
+          bullets={[
+            "Truy cập bộ dữ liệu đã được cấp phép",
+            "Cam kết tuân thủ quyền tác giả",
+            "Hợp đồng và báo cáo minh bạch",
+          ]}
+        />
       </div>
 
       {open && (
@@ -168,14 +181,24 @@ export default function MembershipTab() {
   );
 }
 
-function Card({ title, desc, price, onClick, active, bullets }: any) {
+function Card({ title, desc, price, onClick, active, bullets, actionLabel, actionHref }: any) {
   return (
     <div className={`${styles.membershipCardNew} ${active ? styles.ownedCard : ""}`}>
       <h3>{title}</h3>
       <p>{desc}</p>
       <div className={styles.priceMain}>{price}</div>
       <ul className={styles.perkList}>{bullets.map((b: any) => <li key={b}>{b}</li>)}</ul>
-      {active ? <span className={styles.ownedBadge}>Đang dùng</span> : <button className={styles.confirmBtnWhite} onClick={onClick}>Mua ngay</button>}
+      {active ? (
+        <span className={styles.ownedBadge}>Đang dùng</span>
+      ) : actionHref ? (
+        <a className={styles.confirmBtnWhite} href={actionHref}>
+          {actionLabel || "Liên hệ"}
+        </a>
+      ) : (
+        <button className={styles.confirmBtnWhite} onClick={onClick}>
+          {actionLabel || "Mua ngay"}
+        </button>
+      )}
     </div>
   );
 }

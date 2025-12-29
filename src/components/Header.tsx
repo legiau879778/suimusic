@@ -31,7 +31,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [animateAvatar, setAnimateAvatar] = useState(false);
-  const [lastScroll, setLastScroll] = useState(0);
+  const lastScrollRef = useRef(0);
 
   // Membership data realtime
   const [dbMembership, setDbMembership] = useState<Membership | null>(null);
@@ -94,13 +94,14 @@ export default function Header() {
     const onScroll = () => {
       const y = window.scrollY;
       setScrolled(y > 8);
-      if (y > lastScroll && y > 80) setHidden(true);
+      const last = lastScrollRef.current;
+      if (y > last && y > 80) setHidden(true);
       else setHidden(false);
-      setLastScroll(y);
+      lastScrollRef.current = y;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [lastScroll, mounted]);
+  }, [mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -136,7 +137,7 @@ export default function Header() {
 
   const navProtected = (href: string, label: string, allowed: boolean) => (
     <div className={styles.navItemWrap}>
-      <button className={`${styles.link} ${styles.linkBtn} ${pathname === href ? styles.active : ""}`} onClick={() => {
+      <button type="button" className={`${styles.link} ${styles.linkBtn} ${pathname === href ? styles.active : ""}`} onClick={() => {
         if (!user) { saveRedirect(); openLogin(); return; }
         if (!allowed) { saveRedirect(); openPermission(); return; }
         setMenuOpen(false); setUserMenuOpen(false); router.push(href);

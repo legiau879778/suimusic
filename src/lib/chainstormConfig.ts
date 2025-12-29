@@ -17,8 +17,8 @@ export const CHAINSTORM_BY_NETWORK: Record<
     mintFn: "mint", // 👈 giữ "mint" nếu function của bạn tên mint
   },
   testnet: {
-    packageId: "0x672ff4692cb57ead0503db7b54028bbfca6aefee9f89eb2b5d025627172cab23",
-    registryId: "0xe8a047033205e1d29ef22331303e6672ebf1b291a0e8da842448e4d6ef8de05a",
+    packageId: "0x9f10ef3b767919df27e52e5665b99e081be7d208e89bfe8d9460416fd387e840",
+    registryId: "0xb5bc05843c4a55c392291988c345ee7329d30abd4926204316f15b5d3405be74",
     module: "chainstorm_nft",
     mintFn: "mint",
   },

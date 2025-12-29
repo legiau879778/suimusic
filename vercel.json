@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-works?network=testnet",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

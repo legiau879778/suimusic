@@ -12,6 +12,7 @@ import { auth, googleProvider, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useToast } from "@/context/ToastContext";
 import { connectSuiWallet, signSuiMessage } from "@/lib/suiWallet";
+import { upsertUser } from "@/lib/userStore";
 
 // Sui & Bip39
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
@@ -75,15 +76,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userDoc.exists()) {
       const data = userDoc.data();
       const role = shouldBeAdmin ? "admin" : data.role || "user";
+      const createdAt =
+        typeof data.createdAt?.toMillis === "function"
+          ? data.createdAt.toMillis()
+          : typeof data.createdAt?.seconds === "number"
+          ? data.createdAt.seconds * 1000
+          : undefined;
+      const walletAddress = data.wallet?.address || data.walletAddress || "";
       setUser({
         id: firebaseUser.uid,
         email,
         avatar: firebaseUser.photoURL || "",
         role,
-        walletAddress: data.walletAddress,
+        walletAddress,
         wallet: data.wallet,
         internalWallet: data.internalWallet,
         membership: data.membership,
+      });
+      upsertUser({
+        id: firebaseUser.uid,
+        email,
+        role,
+        wallet: walletAddress
+          ? { address: walletAddress, verified: !!data.wallet?.verified }
+          : undefined,
+        createdAt,
       });
       if (shouldBeAdmin && data.role !== "admin") {
         await setDoc(userRef, { role: "admin" }, { merge: true });
@@ -113,6 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       setUser(newUser);
+      upsertUser({
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      });
     }
   }
 
@@ -150,6 +172,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }, { merge: true });
 
       setUser(prev => prev ? { ...prev, walletAddress: address, role: prev.role === "admin" ? "admin" : "author" } : null);
+      upsertUser({
+        id: user.id,
+        email: user.email,
+        role: user.role === "admin" ? "admin" : "author",
+        wallet: { address, verified: true },
+      });
       showToast("Kết nối ví ngoài thành công!", "success");
     } catch (error) {
       showToast("Lỗi kết nối ví", "warning");
@@ -181,6 +209,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           : prev
       );
+      upsertUser({
+        id: user.id,
+        email: user.email,
+        role: user.role === "admin" ? "admin" : "user",
+      });
       showToast("Đã gỡ ví", "success");
     } catch {
       showToast("Gỡ ví thất bại", "warning");

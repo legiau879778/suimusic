@@ -2,7 +2,7 @@
 
 import styles from "@/styles/profile.module.css";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadProfile, saveProfile, UserProfile } from "@/lib/profileStore";
 
 type SocialKey = "twitter" | "facebook" | "instagram" | "website";
@@ -12,9 +12,19 @@ export default function SettingsTab() {
   const userId = user?.id || user?.email || "guest";
 
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile(userId));
+  const skipNextSaveRef = useRef(true);
+
+  useEffect(() => {
+    skipNextSaveRef.current = true;
+    setProfile(loadProfile(userId));
+  }, [userId]);
 
   /* ===== AUTOSAVE ===== */
   useEffect(() => {
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
     const t = setTimeout(() => saveProfile(userId, profile), 600);
     return () => clearTimeout(t);
   }, [profile, userId]);

@@ -63,6 +63,18 @@ module chainstorm_nft::chainstorm_nft {
     }
 
     /* =========================
+       MARKET LISTING (EXCLUSIVE)
+    ========================= */
+
+    public struct Listing has key, store {
+        id: UID,
+        work_id: address,
+        seller: address,
+        price: u64,
+        nft: WorkNFT,
+    }
+
+    /* =========================
        MINT (ANTI DUPLICATE)
     ========================= */
 
@@ -140,6 +152,62 @@ module chainstorm_nft::chainstorm_nft {
         };
 
         transfer::public_transfer(nft, buyer);
+    }
+
+    /* =========================
+       LIST / BUY (EXCLUSIVE)
+    ========================= */
+
+    entry fun list_nft(
+        nft: WorkNFT,
+        price: u64,
+        ctx: &mut TxContext
+    ) {
+        let seller = tx_context::sender(ctx);
+        assert!(price > 0, 201);
+
+        let listing = Listing {
+            id: object::new(ctx),
+            work_id: object::uid_to_address(&nft.id),
+            seller,
+            price,
+            nft,
+        };
+
+        transfer::share_object(listing);
+    }
+
+    entry fun cancel_listing(
+        listing: Listing,
+        ctx: &mut TxContext
+    ) {
+        let sender = tx_context::sender(ctx);
+        let Listing { id, work_id: _, seller, price: _, nft } = listing;
+        assert!(sender == seller, 202);
+        transfer::public_transfer(nft, sender);
+        object::delete(id);
+    }
+
+    entry fun buy_nft(
+        listing: Listing,
+        mut payment: Coin<SUI>,
+        ctx: &mut TxContext
+    ) {
+        let buyer = tx_context::sender(ctx);
+        let Listing { id, work_id: _, seller, price, nft } = listing;
+        assert!(price > 0, 203);
+
+        let seller_coin = coin::split(&mut payment, price, ctx);
+        transfer::public_transfer(seller_coin, seller);
+
+        if (coin::value(&payment) > 0) {
+            transfer::public_transfer(payment, buyer);
+        } else {
+            coin::destroy_zero(payment);
+        };
+
+        transfer::public_transfer(nft, buyer);
+        object::delete(id);
     }
 
     /* =========================

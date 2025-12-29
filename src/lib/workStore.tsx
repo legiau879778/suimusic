@@ -73,6 +73,8 @@ export type Work = {
   sellType: "exclusive" | "license" | "none" | string;
   royalty?: number;
   quorumWeight: number;
+  exclusivePriceSui?: number;
+  licensePriceSui?: number;
 
   nftObjectId?: string;
   nftPackageId?: string;
@@ -257,10 +259,35 @@ function buildDefaults(input: Partial<Work>): Work {
 function mergeOnchainWorks(list: Partial<Work>[], net?: string) {
   const current = load(net);
   const map = new Map(current.map((w) => [w.id, w]));
+  const byNft = new Map<string, Work>();
+  const byProof = new Map<string, Work>();
+  const byMetaHash = new Map<string, Work>();
+  const byWalrusMeta = new Map<string, Work>();
+
+  for (const w of current) {
+    const nft = safeStr(w.nftObjectId).toLowerCase();
+    if (nft) byNft.set(nft, w);
+    const proof = safeStr(w.proofId);
+    if (proof) byProof.set(proof, w);
+    const mh = safeStr(w.metaHash).toLowerCase();
+    if (mh) byMetaHash.set(mh, w);
+    const wm = safeStr(w.walrusMetaId).toLowerCase();
+    if (wm) byWalrusMeta.set(wm, w);
+  }
 
   for (const raw of list) {
     const on = buildDefaults(raw);
-    const existing = map.get(on.id);
+    const onId = safeStr(on.id).toLowerCase();
+    const onProof = safeStr(on.proofId);
+    const onMetaHash = safeStr(on.metaHash).toLowerCase();
+    const onWalrusMeta = safeStr(on.walrusMetaId).toLowerCase();
+
+    const existing =
+      map.get(on.id) ||
+      (onId ? byNft.get(onId) : undefined) ||
+      (onProof ? byProof.get(onProof) : undefined) ||
+      (onMetaHash ? byMetaHash.get(onMetaHash) : undefined) ||
+      (onWalrusMeta ? byWalrusMeta.get(onWalrusMeta) : undefined);
     if (!existing) {
       map.set(on.id, on);
       continue;
@@ -269,6 +296,7 @@ function mergeOnchainWorks(list: Partial<Work>[], net?: string) {
     const merged: Work = {
       ...existing,
       ...on,
+      id: existing.id,
       title: existing.title || on.title,
       authorName: existing.authorName || on.authorName,
       authorEmail: existing.authorEmail || on.authorEmail,
@@ -288,7 +316,7 @@ function mergeOnchainWorks(list: Partial<Work>[], net?: string) {
       licenses: existing.licenses || on.licenses || [],
       status: existing.status || on.status,
     };
-    map.set(on.id, merged);
+    map.set(existing.id, merged);
   }
 
   const mergedList = Array.from(map.values());
@@ -359,6 +387,8 @@ export function addWork(data: {
   sellType?: "exclusive" | "license" | "none" | string;
   royalty?: number;
   quorumWeight?: number;
+  exclusivePriceSui?: number;
+  licensePriceSui?: number;
 }) {
   const works = load();
 
@@ -404,6 +434,8 @@ export function addWork(data: {
     sellType: normalizeSellType(data.sellType),
 
     royalty: data.royalty ?? 0,
+    exclusivePriceSui: typeof data.exclusivePriceSui === "number" ? data.exclusivePriceSui : undefined,
+    licensePriceSui: typeof data.licensePriceSui === "number" ? data.licensePriceSui : undefined,
 
     status: "pending",
     approvalMap: {},

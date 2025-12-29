@@ -5,9 +5,17 @@ import Link from "next/link";
 import styles from "./search.module.css";
 import { getVerifiedWorks, setWorkMetadata, syncWorksFromChain } from "@/lib/workStore";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
-import { toGateway } from "@/lib/profileStore";
+import {
+  PROFILE_UPDATED_EVENT,
+  findProfileByEmail,
+  findProfileByWallet,
+  loadProfile,
+  toGateway,
+} from "@/lib/profileStore";
 import { buildVoteWorkTx, canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
 import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 /* ===== Phosphor Icons ===== */
 import { MagnifyingGlass, Sparkle, ClockClockwise, ClockCounterClockwise } from "@phosphor-icons/react";
@@ -28,6 +36,7 @@ type MetaPreview = {
   image?: string;
   category?: string;
   language?: string;
+  authorName?: string;
   duration?: number | string;
   properties?: {
     duration?: number | string;
@@ -64,6 +73,24 @@ function pickAttr(meta: any, key: string) {
     (a: any) => String(a?.trait_type || "").trim().toLowerCase() === key
   );
   return String(hit?.value ?? "").trim();
+}
+
+function resolveAuthorDisplayName(authorId?: string, fallback?: string, _tick?: number) {
+  const id = String(authorId || "").trim();
+  if (!id) return String(fallback || "Unknown");
+
+  let p = loadProfile(id);
+  if (!p || Object.keys(p).length === 0) {
+    const byWallet = findProfileByWallet(id);
+    if (byWallet?.profile) p = byWallet.profile;
+  }
+  if (!p || Object.keys(p).length === 0) {
+    const byEmail = findProfileByEmail(id);
+    if (byEmail?.profile) p = byEmail.profile;
+  }
+
+  const name = String((p as any)?.name || "").trim();
+  return name || String(fallback || id);
 }
 
 function resolveCoverFromMeta(meta: any, w: any) {
@@ -126,6 +153,8 @@ export default function SearchPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [votingId, setVotingId] = useState<string | null>(null);
+  const [profileTick, setProfileTick] = useState(0);
+  const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let alive = true;
@@ -147,6 +176,32 @@ export default function SearchPage() {
       alive = false;
       window.removeEventListener("works_updated", onUpdate);
     };
+  }, []);
+
+  useEffect(() => {
+    const ref = collection(db, "works");
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const next: Record<string, boolean> = {};
+        snap.forEach((docSnap) => {
+          const data: any = docSnap.data();
+          if (data?.deletedAt) {
+            next[docSnap.id.toLowerCase()] = true;
+          }
+        });
+        setDeletedMap(next);
+      },
+      () => setDeletedMap({})
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const onProfile = () => setProfileTick((x) => x + 1);
+    window.addEventListener(PROFILE_UPDATED_EVENT, onProfile as EventListener);
+    return () =>
+      window.removeEventListener(PROFILE_UPDATED_EVENT, onProfile as EventListener);
   }, []);
 
   useEffect(() => {
@@ -175,6 +230,12 @@ export default function SearchPage() {
             language: String(
               json?.language || json?.properties?.language || pickAttr(json, "language") || ""
             ).trim(),
+            authorName: String(
+              json?.properties?.author?.name ||
+                json?.author ||
+                json?.properties?.author_name ||
+                ""
+            ).trim(),
           };
 
           if (!alive) return;
@@ -202,9 +263,12 @@ export default function SearchPage() {
   const filtered = useMemo(() => {
     const k = debouncedQ.trim().toLowerCase();
     return works.filter((w) => {
+      const nftId = String(w.nftObjectId || "").toLowerCase();
+      if (nftId && deletedMap[nftId]) return false;
       const meta = metaCache[w.id];
       const title = resolveTitleFromMeta(meta, w).toLowerCase();
-      const author = String(w.authorName || "").toLowerCase();
+      const authorMeta = String(meta?.authorName || "").trim();
+      const author = (authorMeta || resolveAuthorDisplayName(w.authorId, w.authorName || w.authorWallet, profileTick)).toLowerCase();
       const wallet = String(w.authorWallet || "").toLowerCase();
       const category = String(meta?.category || w.metaCategory || w.category || "").toLowerCase();
       const language = String(meta?.language || w.metaLanguage || w.language || "").toLowerCase();
@@ -219,7 +283,7 @@ export default function SearchPage() {
         language.includes(k)
       );
     });
-  }, [works, debouncedQ, metaCache, categoryFilter, languageFilter]);
+  }, [works, debouncedQ, metaCache, categoryFilter, languageFilter, profileTick, deletedMap]);
 
   useEffect(() => {
     setLoading(true);
@@ -402,6 +466,7 @@ export default function SearchPage() {
               onVote={canUseWorkVote() ? handleVote : undefined}
               votingId={votingId}
               votingDisabled={isPending}
+              profileTick={profileTick}
             />
             <WorkBlock
               title="Newest works"
@@ -412,6 +477,7 @@ export default function SearchPage() {
               onVote={canUseWorkVote() ? handleVote : undefined}
               votingId={votingId}
               votingDisabled={isPending}
+              profileTick={profileTick}
             />
             <WorkBlock
               title="Oldest works"
@@ -422,6 +488,7 @@ export default function SearchPage() {
               onVote={canUseWorkVote() ? handleVote : undefined}
               votingId={votingId}
               votingDisabled={isPending}
+              profileTick={profileTick}
             />
           </>
         )}
@@ -440,6 +507,7 @@ function WorkBlock({
   onVote,
   votingId,
   votingDisabled,
+  profileTick,
 }: {
   title: string;
   subtitle: string;
@@ -450,6 +518,7 @@ function WorkBlock({
   onVote?: (workId: string) => void;
   votingId?: string | null;
   votingDisabled?: boolean;
+  profileTick: number;
 }) {
   return (
     <section className={styles.block}>
@@ -468,7 +537,8 @@ function WorkBlock({
           const cover = resolveCoverFromMeta(meta, w);
           const titleText = resolveTitleFromMeta(meta, w);
           const authorText =
-            String(w.authorName || w.authorId || w.authorWallet || "").trim() || "Unknown";
+            String(meta?.authorName || "").trim() ||
+            resolveAuthorDisplayName(w.authorId, w.authorName || w.authorWallet, profileTick);
           const categoryText =
             String(meta?.category || w.metaCategory || w.category || "").trim() || "Uncategorized";
           const languageText =

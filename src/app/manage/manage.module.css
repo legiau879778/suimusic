@@ -386,6 +386,12 @@
   padding: 18px;
 }
 
+/* Compact modal for quick actions */
+.modalCompact {
+  width: min(560px, 100%);
+  max-height: 90vh;
+}
+
 /* ===== NEW: MODAL PRO (NFT style) ===== */
 .modalPro {
   width: min(980px, 100%);
@@ -602,6 +608,12 @@
   gap: 6px;
 }
 
+.editInline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .editLabel {
   font-size: 12px;
   opacity: 0.8;
@@ -627,6 +639,25 @@
 .editActions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+.miniBtn {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(2, 6, 23, 0.55);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+.miniBtn:hover {
+  border-color: rgba(250, 204, 21, 0.28);
+}
+.miniBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .licenseBox {

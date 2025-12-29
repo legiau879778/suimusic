@@ -5,7 +5,7 @@ compiled_package_info:
     chainstorm_nft: "0000000000000000000000000000000000000000000000000000000000000000"
     std: "0000000000000000000000000000000000000000000000000000000000000001"
     sui: "0000000000000000000000000000000000000000000000000000000000000002"
-  source_digest: 37E5F31A71379975DB390DBF409CCADE63B95BF65E1FFCD178DB57C3566EF531
+  source_digest: 7B0A2A34C9014164146FBC90F42240D782A2ABC3DEEAEFD7FB930FB0DB863B1C
   build_flags:
     dev_mode: false
     test_mode: false
@@ -15,7 +15,7 @@ compiled_package_info:
     force_recompilation: false
     lock_file: ".\\Move.lock"
     fetch_deps_only: false
-    skip_fetch_latest_git_deps: false
+    skip_fetch_latest_git_deps: true
     default_flavor: sui
     default_edition: ~
     deps_as_root: false

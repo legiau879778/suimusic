@@ -210,6 +210,7 @@ export default function WorkNFTCard(props: {
     let alive = true;
     if (!metaUrl) {
       setMeta(null);
+      setLoadingMeta(false);
       return;
     }
 

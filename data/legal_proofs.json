@@ -1601,7 +1601,7 @@
   {
     "id": "4e07492a-9870-4be9-b2ac-67a5ba7c114c",
     "createdAt": "2025-12-26T15:50:29.468Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "fHbpYiADfINDKX3fOuqjOFTJQFy2",
     "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
     "fileHash": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
@@ -1706,7 +1706,7 @@
   {
     "id": "6291d6c1-bfb5-4bc6-819e-88485a51913f",
     "createdAt": "2025-12-27T01:42:08.477Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "3UDkMCcr44VP5glPqEYEE4ucBQY2",
     "wallet": "0x78636923f0a8fd586d072e683aa86c38ebd420bcaf21b9e7fc66dd881ab24ca2",
     "fileHash": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
@@ -1806,7 +1806,7 @@
   {
     "id": "a500bf7d-169a-40f9-8c33-ca3dae9cb9be",
     "createdAt": "2025-12-27T01:43:59.052Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "3UDkMCcr44VP5glPqEYEE4ucBQY2",
     "wallet": "0x78636923f0a8fd586d072e683aa86c38ebd420bcaf21b9e7fc66dd881ab24ca2",
     "fileHash": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",
@@ -1906,7 +1906,7 @@
   {
     "id": "0058c6d7-6362-42d5-8942-4fb82edec21c",
     "createdAt": "2025-12-27T01:45:08.933Z",
-    "status": "submitted",
+    "status": "rejected",
     "authorId": "3UDkMCcr44VP5glPqEYEE4ucBQY2",
     "wallet": "0x78636923f0a8fd586d072e683aa86c38ebd420bcaf21b9e7fc66dd881ab24ca2",
     "fileHash": "331ad38d9a7b3cfcbde7f35dbf0cbda73dc30a6a53755d00f25e812ccaca1120",

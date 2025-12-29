@@ -15,6 +15,8 @@ import {
   syncWorksFromChain,
 } from "@/lib/workStore";
 import { loadProfile, subscribeProfile, saveProfile } from "@/lib/profileStore";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { signWorkProofMessage } from "@/lib/signWorkProofMessage";
 
 /* ===== SUI ===== */
@@ -166,6 +168,8 @@ export default function RegisterWorkPage() {
 
   const [sellType, setSellType] = useState<SellTypeUI>("exclusive");
   const [royalty, setRoyalty] = useState<string>("5");
+  const [exclusivePrice, setExclusivePrice] = useState<string>("1");
+  const [licensePrice, setLicensePrice] = useState<string>("0.1");
 
   // audio/work file
   const [file, setFile] = useState<File | null>(null);
@@ -195,6 +199,7 @@ export default function RegisterWorkPage() {
   const [proofStatus, setProofStatus] = useState<
     "draft" | "submitted" | "tsa_attested" | "approved" | "rejected"
   >("draft");
+  const [proofRealtime, setProofRealtime] = useState(true);
 
   // author snapshot
   const [authorName, setAuthorName] = useState<string>("Unknown");
@@ -216,7 +221,8 @@ export default function RegisterWorkPage() {
     const apply = () => {
       const p = loadProfile(user.id);
 
-      const name = p?.name?.trim() ? p.name.trim() : "Unknown";
+      const emailName = String(user.email || "").split("@")[0] || user.id;
+      const name = p?.name?.trim() ? p.name.trim() : emailName;
       const phone = p?.phone ?? "";
 
       const email = String(p?.email || user.email || "").trim();
@@ -296,6 +302,18 @@ export default function RegisterWorkPage() {
     return Math.max(0, Math.min(100, Math.floor(n)));
   }, [royalty]);
 
+  const exclusivePriceNum = useMemo(() => {
+    const n = Number(String(exclusivePrice || "").trim().replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n;
+  }, [exclusivePrice]);
+
+  const licensePriceNum = useMemo(() => {
+    const n = Number(String(licensePrice || "").trim().replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n;
+  }, [licensePrice]);
+
   const sellTypeU8 = useMemo(() => {
     if (sellType === "exclusive") return 1;
     if (sellType === "license") return 2;
@@ -332,7 +350,7 @@ export default function RegisterWorkPage() {
     return true;
   }, [configOk, user?.id, walletAddress, title, file, createdDateOk, uploading, isPending]);
 
-  useEffect(() => setErr(null), [step, sellType, activeNet]);
+  useEffect(() => setErr(null), [step, sellType, activeNet, exclusivePrice, licensePrice]);
 
   async function refreshProofStatus() {
     if (step !== 3 || !proofId) return;
@@ -349,6 +367,32 @@ export default function RegisterWorkPage() {
       showToast("Unable to refresh profile status.", "error");
     }
   }
+
+  useEffect(() => {
+    if (step !== 3 || !proofId) return;
+    const ref = doc(db, "proofs", proofId);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (!snap.exists()) return;
+        const data: any = snap.data();
+        if (data?.status) {
+          const next = String(data.status) as
+            | "draft"
+            | "submitted"
+            | "tsa_attested"
+            | "approved"
+            | "rejected";
+          setProofStatus(next);
+        }
+        setProofRealtime(true);
+      },
+      () => {
+        setProofRealtime(false);
+      }
+    );
+    return () => unsub();
+  }, [step, proofId]);
 
 
   function shortCid(cid: string) {
@@ -727,7 +771,8 @@ export default function RegisterWorkPage() {
 
     // 4) metadata JSON
     const profile = loadProfile(user.id);
-    const aName = profile?.name?.trim() ? profile.name.trim() : "Unknown";
+    const emailName = String(user.email || "").split("@")[0] || user.id;
+    const aName = profile?.name?.trim() ? profile.name.trim() : emailName;
 
     const createdISO = createdDate.trim()
       ? parseDDMMYYYYToISO(createdDate.trim())
@@ -777,11 +822,13 @@ export default function RegisterWorkPage() {
           }
         : {}),
 
-      attributes: [
-        { trait_type: "sellType", value: sellType },
-        { trait_type: "sell_type_u8", value: sellTypeU8 },
-        { trait_type: "royalty_percent", value: royaltyNum },
-        ...(category.trim() ? [{ trait_type: "category", value: category.trim() }] : []),
+        attributes: [
+          { trait_type: "sellType", value: sellType },
+          { trait_type: "sell_type_u8", value: sellTypeU8 },
+          { trait_type: "royalty_percent", value: royaltyNum },
+          { trait_type: "exclusive_price_sui", value: exclusivePriceNum },
+          { trait_type: "license_price_sui", value: licensePriceNum },
+          ...(category.trim() ? [{ trait_type: "category", value: category.trim() }] : []),
         ...(language.trim() ? [{ trait_type: "language", value: language.trim() }] : []),
         ...(createdDate.trim()
           ? [{ trait_type: "createdDate", value: createdDate.trim() }]
@@ -888,6 +935,8 @@ export default function RegisterWorkPage() {
     if (!createdDate && draft.createdDate) setCreatedDate(draft.createdDate);
     if (royalty === "5" && draft.royalty) setRoyalty(draft.royalty);
     if (sellType === "exclusive" && draft.sellType) setSellType(draft.sellType);
+    if (exclusivePrice === "1" && draft.exclusivePrice) setExclusivePrice(draft.exclusivePrice);
+    if (licensePrice === "0.1" && draft.licensePrice) setLicensePrice(draft.licensePrice);
 
     if (!fileBlobId && draft.fileBlobId) setFileBlobId(draft.fileBlobId);
     if (!fileUrl && draft.fileUrl) setFileUrl(draft.fileUrl);
@@ -926,6 +975,8 @@ export default function RegisterWorkPage() {
       createdDate,
       royalty,
       sellType,
+      exclusivePrice,
+      licensePrice,
       fileBlobId,
       fileUrl,
       coverBlobId,
@@ -944,6 +995,8 @@ export default function RegisterWorkPage() {
     createdDate,
     royalty,
     sellType,
+    exclusivePrice,
+    licensePrice,
     fileBlobId,
     fileUrl,
     coverBlobId,
@@ -956,6 +1009,7 @@ export default function RegisterWorkPage() {
   ]);
 
   useEffect(() => {
+    if (proofRealtime) return;
     if (step !== 3 || !proofId) return;
     if (proofStatus === "approved" || proofStatus === "rejected") return;
     let alive = true;
@@ -976,7 +1030,7 @@ export default function RegisterWorkPage() {
       alive = false;
       window.clearInterval(id);
     };
-  }, [step, proofId, proofStatus]);
+  }, [proofRealtime, step, proofId, proofStatus]);
 
   /* =======================
      ✅ step nav
@@ -1084,6 +1138,20 @@ Time: ${new Date().toISOString()}
       const proof = proofData?.proof;
       setProofId(proof?.id || "");
       setProofStatus(proof?.status || "submitted");
+      if (proof?.id) {
+        await setDoc(
+          doc(db, "proofs", proof.id),
+          {
+            authorId: user!.id,
+            status: proof?.status || "submitted",
+            title: title.trim() || "Untitled",
+            walrusMetaId: metadataBlobId,
+            updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
       showToast("Submission sent. Waiting for admin review.", "success");
 
       const existing = getWorkByProofId(proof?.id);
@@ -1103,6 +1171,8 @@ Time: ${new Date().toISOString()}
           approvalSignature: proof.approval?.signature,
           approvalWallet: proof.approval?.adminWallet,
           approvalTime: proof.approval?.time,
+          exclusivePriceSui: exclusivePriceNum,
+          licensePriceSui: licensePriceNum,
         });
       } else {
         addWork({
@@ -1135,6 +1205,8 @@ Time: ${new Date().toISOString()}
           createdDate: createdDate.trim() || undefined,
           sellType,
           royalty: royaltyNum,
+          exclusivePriceSui: exclusivePriceNum,
+          licensePriceSui: licensePriceNum,
           quorumWeight: 1,
         });
       }
@@ -1293,6 +1365,8 @@ Time: ${new Date().toISOString()}
           createdDate: createdDate.trim() || undefined,
           sellType,
           royalty: royaltyNum,
+          exclusivePriceSui: exclusivePriceNum,
+          licensePriceSui: licensePriceNum,
           quorumWeight: 1,
         });
 
@@ -1697,10 +1771,41 @@ Time: ${new Date().toISOString()}
                 <span className={styles.help}>0-100% (stored on-chain as u8)</span>
               </label>
 
+              <label className={styles.field}>
+                <span className={styles.label}>Exclusive price (SUI)</span>
+                <input
+                  className={styles.input}
+                  value={exclusivePrice}
+                  onChange={(e) => setExclusivePrice(e.target.value)}
+                  placeholder="Example: 1"
+                />
+                <span className={styles.help}>Full ownership transfer. 0 = not for exclusive sale.</span>
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.label}>License price (SUI)</span>
+                <input
+                  className={styles.input}
+                  value={licensePrice}
+                  onChange={(e) => setLicensePrice(e.target.value)}
+                  placeholder="Example: 0.1"
+                />
+                <span className={styles.help}>Non-exclusive usage license. 0 = no license offer.</span>
+              </label>
+
               <div className={styles.reviewCard}>
                 <div className={styles.reviewTitle}>Review process</div>
                 <div className={styles.reviewText}>
                   Work enters <b>pending</b> status &rarr; <b>verified</b> once quorum is met.
+                </div>
+              </div>
+
+              <div className={styles.reviewCard}>
+                <div className={styles.reviewTitle}>Price types</div>
+                <div className={styles.reviewText}>
+                  <b>Exclusive</b> transfers full ownership; <b>License</b> grants usage rights without
+                  transferring ownership; <b>Membership</b> (platform) unlocks access and is managed in
+                  the membership section.
                 </div>
               </div>
             </div>
@@ -1722,6 +1827,8 @@ Time: ${new Date().toISOString()}
               <Row label="Creation date" value={createdDate || "-"} />
               <Row label="SellType" value={`${sellType} (u8=${sellTypeU8})`} />
               <Row label="Royalty" value={`${royaltyNum}%`} />
+              <Row label="Exclusive price" value={`${exclusivePriceNum} SUI`} />
+              <Row label="License price" value={`${licensePriceNum} SUI`} />
               <Row label="File Blob ID" value={fileBlobId ? shortCid(fileBlobId) : "Not set"} mono />
               <Row label="Cover Blob ID" value={coverBlobId ? shortCid(coverBlobId) : "Not set"} mono />
               <Row

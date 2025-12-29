@@ -1,37 +1,48 @@
 .page {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(250, 204, 21, 0.18), transparent 40%),
-    radial-gradient(circle at 80% 80%, rgba(56, 189, 248, 0.15), transparent 45%),
-    linear-gradient(180deg, #020617, #020617);
   color: #e5e7eb;
+  background:
+    radial-gradient(900px 500px at 10% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
+    radial-gradient(700px 520px at 90% 10%, rgba(250, 204, 21, 0.20), transparent 55%),
+    radial-gradient(500px 500px at 20% 80%, rgba(34, 197, 94, 0.12), transparent 60%),
+    linear-gradient(180deg, #030712 0%, #020617 40%, #020617 100%);
+  font-family: "Space Grotesk", "IBM Plex Sans", "Noto Sans", sans-serif;
 }
 
 .shell {
-  max-width: 1100px;
+  --glass: rgba(2, 6, 23, 0.72);
+  --line: rgba(148, 163, 184, 0.18);
+  --accent: #fde047;
+  --accent-soft: rgba(250, 204, 21, 0.14);
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 32px 18px 80px;
+  padding: 34px 18px 90px;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
-  gap: 14px;
-  align-items: flex-start;
-  margin-bottom: 18px;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 22px;
+  padding: 0 14px 18px 30px;
+  border-bottom: 1px solid rgba(250, 204, 21, 0.12);
 }
 
 .title {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 900;
   margin: 0 0 6px;
-  color: #fde047;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .subtitle {
   margin: 0;
   opacity: 0.85;
   font-size: 13px;
+  max-width: 560px;
 }
 
 .warn {
@@ -41,36 +52,54 @@
 }
 
 .loading {
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(56,189,248,.12);
-  border: 1px solid rgba(56,189,248,.3);
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
   color: #a5f3fc;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .empty {
-  padding: 22px;
-  border-radius: 16px;
-  background: rgba(2,6,23,.6);
-  border: 1px solid rgba(255,255,255,.08);
+  padding: 26px;
+  border-radius: 18px;
+  background: var(--glass);
+  border: 1px solid var(--line);
   text-align: center;
-  opacity: 0.8;
+  opacity: 0.85;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
 .table {
+  position: relative;
   display: grid;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 20px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  gap: 12px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(2, 6, 23, 0.78);
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.table::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(250, 204, 21, 0.08), transparent 60%),
+    radial-gradient(300px 120px at 20% 0%, rgba(56, 189, 248, 0.12), transparent 70%);
+  opacity: 0.6;
 }
 
 .thead,
 .row {
+  position: relative;
   display: grid;
   grid-template-columns: 60px 1.2fr 0.6fr 0.7fr 1.5fr;
   gap: 12px;
@@ -79,30 +108,42 @@
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(2, 6, 23, 0.55);
+  z-index: 1;
 }
 
 .thead {
   text-transform: uppercase;
   font-size: 11px;
-  letter-spacing: 0.16em;
-  opacity: 0.85;
-  background: rgba(2, 6, 23, 0.8);
-  border-color: rgba(250, 204, 21, 0.2);
+  letter-spacing: 0.2em;
+  opacity: 0.9;
+  background: rgba(2, 6, 23, 0.88);
+  border-color: rgba(250, 204, 21, 0.25);
 }
 
 .row {
   background: rgba(2, 6, 23, 0.72);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  animation: rowIn 0.45s ease both;
 }
 
 .row:nth-child(even) {
   background: rgba(3, 7, 18, 0.8);
 }
+.row:nth-child(2) {
+  border-color: rgba(250, 204, 21, 0.45);
+  box-shadow: 0 10px 30px rgba(250, 204, 21, 0.12);
+}
+.row:nth-child(3) {
+  border-color: rgba(56, 189, 248, 0.4);
+}
+.row:nth-child(4) {
+  border-color: rgba(34, 197, 94, 0.35);
+}
 
 .row:hover {
   transform: translateY(-1px);
-  border-color: rgba(250, 204, 21, 0.35);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  border-color: rgba(250, 204, 21, 0.4);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
 }
 
 .rank {
@@ -111,15 +152,29 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: rgba(250, 204, 21, 0.12);
-  border: 1px solid rgba(250, 204, 21, 0.3);
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+.row:nth-child(2) .rank {
+  background: rgba(250, 204, 21, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.45);
+}
+.row:nth-child(3) .rank {
+  color: #a5f3fc;
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.12);
+}
+.row:nth-child(4) .rank {
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.14);
 }
 
 .author {
-  font-weight: 700;
+  font-weight: 800;
   color: #e2e8f0;
 }
 
@@ -146,18 +201,32 @@
 .topVotes {
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(250,204,21,.18);
-  border: 1px solid rgba(250,204,21,.4);
+  background: rgba(250, 204, 21, 0.18);
+  border: 1px solid rgba(250, 204, 21, 0.45);
   color: #fde047;
   font-size: 12px;
   font-weight: 800;
 }
+
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.row:nth-child(2) { animation-delay: 0.04s; }
+.row:nth-child(3) { animation-delay: 0.08s; }
+.row:nth-child(4) { animation-delay: 0.12s; }
+.row:nth-child(5) { animation-delay: 0.16s; }
+.row:nth-child(6) { animation-delay: 0.2s; }
 
 @media (max-width: 800px) {
   .thead,
   .row {
     grid-template-columns: 40px 1fr 0.6fr 0.6fr;
     padding: 12px;
+  }
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
   }
   .topWork {
     display: none;

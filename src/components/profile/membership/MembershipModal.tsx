@@ -13,6 +13,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
+import { addTrade } from "@/lib/tradeStore";
 
 const PACKAGE_ID =
   (process.env.NEXT_PUBLIC_MEMBERSHIP_PACKAGE_ID || "").trim() ||
@@ -109,7 +110,18 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
       }
 
       // XỬ LÝ KHI THÀNH CÔNG
-      if (finalTxHash && user?.id) {
+      const userId = (user?.id || user?.email || "").trim();
+      if (finalTxHash && userId) {
+        addTrade(userId, {
+          id: crypto.randomUUID(),
+          type: "buy",
+          title: `Membership ${base.type}${"plan" in base ? ` (${(base as any).plan})` : ""}`,
+          amountSui: priceSui,
+          txHash: finalTxHash,
+          status: "pending",
+          createdAt: Date.now(),
+        });
+
         await suiClient.waitForTransaction({ digest: finalTxHash });
         const membership: Membership = {
           type: base.type,
@@ -126,9 +138,11 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
           active: true,
           ...(membership.plan ? { plan: membership.plan } : {}),
         };
-        await updateDoc(doc(db, "users", user.id), {
+        if (user?.id) {
+          await updateDoc(doc(db, "users", user.id), {
           membership: membershipPayload,
-        });
+          });
+        }
         pushToast("success", "Kích hoạt thành công!");
         onSuccess(membership);
         onClose();

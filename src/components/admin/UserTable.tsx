@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "@/styles/admin/users.module.css";
 
-import { getUsers, subscribeUsers, updateUserRole } from "@/lib/userStore";
 import type { UserRole } from "@/context/AuthContext";
+import { db } from "@/lib/firebase";
+import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 
 import { Crown, User, UserCircle, CheckCircle } from "@phosphor-icons/react";
 
@@ -16,17 +17,28 @@ function shortAddr(a?: string) {
 }
 
 export default function UserTable({ query = "" }: { query?: string }) {
-  // ✅ IMPORTANT: đừng đọc localStorage trong initial render (SSR -> [])
   const [mounted, setMounted] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setMounted(true);
 
-    const refresh = () => setUsers(getUsers());
-    refresh();
+    const unsub = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setUsers(list);
+        setLoading(false);
+        setError("");
+      },
+      () => {
+        setLoading(false);
+        setError("Failed to load users from Firestore.");
+      }
+    );
 
-    const unsub = subscribeUsers(refresh);
     return () => unsub();
   }, []);
 
@@ -37,14 +49,13 @@ export default function UserTable({ query = "" }: { query?: string }) {
     return users.filter((u) => {
       const email = (u.email || "").toLowerCase();
       const role = (u.role || "").toLowerCase();
-      const wallet = (u.wallet?.address || "").toLowerCase();
+      const wallet = (u.wallet?.address || u.walletAddress || "").toLowerCase();
       return email.includes(k) || role.includes(k) || wallet.includes(k);
     });
   }, [users, query]);
 
-  function changeRole(id: string, role: UserRole) {
-    updateUserRole(id, role);
-    setUsers(getUsers());
+  async function changeRole(id: string, role: UserRole) {
+    await updateDoc(doc(db, "users", id), { role });
   }
 
   // ✅ tránh hydration mismatch: SSR render null, client mới render UI thật
@@ -65,6 +76,18 @@ export default function UserTable({ query = "" }: { query?: string }) {
           </div>
         </div>
       </div>
+
+      {loading ? (
+        <div className={styles.empty}>
+          <div className={styles.emptyTitle}>Đang tải…</div>
+          <div className={styles.emptySub}>Đang đồng bộ từ Firestore.</div>
+        </div>
+      ) : error ? (
+        <div className={styles.empty}>
+          <div className={styles.emptyTitle}>Không tải được danh sách</div>
+          <div className={styles.emptySub}>{error}</div>
+        </div>
+      ) : null}
 
       <div className={styles.gridTable}>
         <div className={`${styles.gridRow} ${styles.gridHead}`}>
@@ -88,8 +111,10 @@ export default function UserTable({ query = "" }: { query?: string }) {
             </div>
 
             <div className={styles.walletCell}>
-              <span className={styles.walletPill} title={u.wallet?.address || ""}>
-                {u.wallet?.address ? shortAddr(u.wallet.address) : "—"}
+              <span className={styles.walletPill} title={u.wallet?.address || u.walletAddress || ""}>
+                {u.wallet?.address || u.walletAddress
+                  ? shortAddr(u.wallet?.address || u.walletAddress)
+                  : "—"}
               </span>
               {u.wallet?.verified ? (
                 <span className={styles.verified} title="Wallet verified">
@@ -129,7 +154,7 @@ export default function UserTable({ query = "" }: { query?: string }) {
           </div>
         ))}
 
-        {filtered.length === 0 ? (
+        {!loading && !error && filtered.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.emptyTitle}>Không có kết quả</div>
             <div className={styles.emptySub}>Thử tìm theo email / role / wallet.</div>

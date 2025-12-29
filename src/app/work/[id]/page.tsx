@@ -1,17 +1,25 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getWorkById, getVerifiedWorks, syncWorksFromChain, Work } from "@/lib/workStore";
 import styles from "@/styles/work.module.css";
 import Link from "next/link";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
-import { toGateway } from "@/lib/profileStore";
+import {
+  PROFILE_UPDATED_EVENT,
+  findProfileByEmail,
+  findProfileByWallet,
+  loadProfile,
+  toGateway,
+} from "@/lib/profileStore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { getActiveMembership } from "@/lib/membershipStore";
 import { canUseMusicFeature } from "@/lib/featerGuard";
 import { getUsageStatus, incUsage } from "@/lib/featureUsageStore";
+import { db } from "@/lib/firebase";
+import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
 
 function resolveMetaInput(w: any) {
   const raw = String(w?.walrusMetaId || w?.metadataCid || w?.metadata || w?.hash || "").trim();
@@ -36,6 +44,34 @@ function pickAttr(meta: any, key: string) {
     (a: any) => String(a?.trait_type || "").trim().toLowerCase() === key
   );
   return String(hit?.value ?? "").trim();
+}
+
+function resolveAuthorName(authorId?: string, fallback?: string) {
+  const id = String(authorId || "").trim();
+  if (!id) return String(fallback || "—");
+
+  let p = loadProfile(id);
+  if (!p || Object.keys(p).length === 0) {
+    const byWallet = findProfileByWallet(id);
+    if (byWallet?.profile) p = byWallet.profile;
+  }
+  if (!p || Object.keys(p).length === 0) {
+    const byEmail = findProfileByEmail(id);
+    if (byEmail?.profile) p = byEmail.profile;
+  }
+
+  const name = String((p as any)?.name || "").trim();
+  return name || String(fallback || id);
+}
+
+function resolveAuthorFromMeta(meta: any) {
+  const raw =
+    meta?.properties?.author?.name ||
+    meta?.author?.name ||
+    meta?.author?.display_name ||
+    meta?.author;
+  if (typeof raw === "string") return raw.trim();
+  return "";
 }
 
 function resolveCover(meta: any, w: any) {
@@ -107,15 +143,21 @@ function formatDuration(sec: number) {
 
 export default function WorkDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingSeekRef = useRef(0);
+  const canPlayRef = useRef(false);
+  const resetKeyRef = useRef("");
 
   const [work, setWork] = useState<Work | undefined>(undefined);
   const [meta, setMeta] = useState<any | null>(null);
   const [usageTick, setUsageTick] = useState(0);
+  const [profileTick, setProfileTick] = useState(0);
   const [relatedPage, setRelatedPage] = useState(0);
   const [canPlay, setCanPlay] = useState(false);
+  const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let alive = true;
@@ -135,6 +177,25 @@ export default function WorkDetailPage() {
       window.removeEventListener("works_updated", onUpdate);
     };
   }, [id]);
+
+  useEffect(() => {
+    const nftId = String(work?.nftObjectId || "").trim();
+    if (!nftId) return;
+    let alive = true;
+    getDoc(doc(db, "works", nftId))
+      .then((snap) => {
+        if (!alive) return;
+        const data: any = snap.data();
+        if (data?.deletedAt) {
+          showToast("Work đã bị gỡ khỏi search.", "warning");
+          router.replace("/search");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [work?.nftObjectId, router, showToast]);
 
   useEffect(() => {
     let alive = true;
@@ -164,8 +225,35 @@ export default function WorkDetailPage() {
     window.addEventListener("usage_updated", onUsage);
     return () => window.removeEventListener("usage_updated", onUsage);
   }, []);
+
+  useEffect(() => {
+    const onProfile = () => setProfileTick((x) => x + 1);
+    window.addEventListener(PROFILE_UPDATED_EVENT, onProfile as EventListener);
+    return () =>
+      window.removeEventListener(PROFILE_UPDATED_EVENT, onProfile as EventListener);
+  }, []);
+
+  useEffect(() => {
+    const ref = collection(db, "works");
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const next: Record<string, boolean> = {};
+        snap.forEach((docSnap) => {
+          const data: any = docSnap.data();
+          if (data?.deletedAt) {
+            next[docSnap.id.toLowerCase()] = true;
+          }
+        });
+        setDeletedMap(next);
+      },
+      () => setDeletedMap({})
+    );
+    return () => unsub();
+  }, []);
   
   const membership = getActiveMembership((user?.membership as any) || null);
+  const membershipKey = membership ? `${membership.type ?? ""}:${membership.expireAt ?? ""}` : "none";
   const userId = user?.id || "";
   const listenLimit = 3;
   const usageStatus = useMemo(() => {
@@ -176,9 +264,14 @@ export default function WorkDetailPage() {
   const relatedByAuthor = useMemo(() => {
     if (!work) return [];
     return getVerifiedWorks()
-      .filter((w) => w.id !== work.id && w.authorId === work.authorId)
+      .filter((w) => {
+        if (w.id === work.id || w.authorId !== work.authorId) return false;
+        const nftId = String(w.nftObjectId || "").toLowerCase();
+        if (nftId && deletedMap[nftId]) return false;
+        return true;
+      })
       .slice(0, 6);
-  }, [work]);
+  }, [work, deletedMap]);
 
   const relatedTotalPages = Math.max(1, Math.ceil(relatedByAuthor.length / 4));
   const relatedSlice = useMemo(() => {
@@ -194,23 +287,91 @@ export default function WorkDetailPage() {
     if (!work) return [];
     const map = new Map<string, Work>();
     for (const w of getVerifiedWorks()) {
+      const nftId = String(w.nftObjectId || "").toLowerCase();
+      if (nftId && deletedMap[nftId]) continue;
       if (w.authorId === work.authorId) continue;
       if (!map.has(w.authorId)) map.set(w.authorId, w);
       if (map.size >= 6) break;
     }
     return Array.from(map.values());
-  }, [work]);
+  }, [work, deletedMap]);
 
   const cover = useMemo(() => (work ? resolveCover(meta, work) : ""), [meta, work]);
   const mediaUrl = useMemo(() => (work ? resolveMedia(meta, work) : ""), [meta, work]);
+  const authorDisplayName = useMemo(
+    () =>
+      resolveAuthorFromMeta(meta) ||
+      resolveAuthorName(work?.authorId, work?.authorName),
+    [work?.authorId, work?.authorName, profileTick, meta]
+  );
   const mediaKind = useMemo(
     () => (mediaUrl ? guessMediaKind(meta, mediaUrl) : "other"),
     [meta, mediaUrl]
   );
 
   useEffect(() => {
-    setCanPlay(false);
-  }, [mediaUrl, membership, userId, usageTick]);
+    const key = `${mediaUrl}|${membershipKey}|${userId}`;
+    if (resetKeyRef.current !== key) {
+      resetKeyRef.current = key;
+      canPlayRef.current = false;
+      setCanPlay(false);
+    }
+  }, [mediaUrl, membershipKey, userId, usageTick]);
+
+  function seekBy(seconds: number) {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.readyState < 1 || !Number.isFinite(el.duration) || el.duration <= 0) {
+      pendingSeekRef.current += seconds;
+      return;
+    }
+    const nextRaw = el.currentTime + seconds;
+    const hasDuration = Number.isFinite(el.duration) && el.duration > 0;
+    const next = hasDuration
+      ? Math.min(Math.max(0, nextRaw), el.duration)
+      : Math.max(0, nextRaw);
+    el.currentTime = Number.isFinite(next) ? next : el.currentTime;
+  }
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const flush = () => {
+      if (!pendingSeekRef.current) return;
+      const nextRaw = el.currentTime + pendingSeekRef.current;
+      const hasDuration = Number.isFinite(el.duration) && el.duration > 0;
+      const next = hasDuration
+        ? Math.min(Math.max(0, nextRaw), el.duration)
+        : Math.max(0, nextRaw);
+      el.currentTime = Number.isFinite(next) ? next : el.currentTime;
+      pendingSeekRef.current = 0;
+    };
+    el.addEventListener("loadedmetadata", flush);
+    el.addEventListener("canplay", flush);
+    return () => {
+      el.removeEventListener("loadedmetadata", flush);
+      el.removeEventListener("canplay", flush);
+    };
+  }, [mediaUrl]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "j" || e.key === "J") {
+        e.preventDefault();
+        seekBy(-10);
+      }
+      if (e.key === "ArrowRight" || e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        seekBy(10);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (!work) {
     return (
@@ -235,6 +396,7 @@ export default function WorkDetailPage() {
       incUsage(userId, "music_use", 1);
       setUsageTick((x) => x + 1);
     }
+    canPlayRef.current = true;
     setCanPlay(true);
     audioRef.current?.play();
   }
@@ -264,7 +426,7 @@ export default function WorkDetailPage() {
         <div className={styles.metaGrid}>
           <p className={styles.meta}>
             <strong>Author:</strong>{" "}
-            {work.authorName || work.authorId || "—"}
+            {authorDisplayName}
           </p>
 
           <p className={styles.meta}>
@@ -313,6 +475,22 @@ export default function WorkDetailPage() {
               >
                 Listen
               </button>
+              <button
+                type="button"
+                onClick={() => seekBy(-10)}
+                className={styles.seekBtn}
+                aria-label="Rewind 10 seconds"
+              >
+                −10s
+              </button>
+              <button
+                type="button"
+                onClick={() => seekBy(10)}
+                className={styles.seekBtn}
+                aria-label="Forward 10 seconds"
+              >
+                +10s
+              </button>
               {!membership ? (
                 <span className={styles.audioHint}>
                   Remaining: {usageStatus ? `${usageStatus.remaining}/${usageStatus.limit}` : "0/3"}
@@ -327,7 +505,7 @@ export default function WorkDetailPage() {
               preload="metadata"
               src={mediaUrl}
               onPlay={(e) => {
-                if (!canPlay) {
+                if (!canPlayRef.current) {
                   e.preventDefault();
                   audioRef.current?.pause();
                 }
