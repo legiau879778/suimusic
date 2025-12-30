@@ -216,7 +216,7 @@ export default function AuthorProfilePage() {
       () => {
         setProfile(resolveProfile(authorId, repWork));
       },
-      { listenAll: true }
+      { listenAll: true, email: repEmailKey, wallet: repWalletKey }
     );
 
     return () => unsub?.();

@@ -600,7 +600,9 @@ export default function ManagePage() {
     } else if (view === "ai") {
       setAiList(loadAiLyrics(userId || userEmail || "guest"));
     } else {
-      syncWorksFromChain({ force: true }).then(load).catch(() => load());
+      syncWorksFromChain({ network: activeNet, force: true })
+        .then(load)
+        .catch(() => load());
     }
     window.addEventListener("works_updated", load);
     if (view === "ai") {
@@ -824,7 +826,9 @@ export default function ManagePage() {
         setPendingProofs((prev) => prev.filter((x) => x.id !== proofId));
         showToast("Mint successful", "success");
         setView("active");
-        syncWorksFromChain({ force: true }).then(load).catch(() => load());
+        syncWorksFromChain({ network: activeNet, force: true })
+          .then(load)
+          .catch(() => load());
       } catch (e: any) {
         showToast(e?.message || "Unable to mint proof", "error");
       } finally {

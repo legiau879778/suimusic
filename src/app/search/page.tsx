@@ -19,9 +19,10 @@ import {
   getVoteCountForWork,
   resolveWorkVoteKey,
 } from "@/lib/workVoteChain";
-import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
+import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
+import { useToast } from "@/context/ToastContext";
 
 /* ===== Phosphor Icons ===== */
 import { MagnifyingGlass, Sparkle, ClockClockwise, ClockCounterClockwise } from "@phosphor-icons/react";
@@ -147,8 +148,10 @@ function formatDuration(sec: number) {
 
 export default function SearchPage() {
   const suiClient = useSuiClient();
+  const currentAccount = useCurrentAccount();
   const { mutateAsync: signAndExecuteTransaction, isPending } =
     useSignAndExecuteTransaction();
+  const { showToast } = useToast();
   const [works, setWorks] = useState<Work[]>([]);
   const [voteAvailable, setVoteAvailable] = useState(true);
 
@@ -390,13 +393,6 @@ export default function SearchPage() {
 
   const warnedVoteRef = useRef(false);
 
-  const showToast = (message: string, _type?: string) => {
-    if (typeof window !== "undefined") {
-      // eslint-disable-next-line no-console
-      console.warn("[toast]", message);
-    }
-  };
-
   async function handleVote(work: Work) {
     const canVote = canUseWorkVote() && voteAvailable;
     if (!canVote) {
@@ -406,7 +402,7 @@ export default function SearchPage() {
       }
       return;
     }
-    if (!suiClient) {
+    if (!currentAccount?.address) {
       showToast("Connect wallet to vote.", "warning");
       return;
     }

@@ -1588,7 +1588,7 @@ Time: ${new Date().toISOString()}
       });
 
       showToast("Mint successful.", "success");
-      syncWorksFromChain({ force: true });
+      syncWorksFromChain({ network: activeNet, force: true });
       router.push("/manage");
     } catch (e: any) {
       const msg = String(e?.message || e);

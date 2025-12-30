@@ -36,11 +36,11 @@ export default function Footer() {
               <span className={styles.logoDot} aria-hidden="true">
                 <MusicNotes weight="duotone" size={18} />
               </span>
-              <h3 className={styles.title}>SUIMUSIC</h3>
+              <h3 className={styles.title}>MUSIC MEMBERSHIP</h3>
             </div>
 
             <p className={styles.tagline}>
-              Membership Music Copyright Model — register, verify and trade transparent copyrights
+              Copyright Model — register, verify and trade transparent copyrights
               on blockchain.
             </p>
 
@@ -117,7 +117,7 @@ export default function Footer() {
         <div className={styles.divider} />
 
         <div className={styles.bottom}>
-          <div>© {new Date().getFullYear()} SUIMUSIC Copyright • All rights reserved</div>
+          <div>© {new Date().getFullYear()} Membership Music Copyright • All rights reserved</div>
 
           <div className={styles.bottomRight}>
             <a className={styles.miniLink} href="#">

@@ -84,10 +84,13 @@ export async function getVoteCountForWork(params: {
     // resp.data.content.fields.value.value
     const content: any = (resp as any)?.data?.content;
     const fields = content?.fields;
-    const valueObj = fields?.value; // VoteCount
-    const value = valueObj?.fields?.value;
+    const valueObj = fields?.value; // VoteCount | u64
+    const rawValue =
+      typeof valueObj === "number" || typeof valueObj === "string"
+        ? valueObj
+        : valueObj?.fields?.value ?? valueObj?.value;
 
-    const n = Number(value);
+    const n = Number(rawValue);
     return Number.isFinite(n) ? n : 0;
   } catch {
     return 0;

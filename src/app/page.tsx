@@ -44,7 +44,7 @@ export default function HomePage() {
       <section className={styles.hero}>
         <div className={styles.heroShell}>
           <div className={styles.heroContent}>
-            <span className={styles.badge}>SUIMUSIC: Membership Music Copyright</span>
+            <span className={styles.badge}>Membership Music Copyright</span>
 
             <h1 className={styles.title}>
               Protect &amp; Trade <br />
@@ -108,7 +108,7 @@ export default function HomePage() {
 
             <div className={styles.nftBody}>
               <div className={styles.nftTopRow}>
-                <div className={styles.nftTitle}>SUIMUSIC #MMC</div>
+                <div className={styles.nftTitle}>SUI #MMC</div>
                 <div className={styles.nftPrice}>1.000 SUI</div>
               </div>
 
@@ -146,7 +146,7 @@ export default function HomePage() {
               <FileText weight="duotone" className={styles.featureIconSvg} />
             </div>
             <div className={styles.featureBodyV2}>
-              <div className={styles.featureBrand}>SUIMUSIC</div>
+              <div className={styles.featureBrand}>MEMBERSHIP MUSIC</div>
               <div className={styles.featureTitleV2}>Register work</div>
               <div className={styles.featureSubV2}>Record work ownership on-chain</div>
             </div>
@@ -157,7 +157,7 @@ export default function HomePage() {
               <ShieldCheck weight="duotone" className={styles.featureIconSvg} />
             </div>
             <div className={styles.featureBodyV2}>
-              <div className={styles.featureBrand}>SUIMUSIC</div>
+              <div className={styles.featureBrand}>MEMBERSHIP SUIMUSIC</div>
               <div className={styles.featureTitleV2}>Manage copyrights</div>
               <div className={styles.featureSubV2}>Track status, ownership and licenses</div>
             </div>
@@ -168,7 +168,7 @@ export default function HomePage() {
               <MagnifyingGlass weight="duotone" className={styles.featureIconSvg} />
             </div>
             <div className={styles.featureBodyV2}>
-              <div className={styles.featureBrand}>SUIMUSIC</div>
+              <div className={styles.featureBrand}>MEMBERSHIP MUSIC</div>
               <div className={styles.featureTitleV2}>Search works</div>
               <div className={styles.featureSubV2}>Verify origin &amp; ownership instantly</div>
             </div>
@@ -179,7 +179,7 @@ export default function HomePage() {
               <Coins weight="duotone" className={styles.featureIconSvg} />
             </div>
             <div className={styles.featureBodyV2}>
-              <div className={styles.featureBrand}>SUIMUSIC</div>
+              <div className={styles.featureBrand}>MEMBERSHIP MUSIC</div>
               <div className={styles.featureTitleV2}>Trade copyrights</div>
               <div className={styles.featureSubV2}>Buy &amp; issue licenses transparently on-chain</div>
             </div>

@@ -2832,5 +2832,133 @@
       "signature": "AD+QUPaZoB3EZc0zxmiphbgeZzVKZu5s63lD7FZKwiXmCVjxzUV/K4+Kip0GdoSKFX3qxrPAIKn4YYCRvcTFHghuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
       "time": "2025-12-29T18:28:27.943Z"
     }
+  },
+  {
+    "id": "21021c38-f5cd-4ec1-8224-594632cee3cb",
+    "createdAt": "2025-12-30T10:47:11.261Z",
+    "status": "approved",
+    "authorId": "3UDkMCcr44VP5glPqEYEE4ucBQY2",
+    "wallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
+    "fileHash": "337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+    "metaHash": "ca33be4d1cbe1c7f267c340c498b135daade743cc04a8794addf2d667d4d2a0f",
+    "walrusFileId": "337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+    "walrusMetaId": "ca33be4d1cbe1c7f267c340c498b135daade743cc04a8794addf2d667d4d2a0f",
+    "walrusCoverId": "9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+    "message": "CHAINSTORM WORK PROOF\nWallet: 0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a\nFileHash: 337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6\nMetaHash: ca33be4d1cbe1c7f267c340c498b135daade743cc04a8794addf2d667d4d2a0f\nWalrusFileId: 337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6\nWalrusMetaId: ca33be4d1cbe1c7f267c340c498b135daade743cc04a8794addf2d667d4d2a0f\nTime: 2025-12-30T10:47:00.482Z",
+    "authorSignature": "ACRcjkOY32obJG17koQ876HyUlsUmXjxcG8i9d6Cr/MwOHZgdX8HbKDTT7+sYTdkmzMzCwk0wMpDmFAHpAFADQduiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
+    "signatureVerified": true,
+    "signatureVerifyReason": "OK",
+    "metadata": {
+      "name": "Tết Đong Đầy 2",
+      "description": "Chainstorm WorkNFT metadata (Walrus)",
+      "image": "/api/walrus/blob/9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+      "animation_url": "/api/walrus/blob/337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+      "duration": 216,
+      "file": {
+        "walrusId": "337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+        "url": "/api/walrus/blob/337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+        "mime": "audio/mpeg",
+        "name": "Tết Đong Đầy 2.mp3",
+        "size": 3542197,
+        "sha256": "337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+        "duration": 216
+      },
+      "cover_image": "/api/walrus/blob/9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+      "cover": {
+        "walrusId": "9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+        "url": "/api/walrus/blob/9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+        "mime": "image/jpeg",
+        "name": "1672396691711_300.jpg",
+        "size": 12208
+      },
+      "attributes": [
+        {
+          "trait_type": "sellType",
+          "value": "exclusive"
+        },
+        {
+          "trait_type": "sell_type_u8",
+          "value": 1
+        },
+        {
+          "trait_type": "royalty_percent",
+          "value": 5
+        },
+        {
+          "trait_type": "exclusive_price_sui",
+          "value": 1
+        },
+        {
+          "trait_type": "license_price_sui",
+          "value": 0
+        },
+        {
+          "trait_type": "usage_rights",
+          "value": "standard"
+        },
+        {
+          "trait_type": "ai_training_allowed",
+          "value": false
+        },
+        {
+          "trait_type": "category",
+          "value": "Traditional"
+        },
+        {
+          "trait_type": "language",
+          "value": "vi"
+        },
+        {
+          "trait_type": "createdDate",
+          "value": "06/01/2020"
+        }
+      ],
+      "properties": {
+        "app": "Chainstorm",
+        "network": "testnet",
+        "category": "Traditional",
+        "language": "vi",
+        "createdDate": "06/01/2020",
+        "createdAtISO": "2020-01-06T00:00:00.000Z",
+        "usageRights": "standard",
+        "aiTrainingAllowed": false,
+        "chainstorm": {
+          "packageId": "0xc43c78850874e8169e30c4c5bcfe9125b332440a67537285592307567bbdfd42",
+          "registryId": "0x960fdf5879c9942fb6152b12198dd99b7b8a67a30d551238a4dc68f15c3e1ff0",
+          "module": "chainstorm_nft",
+          "mintFn": "mint"
+        },
+        "author": {
+          "userId": "3UDkMCcr44VP5glPqEYEE4ucBQY2",
+          "name": "Phú Giàu",
+          "email": "phugiau.2004@gmail.com",
+          "avatar": "https://lh3.googleusercontent.com/a/ACg8ocLFbQwiMvFkTkINzIGwYT5TT9LTO4CH4E0z4a856-T7c0wbjw=s96-c",
+          "phone": "",
+          "walletAddress": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a"
+        },
+        "file": {
+          "walrusId": "337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+          "url": "/api/walrus/blob/337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6",
+          "name": "Tết Đong Đầy 2.mp3",
+          "size": 3542197,
+          "type": "audio/mpeg",
+          "sha256": "337369ae168b7483c76c461478691e49abfe3bbcfbc35fedf475c2339e54e5d6"
+        },
+        "cover": {
+          "walrusId": "9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+          "url": "/api/walrus/blob/9d085ca58c06d24cd0283da9fad02f473d4c345d83f6147ffbb5038b4933883f",
+          "name": "1672396691711_300.jpg",
+          "size": 12208,
+          "type": "image/jpeg"
+        },
+        "createdAt": "2025-12-30T10:47:00.022Z",
+        "duration": 216
+      }
+    },
+    "approval": {
+      "adminWallet": "0xb2bbf1bc2ce439c95ff862692cd32d80d025749711df2d7fe6d263ca1d45111a",
+      "signature": "AH0rL9sncWxVueZuv05lN1qiPzEvKE6mFBXo11OUBuFoT/JTvSM9yH7JKn4tU8RWCly9kQIex6yXipbM/+sMxgxuiClVDWzLRH0kf+rQkgiKaf7ZxSFft79lo4UfsWiwfQ==",
+      "time": "2025-12-30T10:47:25.617Z"
+    }
   }
 ]

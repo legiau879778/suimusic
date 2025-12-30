@@ -160,8 +160,8 @@ export default function Header() {
       <header className={`${styles.header} ${hidden ? styles.hidden : ""} ${scrolled ? styles.scrolled : ""}`}>
         <div className={styles.inner}>
           <Link href="/" className={styles.logo} onClick={() => setMenuOpen(false)}>
-            <Image src="/images/logo.png" alt="Suimusic" width={34} height={34} priority />
-            <span className={styles.logoText}>SUIMUSIC</span>
+            <Image src="/images/logo.png" alt="Music Membership" width={34} height={34} priority />
+            <span className={styles.logoText}>MUSIC MEMBERSHIP</span>
           </Link>
 
           <nav className={styles.nav}>
