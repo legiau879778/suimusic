@@ -267,6 +267,7 @@ export default function WorkDetailPage() {
       .filter((w) => {
         if (w.id === work.id || w.authorId !== work.authorId) return false;
         if (String(w.status || "") !== "verified") return false;
+        if (w.deletedAt) return false;
         const nftId = String(w.nftObjectId || "").toLowerCase();
         if (nftId && deletedMap[nftId]) return false;
         return true;
@@ -289,6 +290,7 @@ export default function WorkDetailPage() {
     const map = new Map<string, Work>();
     for (const w of getWorks()) {
       if (String(w.status || "") !== "verified") continue;
+      if (w.deletedAt) continue;
       const nftId = String(w.nftObjectId || "").toLowerCase();
       if (nftId && deletedMap[nftId]) continue;
       if (w.authorId === work.authorId) continue;
@@ -432,7 +434,7 @@ export default function WorkDetailPage() {
           </p>
 
           <p className={styles.meta}>
-            <strong>Category:</strong>{" "}
+            <strong>Genre:</strong>{" "}
             {meta?.category ||
               meta?.properties?.category ||
               pickAttr(meta, "category") ||
@@ -560,7 +562,7 @@ export default function WorkDetailPage() {
                       <div className={styles.relatedBody}>
                         <div className={styles.relatedTitle}>{w.title || "Untitled"}</div>
                         <div className={styles.relatedMeta}>
-                          {w.category || "Uncategorized"}
+                          {w.category || "No genre"}
                         </div>
                       </div>
                     </Link>

@@ -1,6 +1,6 @@
 import { suiClient } from "./suiClient";
 
-export type MembershipType = "artist" | "creator" | "business";
+export type MembershipType = "artist" | "creator" | "business" | "ai";
 export type CreatorPlan = "starter" | "pro" | "studio";
 export type ArtistPlan = "1m" | "3m" | "1y";
 
@@ -22,6 +22,7 @@ export const PRICES_SUI = {
   creator_pro_month: 0.02,
   creator_studio_month: 0.05,
   business_year: 0.05,
+  ai_month: 0.1,
 } as const;
 
 // --- LOGIC TÍNH TOÁN ---
@@ -32,6 +33,7 @@ export function getMembershipPriceSui(m: Pick<Membership, "type" | "plan">): num
     if (m.plan === "3m") return PRICES_SUI.artist_3m;
     return PRICES_SUI.artist_1y;
   }
+  if (m.type === "ai") return PRICES_SUI.ai_month;
   if (m.type === "business") return PRICES_SUI.business_year;
   if (m.plan === "starter") return PRICES_SUI.creator_starter_month;
   if (m.plan === "pro") return PRICES_SUI.creator_pro_month;
@@ -45,6 +47,7 @@ export function getMembershipDurationMs(m: Pick<Membership, "type" | "plan">): n
     if (m.plan === "3m") return 90 * DAY;
     return 365 * DAY;
   }
+  if (m.type === "ai") return 30 * DAY;
   if (m.type === "business") return 365 * DAY;
   return 30 * DAY;
 }
@@ -58,6 +61,7 @@ export type MembershipPolicy = {
   canManage: boolean;
   canRegister: boolean;
   canTrade: boolean;
+  canUseAI: boolean;
   uploadFeeSuiPerTrack?: number;
   revenueSplit?: { artist: number; platform: number };
   subscriptionSplit?: { artist: number; platform: number };
@@ -69,6 +73,7 @@ const MEMBERSHIP_POLICY: Record<MembershipType, MembershipPolicy> = {
     canManage: true,
     canRegister: true,
     canTrade: false,
+    canUseAI: true,
     uploadFeeSuiPerTrack: 5,
     subscriptionSplit: { artist: 90, platform: 10 },
   },
@@ -76,6 +81,7 @@ const MEMBERSHIP_POLICY: Record<MembershipType, MembershipPolicy> = {
     canManage: false,
     canRegister: false,
     canTrade: true,
+    canUseAI: true,
     canUseLicensedMusic: true,
     revenueSplit: { artist: 75, platform: 25 },
   },
@@ -83,8 +89,15 @@ const MEMBERSHIP_POLICY: Record<MembershipType, MembershipPolicy> = {
     canManage: true,
     canRegister: true,
     canTrade: true,
+    canUseAI: true,
     uploadFeeSuiPerTrack: 20,
     revenueSplit: { artist: 75, platform: 25 },
+  },
+  ai: {
+    canManage: false,
+    canRegister: false,
+    canTrade: false,
+    canUseAI: true,
   },
 };
 
@@ -94,17 +107,24 @@ export function getMembershipPolicy(m: Membership | null): MembershipPolicy {
       canManage: false,
       canRegister: false,
       canTrade: false,
+      canUseAI: false,
     };
   }
   return MEMBERSHIP_POLICY[m.type];
 }
 
-export function getMembershipEntitlements(m: Membership | null) {
+export function getMembershipEntitlements(m: Membership | null): {
+  canManage: boolean;
+  canRegister: boolean;
+  canTrade: boolean;
+  canUseAI: boolean;
+} {
   const policy = getMembershipPolicy(m);
   return {
     canManage: policy.canManage,
     canRegister: policy.canRegister,
     canTrade: policy.canTrade,
+    canUseAI: policy.canUseAI,
   };
 }
 

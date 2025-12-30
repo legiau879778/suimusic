@@ -125,7 +125,7 @@ export default function Header() {
 
   // Menu entitlements
   const ent = useMemo(() => {
-    if (user?.role === "admin") return { canManage: true, canRegister: true, canTrade: true };
+    if (user?.role === "admin") return { canManage: true, canRegister: true, canTrade: true, canUseAI: true };
     return getMembershipEntitlements(membership);
   }, [membership, user?.role]);
 
@@ -168,6 +168,7 @@ export default function Header() {
             {navLink("/", "Home")}
             {navLink("/search", "Search")}
             {navLink("/leaderboard/authors", "Leaderboard")}
+            {navProtected("/ai", "AI Generator", !!ent.canUseAI)}
             {navProtected("/manage", "Manage", !!ent.canManage)}
             {navProtected("/register-work", "Register", !!ent.canRegister)}
             {navProtected("/marketplace", "Marketplace", !!ent.canTrade)}
@@ -220,6 +221,7 @@ export default function Header() {
         {navLink("/", "Home")}
         {navLink("/search", "Search")}
         {navLink("/leaderboard/authors", "Leaderboard")}
+        {navProtected("/ai", "AI Generator", !!ent.canUseAI)}
         {navProtected("/manage", "Manage", !!ent.canManage)}
         {navProtected("/register-work", "Register", !!ent.canRegister)}
         {navProtected("/marketplace", "Marketplace", !!ent.canTrade)}

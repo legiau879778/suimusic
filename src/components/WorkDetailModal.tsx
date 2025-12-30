@@ -32,6 +32,18 @@ export default function WorkDetailModal({
       >
         <h2>{work.title}</h2>
         <p>
+          <strong>Author:</strong> {work.authorName || work.authorId}
+        </p>
+        <p>
+          <strong>Genre:</strong> {work.category || "Not specified"}
+        </p>
+        <p>
+          <strong>Language:</strong> {work.language || "Not specified"}
+        </p>
+        <p>
+          <strong>Status:</strong> {work.status}
+        </p>
+        <p>
           Owner:{" "}
           {loading ? "sync..." : owner}
         </p>

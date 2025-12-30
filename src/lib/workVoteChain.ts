@@ -8,23 +8,52 @@ export const WORK_VOTE = {
   MODULE: process.env.NEXT_PUBLIC_WORK_VOTE_MODULE || "work_vote",
   BOARD_ID: process.env.NEXT_PUBLIC_WORK_VOTE_BOARD_ID || "",
   VOTE_FN: process.env.NEXT_PUBLIC_WORK_VOTE_FN || "vote_work",
-  // type name key/value trong Move
-  KEY_TYPE_SUFFIX: "::work_vote::WorkKey",
+  // dynamic field name type for vote key
+  KEY_TYPE: "address",
 };
 
 export function canUseWorkVote() {
   return !!WORK_VOTE.PACKAGE_ID && !!WORK_VOTE.BOARD_ID;
 }
 
-export function buildVoteWorkTx(workId: string) {
+function normalizeSuiAddress(input: string): string {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("0x")) {
+    return /^0x[0-9a-fA-F]+$/.test(raw) ? raw.toLowerCase() : "";
+  }
+  if (/^[0-9a-fA-F]{64}$/.test(raw)) {
+    return `0x${raw.toLowerCase()}`;
+  }
+  return "";
+}
+
+export function resolveWorkVoteKey(work: {
+  id?: string;
+  workId?: string;
+  nftObjectId?: string;
+}): string {
+  const candidates = [
+    work.nftObjectId,
+    (work as any).workId,
+    work.id,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeSuiAddress(String(candidate || ""));
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+export function buildVoteWorkTx(workKey: string) {
   if (!canUseWorkVote()) throw new Error("Work vote config missing");
-  const wid = String(workId || "").trim();
-  if (!wid) throw new Error("Missing workId");
+  const wid = normalizeSuiAddress(workKey);
+  if (!wid) throw new Error("Missing work vote key");
 
   const tx = new Transaction();
   tx.moveCall({
     target: `${WORK_VOTE.PACKAGE_ID}::${WORK_VOTE.MODULE}::${WORK_VOTE.VOTE_FN}`,
-    arguments: [tx.object(WORK_VOTE.BOARD_ID), tx.pure.string(wid)],
+    arguments: [tx.object(WORK_VOTE.BOARD_ID), tx.pure.address(wid)],
   });
   return tx;
 }
@@ -35,20 +64,20 @@ export function buildVoteWorkTx(workId: string) {
  */
 export async function getVoteCountForWork(params: {
   suiClient: SuiClient;
-  workId: string;
+  workKey: string;
 }): Promise<number> {
-  const { suiClient, workId } = params;
+  const { suiClient, workKey } = params;
   if (!canUseWorkVote()) return 0;
-  const wid = String(workId || "").trim();
+  const wid = normalizeSuiAddress(workKey);
   if (!wid) return 0;
 
   try {
-    const keyType = `${WORK_VOTE.PACKAGE_ID}${WORK_VOTE.KEY_TYPE_SUFFIX}`;
+    const keyType = WORK_VOTE.KEY_TYPE;
     const resp = await suiClient.getDynamicFieldObject({
       parentId: WORK_VOTE.BOARD_ID,
       name: {
         type: keyType,
-        value: { id: wid },
+        value: wid,
       },
     });
 

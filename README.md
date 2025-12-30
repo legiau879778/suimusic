@@ -31,12 +31,23 @@ In the digital era, music creators face challenges in proving ownership, protect
 - Display metadata such as title, genre, language, and duration
 - Wallet-based identity using Sui addresses
 
+### Advanced Search & Filtering
+- Search works by title, author, or content
+- Filter by genre (Pop, Rock, Hip-Hop, Electronic, etc.)
+- Filter by language and sale type
+- Sort by newest, oldest, or popularity
+
 ### On-chain Verification
 - Anyone can verify:
   - Author
   - Ownership
   - Registration time
 - Eliminates disputes and fake claims
+
+### AI-Powered Music Generation
+- Generate creative song lyrics using OpenAI GPT-4
+- Support for multiple genres and languages
+- Integrated with the music copyright registration workflow
 
 ### Modern Web Interface
 - Built with **Next.js + TypeScript**
@@ -73,6 +84,37 @@ In the digital era, music creators face challenges in proving ownership, protect
 | Blockchain | Sui, Move |
 | Web3 | Sui Wallet / dApp Kit |
 | Deployment | Vercel |
+
+---
+
+## Setup Instructions
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd suimusic
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Variables**
+   
+   Create a `.env.local` file in the root directory:
+   ```env
+   # OpenAI API Key for AI music generation
+   OPENAI_API_KEY=sk-REPLACE_ME
+   
+   # Other environment variables (Firebase, etc.)
+   # ... existing env vars
+   ```
+
+4. **Run the development server**
+   ```bash
+   npm run dev
+   ```
 
 ---
 

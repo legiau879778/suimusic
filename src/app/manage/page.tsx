@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import {
   autoCleanTrash,
   bindLicenseToWork,
+  addWork,
+  getWorkByProofId,
   getActiveWorks,
   getTrashWorks,
   markWorkSold,
@@ -30,7 +32,15 @@ import {
   loadProfile,
 } from "@/lib/profileStore";
 import { db } from "@/lib/firebase";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 
 /* ===== SUI SDK (NEW) ===== */
 import {
@@ -44,7 +54,7 @@ import { Transaction } from "@mysten/sui/transactions";
 /* ✅ network-aware config */
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
-type ViewMode = "active" | "trash";
+type ViewMode = "active" | "trash" | "pending";
 type MarketFilter = "all" | "sell" | "license";
 
 const PAGE_SIZE = 12;
@@ -61,6 +71,40 @@ function normalizeAddress(input?: string) {
   const raw = String(input || "").trim();
   if (!raw) return "";
   return raw.toLowerCase().startsWith("0x") ? raw : `0x${raw}`;
+}
+
+function strToBytes(s: string) {
+  return new TextEncoder().encode(s);
+}
+
+function normalizeHex(input: string): string {
+  const raw = String(input || "").trim().toLowerCase();
+  const cleaned = raw.startsWith("0x") ? raw.slice(2) : raw;
+  return cleaned.replace(/[^0-9a-f]/g, "");
+}
+
+function hexToBytes32(hex: string): Uint8Array {
+  const cleaned = normalizeHex(hex);
+  if (cleaned.length !== 64) {
+    throw new Error("Hash must be 32 bytes (64 hex chars).");
+  }
+  const bytes = cleaned.match(/.{1,2}/g)?.map((b) => parseInt(b, 16)) || [];
+  return new Uint8Array(bytes);
+}
+
+function extractCreatedObjectId(packageId: string, module: string, changes: any[] | undefined) {
+  if (!Array.isArray(changes)) return null;
+  const created = changes.find(
+    (c) =>
+      c?.type === "created" &&
+      typeof c?.objectType === "string" &&
+      c.objectType.includes(`${packageId}::${module}::WorkNFT`) &&
+      c?.objectId
+  );
+  if (created?.objectId) return created.objectId as string;
+
+  const anyCreated = changes.find((c) => c?.type === "created" && c?.objectId);
+  return anyCreated?.objectId ?? null;
 }
 
 function isValidSuiAddress(input?: string) {
@@ -119,6 +163,139 @@ function normalizeIpfsUrl(url?: string) {
 }
 function cidToGateway(cidOrUrl?: string) {
   return toGateway(cidOrUrl);
+}
+
+  function statusLabel(s?: string) {
+    if (s === "verified") return "Approved";
+    if (s === "pending") return "Pending";
+    if (s === "rejected") return "Rejected";
+    return "—";
+  }
+
+function PendingCard({
+  proof,
+  net,
+  onMint,
+  mintingProofId,
+}: {
+  proof: any;
+  net: "devnet" | "testnet" | "mainnet";
+  onMint: () => void;
+  mintingProofId?: string | null;
+}) {
+  const [meta, setMeta] = useState<any>(proof?.metadata || null);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadMeta() {
+      if (meta || !proof?.walrusMetaId) return;
+      try {
+        const res = await fetch(`/api/walrus/blob/${proof.walrusMetaId}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (alive) setMeta(json);
+      } catch {
+        // ignore
+      }
+    }
+    loadMeta();
+    return () => {
+      alive = false;
+    };
+  }, [meta, proof?.walrusMetaId]);
+
+  const cover = normalizeIpfsUrl(proof?.walrusCoverId ? `walrus:${proof.walrusCoverId}` : "");
+  const metaCover =
+    normalizeIpfsUrl(meta?.cover_image) ||
+    normalizeIpfsUrl(meta?.properties?.cover_image) ||
+    normalizeIpfsUrl(meta?.properties?.cover?.url) ||
+    normalizeIpfsUrl(meta?.image);
+  const preview = cover || metaCover;
+  const metaLink = proof?.walrusMetaId ? `/api/walrus/blob/${proof.walrusMetaId}` : "";
+  const status = statusLabel(proof?.status);
+  const isApproved = proof?.status === "approved";
+  const title = meta?.name || proof?.title || "Unnamed";
+
+  const usageRights =
+    meta?.properties?.usageRights ||
+    meta?.properties?.usage_rights ||
+    meta?.usage_rights ||
+    meta?.usageRights ||
+    meta?.attributes?.find?.((a: any) => a?.trait_type === "usage_rights")?.value ||
+    "—";
+  const category =
+    meta?.properties?.category ||
+    meta?.attributes?.find?.((a: any) => a?.trait_type === "category")?.value ||
+    "—";
+  const language =
+    meta?.properties?.language ||
+    meta?.attributes?.find?.((a: any) => a?.trait_type === "language")?.value ||
+    "—";
+  const duration =
+    meta?.properties?.duration ||
+    meta?.duration ||
+    meta?.file?.duration ||
+    meta?.properties?.file?.duration;
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.preview}>
+        {preview ? (
+          <img className={styles.previewImg} src={preview} alt={title} />
+        ) : (
+          <div className={styles.previewEmpty}>No cover</div>
+        )}
+        <div className={styles.previewOverlay}>
+          <span className={styles.previewCta}>{status}</span>
+        </div>
+      </div>
+      <div className={styles.cardBody}>
+        <div className={styles.titleRow}>
+          <div className={styles.title}>{title}</div>
+          <div className={styles.badge}>{status}</div>
+        </div>
+        <div className={styles.metaLine}>
+          <span className={styles.monoSmall}>proof: {shortAddr(proof.id)}</span>
+        </div>
+        <div className={styles.metaLine}>
+          <span className={styles.monoSmall}>net: {net}</span>
+          {proof?.walrusMetaId ? (
+            <a
+              className={styles.link}
+              href={metaLink}
+              target="_blank"
+              rel="noreferrer"
+              style={{ marginLeft: 8 }}
+            >
+              metadata
+            </a>
+          ) : null}
+        </div>
+        <div className={styles.metaLine}>
+          <span className={styles.mutedSmall}>
+            {category} • {language} {duration ? `• ${duration}s` : ""}
+          </span>
+        </div>
+        <div className={styles.metaLine}>
+          <span className={styles.mutedSmall}>Usage: {usageRights}</span>
+        </div>
+        <div className={styles.cardActions}>
+          <button
+            className={styles.btnSecondary}
+            onClick={() => onMint()}
+            disabled={!isApproved || mintingProofId === proof.id}
+            title={isApproved ? "Mint now" : "Chờ duyệt để mint"}
+          >
+            {mintingProofId === proof.id
+              ? "Starting..."
+              : isApproved
+              ? "Mint now"
+              : "Waiting approval"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function normalizeWalrusId(v: string) {
@@ -288,12 +465,16 @@ export default function ManagePage() {
   const cfg = getChainstormConfig(activeNet);
 
   const PACKAGE_ID = cfg?.packageId || "";
+  const REGISTRY_ID = cfg?.registryId || "";
   const MODULE = cfg?.module || "chainstorm_nft";
+  const MINT_FN = cfg?.mintFn || "mint";
 
   const [view, setView] = useState<ViewMode>("active");
   const [filter, setFilter] = useState<MarketFilter>("all");
 
   const [works, setWorks] = useState<Work[]>([]);
+  const [pendingProofs, setPendingProofs] = useState<any[]>([]);
+  const pendingUnsubRef = useRef<(() => void) | undefined>(undefined);
   const [page, setPage] = useState(1);
 
   /** ✅ FIX TS: cho phép string luôn (fallback "") */
@@ -320,6 +501,7 @@ export default function ManagePage() {
   const [gasEstimate, setGasEstimate] = useState<string | null>(null);
   const [gasLoading, setGasLoading] = useState(false);
   const [gasError, setGasError] = useState("");
+  const [mintingProofId, setMintingProofId] = useState<string | null>(null);
 
   /* ================= Load list ================= */
 
@@ -351,11 +533,15 @@ export default function ManagePage() {
   const load = useCallback(() => {
     if (!userId && userWallets.length === 0 && userRole !== "admin") {
       setWorks([]);
+      setPendingProofs([]);
       return;
     }
 
     const base = view === "trash" ? getTrashWorks() : getActiveWorks();
     let list = base.filter(isWorkOwner);
+    if (view === "active") {
+      list = list.filter((w) => (w as any)?.status !== "pending");
+    }
 
     if (filter !== "all") {
       list = list.filter(
@@ -385,12 +571,39 @@ export default function ManagePage() {
     setWorks(list as Work[]);
   }, [filter, showToast, userId, userRole, userWallets.length, view, isWorkOwner]);
 
+  const loadPending = useCallback(() => {
+    if (!userId) {
+      setPendingProofs([]);
+      return;
+    }
+    if (pendingUnsubRef.current) pendingUnsubRef.current();
+    const q = query(collection(db, "proofs"), where("authorId", "==", userId));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        setPendingProofs(rows);
+      },
+      () => {
+        setPendingProofs([]);
+      }
+    );
+    pendingUnsubRef.current = unsub;
+  }, [userId]);
+
   useEffect(() => {
     autoCleanTrash();
-    syncWorksFromChain({ force: true }).then(load).catch(() => load());
+    if (view === "pending") {
+      loadPending();
+    } else {
+      syncWorksFromChain({ force: true }).then(load).catch(() => load());
+    }
     window.addEventListener("works_updated", load);
-    return () => window.removeEventListener("works_updated", load);
-  }, [load]);
+    return () => {
+      window.removeEventListener("works_updated", load);
+      if (pendingUnsubRef.current) pendingUnsubRef.current();
+    };
+  }, [load, loadPending, view]);
 
   useEffect(() => {
     let alive = true;
@@ -420,19 +633,221 @@ export default function ManagePage() {
     };
   }, [activeNet]);
 
+  const setRegisterDraft = useCallback((draft: Record<string, any>) => {
+    if (typeof window === "undefined") return;
+    try {
+      const current = window.localStorage.getItem("chainstorm_register_draft");
+      let parsed: any = {};
+      if (current) {
+        parsed = JSON.parse(current);
+      }
+      const next = {
+        ...parsed,
+        ...draft,
+        updatedAt: Date.now(),
+      };
+      window.localStorage.setItem("chainstorm_register_draft", JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleMintProof = useCallback(
+    async (proofId: string) => {
+      setMintingProofId(proofId);
+      try {
+        if (!PACKAGE_ID || !REGISTRY_ID) throw new Error("Missing package/registry config.");
+        const res = await fetch(`/api/proof/${encodeURIComponent(proofId)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok || !data?.proof) throw new Error("Could not load proof");
+        const p = data.proof;
+        if (String(p.status || "") !== "approved") {
+          throw new Error("Proof not approved yet.");
+        }
+
+        const meta = p.metadata || {};
+        const attrs = Array.isArray(meta.attributes) ? meta.attributes : [];
+        const getAttr = (k: string) =>
+          attrs.find((a: any) => (a?.trait_type || "").toLowerCase() === k)?.value;
+
+        const fileHash = String(p.fileHash || "").trim();
+        const metaHash = String(p.metaHash || "").trim();
+        const walrusFileId = String(p.walrusFileId || "").trim();
+        const walrusMetaId = String(p.walrusMetaId || "").trim();
+        if (!fileHash || !metaHash || !walrusFileId || !walrusMetaId) {
+          throw new Error("Proof missing Walrus/hash data.");
+        }
+
+        const fileHashBytes32 = hexToBytes32(fileHash);
+        const metaHashBytes32 = hexToBytes32(metaHash);
+        const walrusFileIdBytes = Array.from(strToBytes(walrusFileId));
+        const walrusMetaIdBytes = Array.from(strToBytes(walrusMetaId));
+        const authorSigBytes = Array.from(strToBytes(String(p.authorSignature || "")));
+        const tsaIdBytes = Array.from(strToBytes(String(p.tsa?.id || "")));
+        const tsaSigBytes = Array.from(strToBytes(String(p.tsa?.signature || "")));
+        const approvalSigBytes = Array.from(strToBytes(String(p.approval?.signature || "")));
+        const proofIdBytes = Array.from(strToBytes(String(p.id || "")));
+        const tsaMillis = Date.parse(String(p.tsa?.time || ""));
+        const tsaTime = Number.isFinite(tsaMillis) ? Math.floor(tsaMillis / 1000) : 0;
+
+        const sellType =
+          meta.properties?.sellType ||
+          getAttr("selltype") ||
+          getAttr("sell_type") ||
+          getAttr("sell_type_u8") ||
+          p.sellType ||
+          "exclusive";
+        const sellTypeU8 = sellType === "exclusive" ? 1 : sellType === "license" ? 2 : 0;
+        const royaltyNum = Number(
+          meta.properties?.royalty_percent ?? getAttr("royalty_percent") ?? p.royalty ?? 5
+        );
+
+        const tx = new Transaction();
+        tx.moveCall({
+          target: `${PACKAGE_ID}::${MODULE}::${MINT_FN}`,
+          arguments: [
+            tx.object(REGISTRY_ID),
+            tx.pure.vector("u8", Array.from(fileHashBytes32)),
+            tx.pure.vector("u8", Array.from(metaHashBytes32)),
+            tx.pure.vector("u8", walrusFileIdBytes),
+            tx.pure.vector("u8", walrusMetaIdBytes),
+            tx.pure.vector("u8", authorSigBytes),
+            tx.pure.vector("u8", tsaIdBytes),
+            tx.pure.vector("u8", tsaSigBytes),
+            tx.pure.u64(tsaTime),
+            tx.pure.vector("u8", approvalSigBytes),
+            tx.pure.vector("u8", proofIdBytes),
+            tx.pure.u8(sellTypeU8),
+            tx.pure.u8(Math.max(0, Math.min(100, Math.floor(royaltyNum || 0)))),
+          ],
+        });
+
+        const result = await signAndExecuteTransaction({ transaction: tx });
+        const digest = (result as any)?.digest as string | undefined;
+        if (!digest) throw new Error("No digest from transaction.");
+
+        let createdObjectId: string | null = extractCreatedObjectId(
+          PACKAGE_ID,
+          MODULE,
+          (result as any)?.objectChanges
+        );
+        if (!createdObjectId) {
+          try {
+            await suiClient.waitForTransaction({ digest });
+          } catch {}
+          const txb = await suiClient.getTransactionBlock({
+            digest,
+            options: { showObjectChanges: true, showEffects: true },
+          });
+          createdObjectId = extractCreatedObjectId(
+            PACKAGE_ID,
+            MODULE,
+            (txb as any)?.objectChanges as any[]
+          );
+        }
+        if (!createdObjectId) throw new Error("Mint succeeded but no WorkNFT id found.");
+
+        const maybeWork = getWorkByProofId(p.id);
+        const workId =
+          maybeWork?.id ||
+          addWork({
+            title: meta.name || p.title || "",
+            authorId: p.authorId || meta?.properties?.author?.userId || "",
+            authorName:
+              meta?.properties?.author?.name || meta?.author?.name || meta?.properties?.authorName,
+            authorEmail:
+              meta?.properties?.author?.email ||
+              meta?.author?.email ||
+              meta?.properties?.email ||
+              "",
+            authorWallet: p.wallet || p.authorWallet || "",
+            hash: `walrus:${walrusMetaId}`,
+            fileHash,
+            metaHash,
+            walrusFileId,
+            walrusMetaId,
+            walrusCoverId: p.walrusCoverId,
+            durationSec:
+              meta?.properties?.duration ||
+              meta?.duration ||
+              meta?.file?.duration ||
+              meta?.properties?.file?.duration,
+            proofId: p.id,
+            authorSignature: p.authorSignature,
+            tsaId: p.tsa?.id,
+            tsaSignature: p.tsa?.signature,
+            tsaTime: p.tsa?.time,
+            approvalSignature: p.approval?.signature,
+            approvalWallet: p.approval?.adminWallet,
+            approvalTime: p.approval?.time,
+            category:
+              meta?.properties?.category ||
+              getAttr("category") ||
+              meta?.category ||
+              undefined,
+            language:
+              meta?.properties?.language ||
+              getAttr("language") ||
+              meta?.language ||
+              undefined,
+            createdDate: meta?.properties?.createdDate || undefined,
+            sellType,
+            royalty: royaltyNum,
+            exclusivePriceSui:
+              meta?.properties?.exclusive_price_sui ?? getAttr("exclusive_price_sui") ?? 0,
+            licensePriceSui:
+              meta?.properties?.license_price_sui ?? getAttr("license_price_sui") ?? 0,
+            quorumWeight: 1,
+          });
+
+        bindNFTToWork({
+          workId,
+          nftObjectId: createdObjectId,
+          packageId: PACKAGE_ID,
+          txDigest: digest,
+          authorWallet: p.wallet || p.authorWallet || "",
+        });
+
+        setPendingProofs((prev) => prev.filter((x) => x.id !== proofId));
+        showToast("Mint successful", "success");
+        setView("active");
+        syncWorksFromChain({ force: true }).then(load).catch(() => load());
+      } catch (e: any) {
+        showToast(e?.message || "Unable to mint proof", "error");
+      } finally {
+        setMintingProofId(null);
+      }
+    },
+    [
+      PACKAGE_ID,
+      REGISTRY_ID,
+      MODULE,
+      MINT_FN,
+      showToast,
+      signAndExecuteTransaction,
+      suiClient,
+      load,
+    ]
+  );
+
   useEffect(() => setPage(1), [view, filter]);
 
   /* ================= Pagination ================= */
 
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(works.length / PAGE_SIZE)),
-    [works.length]
+    () =>
+      Math.max(
+        1,
+        Math.ceil((view === "pending" ? pendingProofs.length : works.length) / PAGE_SIZE)
+      ),
+    [view, pendingProofs.length, works.length]
   );
 
   const visible = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
+    if (view === "pending") return pendingProofs.slice(start, start + PAGE_SIZE);
     return works.slice(start, start + PAGE_SIZE);
-  }, [works, page]);
+  }, [works, pendingProofs, page, view]);
 
   /* ================= Auto-sync chain -> store ================= */
 
@@ -447,7 +862,16 @@ export default function ManagePage() {
           options: { showOwner: true },
         });
         const owner = (obj as any)?.data?.owner?.AddressOwner as string | undefined;
-        if (owner && owner.toLowerCase() !== String(w.authorWallet || "").toLowerCase()) {
+        const code = String((obj as any)?.error?.code || "");
+
+        if (!owner) {
+          if (code.toLowerCase() === "deleted" || code.toLowerCase() === "not_found") {
+            patchWork(w.id, { nftObjectId: "", nftPackageId: "" });
+          }
+          return;
+        }
+
+        if (owner.toLowerCase() !== String(w.authorWallet || "").toLowerCase()) {
           updateNFTOwner({ workId: w.id, newOwner: owner });
         }
         return;
@@ -588,7 +1012,13 @@ export default function ManagePage() {
       });
 
       const owner = (obj as any)?.data?.owner?.AddressOwner as string | undefined;
+      const code = String((obj as any)?.error?.code || "");
       if (!owner) {
+        if (code.toLowerCase() === "deleted" || code.toLowerCase() === "not_found") {
+          patchWork(work.id, { nftObjectId: "", nftPackageId: "" });
+          showToast("NFT đã bị xóa trên chain, đã gỡ liên kết", "warning");
+          return;
+        }
         showToast("Cannot read owner from chain", "warning");
         return;
       }
@@ -1066,6 +1496,7 @@ export default function ManagePage() {
               onChange={(e) => setView(e.target.value as any)}
             >
               <option value="active">Active</option>
+              <option value="pending">Pending</option>
               <option value="trash">Trash</option>
             </select>
           </div>
@@ -1073,41 +1504,61 @@ export default function ManagePage() {
       </div>
 
       {/* ===== Empty ===== */}
-      {works.length === 0 ? (
+      {(view === "pending" ? pendingProofs.length === 0 : works.length === 0) ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>🎵</div>
-          <div className={styles.emptyTitle}>No works yet</div>
-          <div className={styles.emptySub}>Register your first work to mint NFT.</div>
+          <div className={styles.emptyTitle}>
+            {view === "pending" ? "No submissions yet" : "No works yet"}
+          </div>
+          <div className={styles.emptySub}>
+            {view === "pending"
+              ? "Submit a filing in Register Work to see it here."
+              : "Register your first work to mint NFT."}
+          </div>
         </div>
       ) : null}
 
       {/* ===== Grid ===== */}
-      <div className={styles.grid}>
-        {visible.map((w) => (
-            <WorkCard
-              key={w.id}
-              work={w}
+      {view === "pending" ? (
+        <div className={styles.grid}>
+          {visible.map((p: any) => (
+            <PendingCard
+              key={p.id}
+              proof={p}
               net={activeNet}
-              onOpen={() => setSelected(w)}
-              onSell={() => openSellModal(w)}
-              onIssueLicense={() => openLicenseModal(w)}
-              onSyncOwner={() => handleSyncOwner(w)}
-              onBurn={() => handleBurnNFT(w)}
-              onDelete={() => handleSoftDelete(w)}
-              onRestore={() => handleRestore(w)}
-              view={view}
-              disableGlobal={isPending || syncingAll}
-              selling={sellingId === w.id}
-              licensing={licensingId === w.id}
-              burning={burningId === w.id}
-              syncingOwner={!!syncingOwners[w.id]}
-              listing={listingMap[String(w.nftObjectId || "").toLowerCase()]}
+              onMint={() => handleMintProof(p.id)}
+              mintingProofId={mintingProofId}
             />
           ))}
-      </div>
+        </div>
+      ) : (
+        <div className={styles.grid}>
+          {visible.map((w) => (
+              <WorkCard
+                key={w.id}
+                work={w}
+                net={activeNet}
+                onOpen={() => setSelected(w)}
+                onSell={() => openSellModal(w)}
+                onIssueLicense={() => openLicenseModal(w)}
+                onSyncOwner={() => handleSyncOwner(w)}
+                onBurn={() => handleBurnNFT(w)}
+                onDelete={() => handleSoftDelete(w)}
+                onRestore={() => handleRestore(w)}
+                view={view}
+                disableGlobal={isPending || syncingAll}
+                selling={sellingId === w.id}
+                licensing={licensingId === w.id}
+                burning={burningId === w.id}
+                syncingOwner={!!syncingOwners[w.id]}
+                listing={listingMap[String(w.nftObjectId || "").toLowerCase()]}
+              />
+            ))}
+        </div>
+      )}
 
       {/* ===== Pagination ===== */}
-      {works.length > 0 ? (
+      {(view === "pending" ? pendingProofs.length > 0 : works.length > 0) ? (
         <div className={styles.pager}>
           <button
             className={styles.pagerBtn}
@@ -1334,13 +1785,6 @@ function WorkCard(props: {
   const kind = useMemo(() => guessKindFromFile(meta), [meta]);
   const createdText = useMemo(() => pickCreatedDate(work, meta), [work, meta]);
 
-  // ✅ FIX TS: s?: string
-  function statusLabel(s?: string) {
-    if (s === "verified") return "Approved";
-    if (s === "pending") return "Pending";
-    if (s === "rejected") return "Rejected";
-    return "—";
-  }
   function sellTypeLabel(t?: string) {
     if (t === "exclusive") return "Bán đứt";
     if (t === "license") return "License";

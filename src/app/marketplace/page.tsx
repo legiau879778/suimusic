@@ -13,7 +13,11 @@ import {
 import { toGateway } from "@/lib/profileStore";
 import { useSyncWorkOwner } from "@/hooks/useSyncWorkOwner";
 import { explorerObjectUrl, shortAddr } from "@/lib/suiExplorer";
-import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
+import {
+  canUseWorkVote,
+  getVoteCountForWork,
+  resolveWorkVoteKey,
+} from "@/lib/workVoteChain";
 import { useSuiClient } from "@mysten/dapp-kit";
 import { fetchWalrusMetadata } from "@/lib/walrusMetaCache";
 import { db } from "@/lib/firebase";
@@ -163,6 +167,9 @@ export default function MarketplacePage() {
           const data: any = docSnap.data();
           if (data?.deletedAt) {
             next[docSnap.id.toLowerCase()] = true;
+            if (data?.workId) {
+              next[String(data.workId).toLowerCase()] = true;
+            }
           }
         });
         setDeletedMap(next);
@@ -236,17 +243,20 @@ export default function MarketplacePage() {
     };
   }, [baseList, metaCache]);
 
-  const categories = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const w of baseList) {
-      const meta = metaCache[w.id];
-      const raw = String(meta?.category || w.metaCategory || w.category || "").trim();
-      if (!raw) continue;
-      const key = raw.toLowerCase();
-      if (!map.has(key)) map.set(key, raw);
-    }
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [baseList, metaCache]);
+  const categories = useMemo(() => [
+    { value: "pop", label: "Pop" },
+    { value: "rock", label: "Rock" },
+    { value: "hip-hop/rap", label: "Hip-Hop/Rap" },
+    { value: "electronic/dance", label: "Electronic/Dance" },
+    { value: "jazz", label: "Jazz" },
+    { value: "classical", label: "Classical" },
+    { value: "country", label: "Country" },
+    { value: "r&b/soul", label: "R&B/Soul" },
+    { value: "reggae", label: "Reggae" },
+    { value: "folk", label: "Folk" },
+    { value: "alternative", label: "Alternative" },
+    { value: "other", label: "Other" },
+  ], []);
 
   const languages = useMemo(() => {
     const map = new Map<string, string>();
@@ -263,13 +273,15 @@ export default function MarketplacePage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return baseList.filter((w) => {
+      if (w.deletedAt) return false;
       if (String(w.status || "") !== "verified") return false;
       const nftId = String(w.nftObjectId || "").toLowerCase();
-      if (nftId && deletedMap[nftId]) return false;
+      const workId = String(w.id || "").toLowerCase();
+      if ((nftId && deletedMap[nftId]) || (workId && deletedMap[workId])) return false;
       if (filter !== "all" && w.sellType !== filter) return false;
 
       const meta = metaCache[w.id];
-      const cat = String(meta?.category || w.metaCategory || w.category || "").trim().toLowerCase();
+      const cat = String(meta?.category || w.metaCategory || w.category || "").trim().toLowerCase().replace(/\s*\/\s*/g, '/');
       const lang = String(meta?.language || w.metaLanguage || w.language || "").trim().toLowerCase();
 
       if (categoryFilter !== "all" && cat !== categoryFilter) return false;
@@ -287,11 +299,10 @@ export default function MarketplacePage() {
     let alive = true;
     if (sortKey !== "top" || !canUseWorkVote() || !suiClient) return;
 
-    const ids = filtered
-      .map((w) => String(w.id || "").trim())
-      .filter(Boolean)
-      .slice(0, 60);
-    const queue = ids.filter((id) => voteCache[id] == null);
+    const queue = filtered
+      .slice(0, 60)
+      .filter((w) => w?.id && voteCache[w.id] == null)
+      .filter((w) => !!resolveWorkVoteKey(w));
 
     async function run() {
       const CONC = 6;
@@ -301,11 +312,13 @@ export default function MarketplacePage() {
         while (alive) {
           const idx = i++;
           if (idx >= queue.length) break;
-          const id = queue[idx];
-          const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
+          const work = queue[idx];
+          const voteKey = resolveWorkVoteKey(work);
+          if (!voteKey) continue;
+          const n = await getVoteCountForWork({ suiClient: suiClient as any, workKey: voteKey });
           if (!alive) return;
-          setVoteCache((prev) => (prev[id] == null ? { ...prev, [id]: n } : prev));
-          setWorkVotes(id, n);
+          setVoteCache((prev) => (prev[work.id] == null ? { ...prev, [work.id]: n } : prev));
+          setWorkVotes(work.id, n);
           await new Promise((r) => setTimeout(r, 40));
         }
       }

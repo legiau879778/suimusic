@@ -72,7 +72,13 @@ export default function AdminReviewPage() {
   const reviewerId = user?.email || user?.id || "admin";
   const reviewerRole = user?.role || "admin";
 
-  const totalPending = works.length + proofs.length;
+  const proofIds = useMemo(() => new Set(proofs.map((p) => p.id)), [proofs]);
+  const filteredWorks = useMemo(
+    () => works.filter((w) => !proofIds.has(String(w.proofId || "").trim())),
+    [works, proofIds]
+  );
+
+  const totalPending = filteredWorks.length + proofs.length;
 
   const weightHint = useMemo(() => {
     // must match getReviewerWeightByRole() in the store
@@ -406,7 +412,7 @@ export default function AdminReviewPage() {
                     </tr>
                   );
                 })}
-                {works.map((w) => {
+                {filteredWorks.map((w) => {
                   const totalWeight = calcTotalWeight(w);
                   const quorum = w.quorumWeight ?? 1;
                   const isBusy = busyId === w.id;

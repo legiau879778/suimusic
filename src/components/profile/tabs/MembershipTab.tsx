@@ -76,7 +76,7 @@ export default function MembershipTab() {
     const hasInternalWallet = !!user?.internalWallet?.address;
     // NẾU CÓ VÍ NỘI BỘ THÌ CHO MỞ MODAL LUÔN, KHÔNG CẦN CONNECT VÍ NGOÀI
     if (!hasInternalWallet && !isConnected) {
-      return pushToast("error", "Vui lòng kết nối ví Slush hoặc nạp SUI vào Heritage ID!");
+      return pushToast("error", "Please connect Slush wallet or top up your Heritage wallet.");
     }
     setOpen(type);
   }
@@ -85,30 +85,30 @@ export default function MembershipTab() {
     <>
       <div className={styles.membershipHeader}>
         <div>
-          <h1>Membership music <br /> <span>Copyright Mode</span></h1>
-          <p className={styles.membershipSub}>Chọn gói phù hợp để mở khóa quyền Manage / Register / Trade.</p>
+          <h1>Membership Music <br /> <span>Copyright Mode</span></h1>
+          <p className={styles.membershipSub}>Choose a plan to unlock Manage / Register / Trade.</p>
         </div>
 
         <div className={styles.web3Box}>
-          <div className={styles.web3Title}>Trạng thái Web3</div>
+          <div className={styles.web3Title}>Web3 Status</div>
           <div className={styles.web3Row}>
-            <div className={styles.web3Label}>Ví Heritage (Nội bộ)</div>
+            <div className={styles.web3Label}>Heritage Wallet (Internal)</div>
             <div className={styles.web3Right}>
-              <span className={styles.addrPill}>{linkedWallet ? shortAddr(linkedWallet) : "Chưa tạo"}</span>
+              <span className={styles.addrPill}>{linkedWallet ? shortAddr(linkedWallet) : "Not created"}</span>
             </div>
           </div>
           <div className={styles.web3Row}>
-            <div className={styles.web3Label}>Ví Extension (Slush)</div>
+            <div className={styles.web3Label}>Extension Wallet (Slush)</div>
             <div className={styles.web3Right}>
               {isConnected ? (
                 <span className={styles.addrPill} style={{color: '#4ade80'}}>{shortAddr(walletAddress)}</span>
               ) : (
-                <button className={styles.copyMini} onClick={() => connect({ wallet: wallets[0] })}>KẾT NỐI</button>
+                <button className={styles.copyMini} onClick={() => connect({ wallet: wallets[0] })}>CONNECT</button>
               )}
             </div>
           </div>
           <div className={styles.web3Meta}>
-            <div>Gói hiện tại: <strong className={styles.okText}>{membership ? getMembershipBadgeLabel(membership) : "Chưa có"}</strong></div>
+            <div>Current plan: <strong className={styles.okText}>{membership ? getMembershipBadgeLabel(membership) : "None"}</strong></div>
           </div>
         </div>
       </div>
@@ -116,26 +116,26 @@ export default function MembershipTab() {
       <div className={styles.membershipGrid}>
         <Card
           title="Artist"
-          desc="Quyền Manage + Register"
-          price="Từ 0.01 SUI"
+          desc="Manage + Register access"
+          price="From 0.01 SUI"
           active={membership?.type === "artist"}
           onClick={() => openModal("artist")}
           bullets={[
-            "Truy cập Manage + Register",
-            "Phí upload: 5 SUI / track",
-            "Chia subscription: Artist 90% • Platform 10%",
+            "Access Manage + Register",
+            "Upload fee: 5 SUI / track",
+            "Subscription split: Artist 90% • Platform 10%",
           ]}
         />
         <Card
           title="Creator"
-          desc="Quyền Marketplace"
-          price="Từ 0.01 SUI"
+          desc="Marketplace access"
+          price="From 0.01 SUI"
           active={membership?.type === "creator"}
           onClick={() => openModal("creator")}
           bullets={[
-            "Dùng nhạc có bản quyền chứng nhận",
-            "Chia lợi nhuận: Artist 75% • Platform 25%",
-            "Hỗ trợ giao dịch license",
+            "Use licensed music with verification",
+            "Revenue split: Artist 75% • Platform 25%",
+            "License trading support",
           ]}
         />
         <Card
@@ -145,22 +145,22 @@ export default function MembershipTab() {
           active={membership?.type === "business"}
           onClick={() => openModal("business")}
           bullets={[
-            "Phí upload: 20 SUI / track",
-            "Chia lợi nhuận: Artist 75% • Platform 25%",
-            "Sử dụng thương mại",
+            "Upload fee: 20 SUI / track",
+            "Revenue split: Artist 75% • Platform 25%",
+            "Commercial usage",
           ]}
         />
         <Card
           title="AI / Platform"
-          desc="Truy cập dữ liệu, huấn luyện hợp pháp"
-          price="Liên hệ"
-          active={false}
-          actionLabel="Liên hệ"
-          actionHref="mailto:admin@chainstorm.info?subject=AI%20Platform%20Membership"
+          desc="Data access + compliant training"
+          price="0.1 SUI / 30 days"
+          active={membership?.type === "ai"}
+          actionLabel="Buy"
+          onClick={() => openModal("ai")}
           bullets={[
-            "Truy cập bộ dữ liệu đã được cấp phép",
-            "Cam kết tuân thủ quyền tác giả",
-            "Hợp đồng và báo cáo minh bạch",
+            "Access licensed datasets",
+            "Compliance with copyright policy",
+            "Transparent reporting",
           ]}
         />
       </div>
@@ -189,14 +189,14 @@ function Card({ title, desc, price, onClick, active, bullets, actionLabel, actio
       <div className={styles.priceMain}>{price}</div>
       <ul className={styles.perkList}>{bullets.map((b: any) => <li key={b}>{b}</li>)}</ul>
       {active ? (
-        <span className={styles.ownedBadge}>Đang dùng</span>
+        <span className={styles.ownedBadge}>Active</span>
       ) : actionHref ? (
         <a className={styles.confirmBtnWhite} href={actionHref}>
-          {actionLabel || "Liên hệ"}
+          {actionLabel || "Contact"}
         </a>
       ) : (
         <button className={styles.confirmBtnWhite} onClick={onClick}>
-          {actionLabel || "Mua ngay"}
+          {actionLabel || "Buy now"}
         </button>
       )}
     </div>

@@ -1,7 +1,7 @@
 // src/app/register-work/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./register-work.module.css";
 
@@ -32,6 +32,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
 type SellTypeUI = "exclusive" | "license" | "none";
+type UsageRightsUI = "standard" | "ai";
 
 type UploadStage = "idle" | "upload_file" | "upload_cover" | "upload_meta" | "done";
 
@@ -163,13 +164,16 @@ export default function RegisterWorkPage() {
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
+  const [customGenre, setCustomGenre] = useState("");
   const [language, setLanguage] = useState("");
   const [createdDate, setCreatedDate] = useState(""); // dd/mm/yyyy
 
   const [sellType, setSellType] = useState<SellTypeUI>("exclusive");
+  const [usageRights, setUsageRights] = useState<UsageRightsUI>("standard");
   const [royalty, setRoyalty] = useState<string>("5");
   const [exclusivePrice, setExclusivePrice] = useState<string>("1");
   const [licensePrice, setLicensePrice] = useState<string>("0.1");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // audio/work file
   const [file, setFile] = useState<File | null>(null);
@@ -200,6 +204,22 @@ export default function RegisterWorkPage() {
     "draft" | "submitted" | "tsa_attested" | "approved" | "rejected"
   >("draft");
   const [proofRealtime, setProofRealtime] = useState(true);
+  const [lockedWallet, setLockedWallet] = useState("");
+  const isLocked = proofStatus === "approved";
+  const draftLoaded = useRef(false);
+
+  useEffect(() => {
+    if (proofStatus === "rejected") {
+      showToast("Hồ sơ bị từ chối. Bạn có thể chỉnh sửa và gửi lại.", "warning");
+    }
+    if (proofStatus !== "draft" && walletAddress && !lockedWallet) {
+      setLockedWallet(walletAddress);
+    }
+    if (lockedWallet && walletAddress && walletAddress !== lockedWallet) {
+      setErr("Wallet mismatch với hồ sơ đã nộp. Vui lòng đổi về ví đã dùng để nộp.");
+      showToast("Wallet khác ví đã nộp hồ sơ. Đổi lại ví cũ để tiếp tục.", "error");
+    }
+  }, [proofStatus, showToast, walletAddress, lockedWallet]);
 
   // author snapshot
   const [authorName, setAuthorName] = useState<string>("Unknown");
@@ -301,6 +321,10 @@ export default function RegisterWorkPage() {
     if (!Number.isFinite(n)) return 0;
     return Math.max(0, Math.min(100, Math.floor(n)));
   }, [royalty]);
+  const royaltyOk = useMemo(() => {
+    const n = Number(royalty);
+    return Number.isFinite(n) && n >= 0 && n <= 100;
+  }, [royalty]);
 
   const exclusivePriceNum = useMemo(() => {
     const n = Number(String(exclusivePrice || "").trim().replace(",", "."));
@@ -320,6 +344,12 @@ export default function RegisterWorkPage() {
     return 0;
   }, [sellType]);
 
+  const priceHint = useMemo(() => {
+    if (sellType === "exclusive") return "Gợi ý: 1 – 10 SUI cho quyền sở hữu độc quyền.";
+    if (sellType === "license") return "Gợi ý: 0.1 – 1 SUI cho license không độc quyền.";
+    return "Không bán: đặt giá = 0.";
+  }, [sellType]);
+
   const configOk = useMemo(() => {
     return Boolean(
       PACKAGE_ID?.startsWith("0x") && REGISTRY_ID?.startsWith("0x") && MODULE && MINT_FN
@@ -331,26 +361,96 @@ export default function RegisterWorkPage() {
     return !!parseDDMMYYYYToISO(createdDate.trim());
   }, [createdDate]);
 
+  const finalGenre = useMemo(() => {
+    if (category === "Other") {
+      return customGenre.trim();
+    }
+    return category.trim();
+  }, [category, customGenre]);
+
+  const categoryOk = useMemo(() => {
+    if (category === "Other") {
+      return customGenre.trim().length > 0;
+    }
+    return category.trim().length > 0;
+  }, [category, customGenre]);
+  const languageOk = useMemo(() => language.trim().length > 0, [language]);
+
+  const durationOk = useMemo(() => {
+    if (!file) return false;
+    if (isMediaFile(file)) return !!fileDuration && fileDuration > 0;
+    return true;
+  }, [file, fileDuration]);
+
+  const sellPriceOk = useMemo(() => {
+    if (sellType === "exclusive") return exclusivePriceNum > 0;
+    if (sellType === "license") return licensePriceNum > 0;
+    return true;
+  }, [sellType, exclusivePriceNum, licensePriceNum]);
+
   const canGoStep1 = useMemo(() => {
     if (title.trim().length < 3) return false;
     if (!file) return false;
+    if (!durationOk) return false;
+    if (!categoryOk) return false;
+    if (!languageOk) return false;
+    if (!royaltyOk) return false;
     if (!createdDateOk) return false;
     return true;
-  }, [title, file, createdDateOk]);
+  }, [title, file, durationOk, categoryOk, languageOk, royaltyOk, createdDateOk]);
+
+  const canGoStep2 = useMemo(() => {
+    if (!sellPriceOk) return false;
+    if (!royaltyOk) return false;
+    if (lockedWallet && walletAddress !== lockedWallet) return false;
+    return true;
+  }, [sellPriceOk, royaltyOk, lockedWallet, walletAddress]);
 
   const canSubmit = useMemo(() => {
     if (!configOk) return false;
     if (!user?.id) return false;
     if (!walletAddress) return false;
+    if (lockedWallet && walletAddress !== lockedWallet) return false;
     if (!title.trim() || title.trim().length < 3) return false;
     if (!file) return false;
+    if (!durationOk) return false;
+    if (!categoryOk) return false;
+    if (!languageOk) return false;
     if (!createdDateOk) return false;
+    if (!royaltyOk) return false;
+    if (!sellPriceOk) return false;
     if (uploading) return false;
     if (isPending) return false;
     return true;
-  }, [configOk, user?.id, walletAddress, title, file, createdDateOk, uploading, isPending]);
+  }, [
+    configOk,
+    user?.id,
+    walletAddress,
+    title,
+    file,
+    durationOk,
+    categoryOk,
+    languageOk,
+    createdDateOk,
+    royaltyOk,
+    sellPriceOk,
+    uploading,
+    isPending,
+    lockedWallet,
+    walletAddress,
+  ]);
 
-  useEffect(() => setErr(null), [step, sellType, activeNet, exclusivePrice, licensePrice]);
+  const canMint = useMemo(() => canSubmit && termsAccepted, [canSubmit, termsAccepted]);
+
+  useEffect(() => setErr(null), [
+    step,
+    sellType,
+    usageRights,
+    activeNet,
+    exclusivePrice,
+    licensePrice,
+    royalty,
+  ]);
 
   async function refreshProofStatus() {
     if (step !== 3 || !proofId) return;
@@ -384,6 +484,10 @@ export default function RegisterWorkPage() {
             | "approved"
             | "rejected";
           setProofStatus(next);
+          if (!lockedWallet && snap.exists() && snap.data()?.authorWallet && typeof snap.data().authorWallet === "string") {
+            const lw = String(snap.data().authorWallet).trim();
+            if (lw) setLockedWallet(lw);
+          }
         }
         setProofRealtime(true);
       },
@@ -828,7 +932,9 @@ export default function RegisterWorkPage() {
           { trait_type: "royalty_percent", value: royaltyNum },
           { trait_type: "exclusive_price_sui", value: exclusivePriceNum },
           { trait_type: "license_price_sui", value: licensePriceNum },
-          ...(category.trim() ? [{ trait_type: "category", value: category.trim() }] : []),
+          { trait_type: "usage_rights", value: usageRights },
+          { trait_type: "ai_training_allowed", value: usageRights === "ai" },
+          ...(finalGenre ? [{ trait_type: "category", value: finalGenre }] : []),
         ...(language.trim() ? [{ trait_type: "language", value: language.trim() }] : []),
         ...(createdDate.trim()
           ? [{ trait_type: "createdDate", value: createdDate.trim() }]
@@ -839,10 +945,12 @@ export default function RegisterWorkPage() {
         app: "Chainstorm",
         network: activeNet,
 
-        category: category.trim() || "",
+          category: finalGenre || "",
         language: language.trim() || "",
         createdDate: createdDate.trim() || "",
         createdAtISO: createdISO || "",
+        usageRights,
+        aiTrainingAllowed: usageRights === "ai",
 
         chainstorm: {
           packageId: PACKAGE_ID,
@@ -926,15 +1034,29 @@ export default function RegisterWorkPage() {
 
   useEffect(() => {
     if (!user?.id) return;
+    if (draftLoaded.current) return;
     const draft = readDraft(user.id);
     if (!draft) return;
 
+    draftLoaded.current = true;
+
     if (!title && draft.title) setTitle(draft.title);
-    if (!category && draft.category) setCategory(draft.category);
+    if (!category && draft.category) {
+      const predefinedGenres = ["Pop", "Rock", "Hip-Hop/Rap", "Electronic/Dance", "Jazz", "Classical", "Country", "R&B/Soul", "Reggae", "Folk", "Alternative"];
+      if (predefinedGenres.includes(draft.category)) {
+        setCategory(draft.category);
+      } else {
+        setCategory("Other");
+        setCustomGenre(draft.category);
+      }
+    }
     if (!language && draft.language) setLanguage(draft.language);
     if (!createdDate && draft.createdDate) setCreatedDate(draft.createdDate);
     if (royalty === "5" && draft.royalty) setRoyalty(draft.royalty);
-    if (sellType === "exclusive" && draft.sellType) setSellType(draft.sellType);
+    if (draft.sellType) setSellType(draft.sellType);
+    if (usageRights === "standard" && draft.usageRights) {
+      setUsageRights(draft.usageRights);
+    }
     if (exclusivePrice === "1" && draft.exclusivePrice) setExclusivePrice(draft.exclusivePrice);
     if (licensePrice === "0.1" && draft.licensePrice) setLicensePrice(draft.licensePrice);
 
@@ -947,6 +1069,7 @@ export default function RegisterWorkPage() {
     if (!metaHashHexState && draft.metaHashHexState) setMetaHashHexState(draft.metaHashHexState);
     if (!proofId && draft.proofId) setProofId(draft.proofId);
     if (proofStatus === "draft" && draft.proofStatus) setProofStatus(draft.proofStatus);
+    if (!lockedWallet && draft.lockedWallet) setLockedWallet(draft.lockedWallet);
   }, [
     user?.id,
     title,
@@ -955,6 +1078,7 @@ export default function RegisterWorkPage() {
     createdDate,
     royalty,
     sellType,
+    usageRights,
     fileBlobId,
     fileUrl,
     coverBlobId,
@@ -964,6 +1088,7 @@ export default function RegisterWorkPage() {
     metaHashHexState,
     proofId,
     proofStatus,
+    lockedWallet,
   ]);
 
   useEffect(() => {
@@ -975,6 +1100,7 @@ export default function RegisterWorkPage() {
       createdDate,
       royalty,
       sellType,
+      usageRights,
       exclusivePrice,
       licensePrice,
       fileBlobId,
@@ -986,6 +1112,7 @@ export default function RegisterWorkPage() {
       metaHashHexState,
       proofId,
       proofStatus,
+      lockedWallet,
     });
   }, [
     user?.id,
@@ -995,6 +1122,7 @@ export default function RegisterWorkPage() {
     createdDate,
     royalty,
     sellType,
+    usageRights,
     exclusivePrice,
     licensePrice,
     fileBlobId,
@@ -1006,6 +1134,7 @@ export default function RegisterWorkPage() {
     metaHashHexState,
     proofId,
     proofStatus,
+    lockedWallet,
   ]);
 
   useEffect(() => {
@@ -1039,16 +1168,21 @@ export default function RegisterWorkPage() {
     if (step === 1) {
       if (!canGoStep1) {
         setErr(
-          "Enter a title (>=3 characters), choose a file, and check the creation date (dd/mm/yyyy) before continuing."
+          "Enter a title (>=3 characters), choose a file with duration, add category + language, and check the creation date (dd/mm/yyyy) before continuing."
         );
         showToast(
-          "Missing info in Step 1. Check title/file/creation date.",
+          "Missing info in Step 1. Check title/file/duration/category/language/royalty/creation date.",
           "warning"
         );
         return;
       }
       setStep(2);
     } else if (step === 2) {
+      if (!canGoStep2) {
+        setErr("Price must be > 0 for the selected sale type and royalty must be 0-100.");
+        showToast("Sale price/royalty invalid.", "warning");
+        return;
+      }
       setStep(3);
     }
   }
@@ -1200,7 +1334,7 @@ Time: ${new Date().toISOString()}
           approvalSignature: proof.approval?.signature,
           approvalWallet: proof.approval?.adminWallet,
           approvalTime: proof.approval?.time,
-          category: category.trim() || undefined,
+          category: finalGenre || undefined,
           language: language.trim() || undefined,
           createdDate: createdDate.trim() || undefined,
           sellType,
@@ -1246,9 +1380,15 @@ Time: ${new Date().toISOString()}
 
       if (!canSubmit) {
         setErr(
-          "Please check: signed in, wallet connected, valid file/title, correct creation date (dd/mm/yyyy)."
+          "Please check: signed in, wallet connected, valid file/title, duration, category, language, royalty 0-100, valid price, correct creation date (dd/mm/yyyy)."
         );
         showToast("Mint requirements not met.", "warning");
+        return;
+      }
+
+      if (!termsAccepted) {
+        setErr("Please accept the terms to mint this work.");
+        showToast("Please accept the terms before minting.", "warning");
         return;
       }
 
@@ -1360,7 +1500,7 @@ Time: ${new Date().toISOString()}
           approvalSignature: proof.approval?.signature,
           approvalWallet: proof.approval?.adminWallet,
           approvalTime: proof.approval?.time,
-          category: category.trim() || undefined,
+          category: finalGenre || undefined,
           language: language.trim() || undefined,
           createdDate: createdDate.trim() || undefined,
           sellType,
@@ -1519,6 +1659,18 @@ Time: ${new Date().toISOString()}
                 {REGISTRY_ID ? shortAddr(REGISTRY_ID) : "missing"}
               </div>
             </div>
+            <button
+              className={styles.btnGhost}
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                window.localStorage.removeItem("chainstorm_register_draft");
+                showToast("Draft cleared. Starting fresh.", "success");
+                window.location.reload();
+              }}
+              title="Clear draft and restart"
+            >
+              Reset
+            </button>
             <div className={styles.stepBadge}>Step {step}/3</div>
           </div>
         </div>
@@ -1554,7 +1706,18 @@ Time: ${new Date().toISOString()}
             <div className={styles.stepTitle}>
               {step === 1 && "Step 1 - Audio/file, cover & info"}
               {step === 2 && "Step 2 - Sale / License"}
-              {step === 3 && "Step 3 - Confirm & Mint"}
+              {step === 3 && (
+                <span className={styles.stepTitleRow}>
+                  <span>Step 3 - Confirm & Mint</span>
+                  {proofStatus === "approved" ? (
+                    <span className={styles.badgeSuccess}>Approved</span>
+                  ) : proofStatus === "rejected" ? (
+                    <span className={styles.badgeError}>Rejected</span>
+                  ) : (
+                    <span className={styles.badgeMuted}>{proofStatus}</span>
+                  )}
+                </span>
+              )}
             </div>
             <div className={styles.progress}>
               <div className={styles.progressBar} style={{ width: `${(step / 3) * 100}%` }} />
@@ -1569,18 +1732,48 @@ Time: ${new Date().toISOString()}
                   className={styles.input}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  disabled={isLocked}
                   placeholder="Example: Music / Painting / Photo..."
                 />
               </label>
 
               <label className={styles.field}>
-                <span className={styles.label}>Category</span>
-                <input
+                <span className={styles.label}>Genre</span>
+                <select
                   className={styles.input}
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  placeholder="Example: Music / Photo / Design..."
-                />
+                  onChange={(e) => {
+                    setCategory(e.target.value);
+                    if (e.target.value !== "Other") {
+                      setCustomGenre("");
+                    }
+                  }}
+                  disabled={isLocked}
+                >
+                  <option value="">Select genre...</option>
+                  <option value="Pop">Pop</option>
+                  <option value="Rock">Rock</option>
+                  <option value="Hip-Hop/Rap">Hip-Hop/Rap</option>
+                  <option value="Electronic/Dance">Electronic/Dance</option>
+                  <option value="Jazz">Jazz</option>
+                  <option value="Classical">Classical</option>
+                  <option value="Country">Country</option>
+                  <option value="R&B/Soul">R&B/Soul</option>
+                  <option value="Reggae">Reggae</option>
+                  <option value="Folk">Folk</option>
+                  <option value="Alternative">Alternative</option>
+                  <option value="Other">Other</option>
+                </select>
+                {category === "Other" && (
+                  <input
+                    className={styles.input}
+                    value={customGenre}
+                    onChange={(e) => setCustomGenre(e.target.value)}
+                    disabled={isLocked}
+                    placeholder="Enter custom genre..."
+                    style={{ marginTop: "0.5rem" }}
+                  />
+                )}
               </label>
 
               <label className={styles.field}>
@@ -1589,6 +1782,7 @@ Time: ${new Date().toISOString()}
                   className={styles.input}
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
+                  disabled={isLocked}
                   placeholder="vi / en / ja..."
                 />
               </label>
@@ -1599,6 +1793,7 @@ Time: ${new Date().toISOString()}
                   className={styles.input}
                   value={createdDate}
                   onChange={(e) => setCreatedDate(e.target.value)}
+                  disabled={isLocked}
                   placeholder="25/12/2025"
                 />
                 <span className={styles.help}>
@@ -1629,12 +1824,13 @@ Time: ${new Date().toISOString()}
                         });
                       }
                     }}
+                    disabled={isLocked}
                   />
 
                   <button
                     type="button"
                     className={styles.btn}
-                    disabled={!file || uploading || submitting || isPending}
+                    disabled={!file || uploading || submitting || isPending || isLocked}
                     onClick={async () => {
                       try {
                         setErr(null);
@@ -1700,12 +1896,13 @@ Time: ${new Date().toISOString()}
                       setUploadPct(0);
                       setProofId("");
                     }}
+                    disabled={isLocked}
                   />
 
                   <button
                     type="button"
                     className={styles.btn}
-                    disabled={!cover || uploading || submitting || isPending}
+                    disabled={!cover || uploading || submitting || isPending || isLocked}
                     onClick={async () => {
                       try {
                         setErr(null);
@@ -1753,11 +1950,28 @@ Time: ${new Date().toISOString()}
                   className={styles.input}
                   value={sellType}
                   onChange={(e) => setSellType(e.target.value as SellTypeUI)}
+                  disabled={isLocked}
                 >
                   <option value="exclusive">Exclusive</option>
                   <option value="license">License</option>
                   <option value="none">Not for sale</option>
                 </select>
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.label}>Quyền khai thác</span>
+                <select
+                  className={styles.input}
+                  value={usageRights}
+                  onChange={(e) => setUsageRights(e.target.value as UsageRightsUI)}
+                  disabled={isLocked}
+                >
+                  <option value="standard">Tiêu chuẩn (theo Type)</option>
+                  <option value="ai">AI / Platform Membership</option>
+                </select>
+                <span className={styles.help}>
+                  AI/Platform cho phép truy cập dữ liệu và huấn luyện hợp pháp theo điều khoản.
+                </span>
               </label>
 
               <label className={styles.field}>
@@ -1767,6 +1981,7 @@ Time: ${new Date().toISOString()}
                   value={royalty}
                   onChange={(e) => setRoyalty(e.target.value)}
                   placeholder="Example: 5"
+                  disabled={isLocked}
                 />
                 <span className={styles.help}>0-100% (stored on-chain as u8)</span>
               </label>
@@ -1778,8 +1993,11 @@ Time: ${new Date().toISOString()}
                   value={exclusivePrice}
                   onChange={(e) => setExclusivePrice(e.target.value)}
                   placeholder="Example: 1"
+                  disabled={isLocked}
                 />
-                <span className={styles.help}>Full ownership transfer. 0 = not for exclusive sale.</span>
+                <span className={styles.help}>
+                  Full ownership transfer. 0 = not for exclusive sale. {sellType === "exclusive" ? priceHint : ""}
+                </span>
               </label>
 
               <label className={styles.field}>
@@ -1789,8 +2007,11 @@ Time: ${new Date().toISOString()}
                   value={licensePrice}
                   onChange={(e) => setLicensePrice(e.target.value)}
                   placeholder="Example: 0.1"
+                  disabled={isLocked}
                 />
-                <span className={styles.help}>Non-exclusive usage license. 0 = no license offer.</span>
+                <span className={styles.help}>
+                  Non-exclusive usage license. 0 = no license offer. {sellType === "license" ? priceHint : ""}
+                </span>
               </label>
 
               <div className={styles.reviewCard}>
@@ -1822,10 +2043,14 @@ Time: ${new Date().toISOString()}
               <Row label="Email" value={authorEmail || user?.email || "-"} />
               <Row label="Wallet" value={walletAddress ? shortAddr(walletAddress) : "-"} mono />
               <Row label="Title" value={title || "-"} />
-              <Row label="Category" value={category || "-"} />
+              <Row label="Genre" value={finalGenre || "-"} />
               <Row label="Language" value={language || "-"} />
               <Row label="Creation date" value={createdDate || "-"} />
               <Row label="SellType" value={`${sellType} (u8=${sellTypeU8})`} />
+              <Row
+                label="Usage rights"
+                value={usageRights === "ai" ? "AI / Platform Membership" : "Standard"}
+              />
               <Row label="Royalty" value={`${royaltyNum}%`} />
               <Row label="Exclusive price" value={`${exclusivePriceNum} SUI`} />
               <Row label="License price" value={`${licensePriceNum} SUI`} />
@@ -1841,16 +2066,25 @@ Time: ${new Date().toISOString()}
                 label="Proof status"
                 value={proofStatus === "draft" ? "Not submitted" : proofStatus}
               />
+              {lockedWallet ? (
+                <Row label="Wallet locked" value={shortAddr(lockedWallet)} />
+              ) : null}
+              {lockedWallet && walletAddress && walletAddress !== lockedWallet ? (
+                <div className={styles.calloutError}>
+                  Ví hiện tại ({shortAddr(walletAddress)}) khác ví đã nộp hồ sơ ({shortAddr(
+                    lockedWallet
+                  )}). Hãy đổi về ví đã nộp để tiếp tục.
+                </div>
+              ) : null}
+              {proofStatus === "rejected" ? (
+                <div className={styles.calloutError}>
+                  Hồ sơ đã bị từ chối. Bạn có thể chỉnh sửa thông tin và nhấn “Submit filing” để gửi lại.
+                </div>
+              ) : null}
               <div className={styles.metaLinkRow}>
-                <button
-                  type="button"
-                  className={styles.btnGhost}
-                  onClick={refreshProofStatus}
-                  disabled={!proofId || submitting || isPending || uploading}
-                  title="Fetch latest status"
-                >
-                  Refresh status
-                </button>
+                <span className={styles.muted}>
+                  Trạng thái tự động cập nhật realtime; không cần nhấn refresh.
+                </span>
               </div>
 
               {proofStatus !== "approved" ? (
@@ -1859,6 +2093,24 @@ Time: ${new Date().toISOString()}
                   <b>/admin/review</b> to review.
                 </div>
               ) : null}
+
+              <div className={styles.callout}>
+                <div className={styles.reviewTitle}>Điều khoản ngắn</div>
+                <div className={styles.reviewText}>
+                  Bạn xác nhận có quyền sở hữu/tác quyền với tác phẩm, không vi phạm pháp luật.
+                  {usageRights === "ai"
+                    ? " Đồng ý cho AI/Platform truy cập dữ liệu và huấn luyện hợp pháp."
+                    : " Quyền khai thác theo lựa chọn ở bước 2."}
+                </div>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                  />
+                  <span>Tôi đồng ý với các điều khoản trên</span>
+                </label>
+              </div>
 
 
               {metaUrl ? (
@@ -1900,7 +2152,7 @@ Time: ${new Date().toISOString()}
                   <button
                     className={styles.btnGhost}
                     onClick={submitProof}
-                    disabled={!canSubmit || submitting || isPending || uploading}
+                    disabled={!canSubmit || submitting || isPending || uploading || isLocked}
                     title="Submit legal filing (off-chain)"
                   >
                     Submit filing
@@ -1909,7 +2161,7 @@ Time: ${new Date().toISOString()}
                     className={styles.btnPrimary}
                     onClick={onSubmit}
                     disabled={
-                      !canSubmit ||
+                      !canMint ||
                       proofStatus !== "approved" ||
                       submitting ||
                       isPending ||

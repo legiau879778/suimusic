@@ -48,7 +48,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
 
     try {
       const mistAmount = BigInt(Math.round(priceSui * 1_000_000_000));
-      const typeId = type === "artist" ? 1 : type === "creator" ? 2 : 3;
+      const typeId = type === "artist" ? 1 : type === "creator" ? 2 : type === "business" ? 3 : 4;
       const internalMnemonic = user?.internalWallet?.mnemonic;
       const internalAddr = user?.internalWallet?.address;
 
@@ -60,7 +60,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
 
       // CHIẾN LƯỢC 1: ƯU TIÊN VÍ NỘI BỘ (Nếu đủ tiền + gas)
       if (internalMnemonic && internalBalSui >= (priceSui + 0.01)) {
-        pushToast("info", "Thanh toán qua ví Heritage...");
+        pushToast("info", "Paying with Heritage wallet...");
         const keypair = Ed25519Keypair.deriveKeypair(internalMnemonic);
         const txb = new Transaction();
         txb.setSender(internalAddr!);
@@ -85,7 +85,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
         const slushBalSui = Number(resSlush.totalBalance) / 1e9;
 
         if (slushBalSui >= (priceSui + 0.01)) {
-          pushToast("warning", "Ví nội bộ không đủ, đang sử dụng Slush...");
+          pushToast("warning", "Heritage wallet is low. Using Slush...");
           const txb = new Transaction();
           const [paymentCoin] = txb.splitCoins(txb.gas, [txb.pure.u64(mistAmount)]);
           txb.moveCall({
@@ -101,12 +101,12 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
           });
           finalTxHash = result.digest;
         } else {
-          throw new Error(`Cả 2 ví đều không đủ tiền. Vui lòng nạp thêm SUI vào ví nội bộ: ${internalAddr}`);
+          throw new Error(`Both wallets are low. Please top up your Heritage wallet: ${internalAddr}`);
         }
       } 
       // CHIẾN LƯỢC 3: BÁO NẠP TIỀN
       else {
-        throw new Error(`Ví nội bộ hụt tiền (${internalBalSui.toFixed(3)} SUI). Vui lòng nạp thêm vào ví Heritage ID: ${internalAddr}`);
+        throw new Error(`Heritage wallet balance is low (${internalBalSui.toFixed(3)} SUI). Please top up: ${internalAddr}`);
       }
 
       // XỬ LÝ KHI THÀNH CÔNG
@@ -143,13 +143,13 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
           membership: membershipPayload,
           });
         }
-        pushToast("success", "Kích hoạt thành công!");
+        pushToast("success", "Membership activated!");
         onSuccess(membership);
         onClose();
       }
     } catch (e: any) {
       console.error(e);
-      setErrorMsg(e.message || "Lỗi giao dịch");
+      setErrorMsg(e.message || "Transaction failed");
     } finally {
       setLoading(false);
     }
@@ -160,27 +160,28 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <h3>Mua Membership</h3>
+          <h3>Purchase Membership</h3>
           <button className={styles.modalClose} onClick={onClose} disabled={loading} type="button">✕</button>
         </div>
 
         <div className={styles.modalBody}>
           {errorMsg && (
             <div style={{ background: "rgba(255, 77, 79, 0.1)", border: "1px solid #ff4d4f", color: "#ff4d4f", padding: "10px", borderRadius: "8px", marginBottom: "15px", fontSize: "14px", wordBreak: "break-all" }}>
-              <strong>Thông báo:</strong> {errorMsg}
+              <strong>Notice:</strong> {errorMsg}
             </div>
           )}
 
           <div className={styles.modalSummary}>
             <div className={styles.modalLine}>
-              Bạn đang mua gói <strong>{type.toUpperCase()} - {
-                type === "creator" ? creatorPlan.toUpperCase() : 
-                type === "artist" ? (artistPlan === "1y" ? "1 NĂM" : artistPlan === "3m" ? "3 THÁNG" : "1 THÁNG") : ""
-              }</strong>
+              You are purchasing <strong>{type.toUpperCase()} {type === "creator"
+                ? `- ${creatorPlan.toUpperCase()}`
+                : type === "artist"
+                  ? `- ${artistPlan === "1y" ? "1 YEAR" : artistPlan === "3m" ? "3 MONTHS" : "1 MONTH"}`
+                  : ""}</strong>
             </div>
             <div className={styles.modalMeta}>
-              <span className={styles.metaPill}>Phí: <strong>{priceSui} SUI</strong></span>
-              <span className={styles.metaPill}>Thời hạn: <strong>{days} ngày</strong></span>
+              <span className={styles.metaPill}>Price: <strong>{priceSui} SUI</strong></span>
+              <span className={styles.metaPill}>Duration: <strong>{days} days</strong></span>
             </div>
           </div>
 
@@ -195,7 +196,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
                   disabled={loading}
                 >
                   <div className={styles.pickTitle}>{p.toUpperCase()}</div>
-                  <div className={styles.pickSub}>{p === "starter" ? "0.01 SUI" : p === "pro" ? "0.02 SUI" : "0.05 SUI"}/tháng</div>
+                  <div className={styles.pickSub}>{p === "starter" ? "0.01 SUI" : p === "pro" ? "0.02 SUI" : "0.05 SUI"}/month</div>
                 </button>
               ))}
             </div>
@@ -211,7 +212,7 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
                   onClick={() => { setArtistPlan(p); setErrorMsg(null); }}
                   disabled={loading}
                 >
-                  <div className={styles.pickTitle}>{p === "1m" ? "1 THÁNG" : p === "3m" ? "3 THÁNG" : "1 NĂM"}</div>
+                  <div className={styles.pickTitle}>{p === "1m" ? "1 MONTH" : p === "3m" ? "3 MONTHS" : "1 YEAR"}</div>
                   <div className={styles.pickSub}>{p === "1m" ? "0.01 SUI" : p === "3m" ? "0.02 SUI" : "0.03 SUI"}</div>
                 </button>
               ))}
@@ -219,14 +220,14 @@ export default function MembershipModal({ type, onClose, onSuccess }: any) {
           )}
 
           <div className={styles.modalHint}>
-            * Hệ thống ưu tiên thanh toán qua ví nội bộ Heritage ID của bạn.
+            * Payments default to your Heritage wallet when possible.
           </div>
         </div>
 
         <div className={styles.modalActions}>
-          <button className={styles.secondaryBtn} onClick={onClose} disabled={loading} type="button">Huỷ</button>
+          <button className={styles.secondaryBtn} onClick={onClose} disabled={loading} type="button">Cancel</button>
           <button className={styles.primaryBtn} onClick={confirm} disabled={loading} type="button">
-            {loading ? "Đang xử lý..." : "Xác nhận"}
+            {loading ? "Processing..." : "Confirm"}
           </button>
         </div>
       </div>

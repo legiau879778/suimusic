@@ -1,6 +1,7 @@
 "use client";
+export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./search.module.css";
 import { getWorks, setWorkMetadata, syncWorksFromChain } from "@/lib/workStore";
@@ -12,7 +13,12 @@ import {
   loadProfile,
   toGateway,
 } from "@/lib/profileStore";
-import { buildVoteWorkTx, canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
+import {
+  buildVoteWorkTx,
+  canUseWorkVote,
+  getVoteCountForWork,
+  resolveWorkVoteKey,
+} from "@/lib/workVoteChain";
 import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -144,6 +150,7 @@ export default function SearchPage() {
   const { mutateAsync: signAndExecuteTransaction, isPending } =
     useSignAndExecuteTransaction();
   const [works, setWorks] = useState<Work[]>([]);
+  const [voteAvailable, setVoteAvailable] = useState(true);
 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -188,6 +195,9 @@ export default function SearchPage() {
           const data: any = docSnap.data();
           if (data?.deletedAt) {
             next[docSnap.id.toLowerCase()] = true;
+            if (data?.workId) {
+              next[String(data.workId).toLowerCase()] = true;
+            }
           }
         });
         setDeletedMap(next);
@@ -263,15 +273,17 @@ export default function SearchPage() {
   const filtered = useMemo(() => {
     const k = debouncedQ.trim().toLowerCase();
     return works.filter((w) => {
+      if (w.deletedAt) return false;
       if (String(w.status || "") !== "verified") return false;
       const nftId = String(w.nftObjectId || "").toLowerCase();
-      if (nftId && deletedMap[nftId]) return false;
+      const workId = String(w.id || "").toLowerCase();
+      if ((nftId && deletedMap[nftId]) || (workId && deletedMap[workId])) return false;
       const meta = metaCache[w.id];
       const title = resolveTitleFromMeta(meta, w).toLowerCase();
       const authorMeta = String(meta?.authorName || "").trim();
       const author = (authorMeta || resolveAuthorDisplayName(w.authorId, w.authorName || w.authorWallet, profileTick)).toLowerCase();
       const wallet = String(w.authorWallet || "").toLowerCase();
-      const category = String(meta?.category || w.metaCategory || w.category || "").toLowerCase();
+      const category = String(meta?.category || w.metaCategory || w.category || "").toLowerCase().replace(/\s*\/\s*/g, '/');
       const language = String(meta?.language || w.metaLanguage || w.language || "").toLowerCase();
       if (categoryFilter !== "all" && category !== categoryFilter) return false;
       if (languageFilter !== "all" && language !== languageFilter) return false;
@@ -294,12 +306,12 @@ export default function SearchPage() {
 
   useEffect(() => {
     let alive = true;
-    if (!canUseWorkVote() || !suiClient) return;
-    const ids = filtered
-      .map((w) => String(w.id || "").trim())
-      .filter(Boolean)
-      .slice(0, 40);
-    const queue = ids.filter((id) => voteCache[id] == null);
+    const canVote = canUseWorkVote() && voteAvailable;
+    if (!canVote || !suiClient) return;
+    const queue = filtered
+      .slice(0, 40)
+      .filter((w) => w?.id && voteCache[w.id] == null)
+      .filter((w) => !!resolveWorkVoteKey(w));
 
     async function run() {
       const CONC = 6;
@@ -309,10 +321,12 @@ export default function SearchPage() {
         while (alive) {
           const idx = i++;
           if (idx >= queue.length) break;
-          const id = queue[idx];
-          const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
+          const work = queue[idx];
+          const voteKey = resolveWorkVoteKey(work);
+          if (!voteKey) continue;
+          const n = await getVoteCountForWork({ suiClient: suiClient as any, workKey: voteKey });
           if (!alive) return;
-          setVoteCache((prev) => (prev[id] == null ? { ...prev, [id]: n } : prev));
+          setVoteCache((prev) => (prev[work.id] == null ? { ...prev, [work.id]: n } : prev));
           await new Promise((r) => setTimeout(r, 40));
         }
       }
@@ -324,12 +338,12 @@ export default function SearchPage() {
     return () => {
       alive = false;
     };
-  }, [filtered, voteCache, suiClient]);
+  }, [filtered, voteCache, suiClient, voteAvailable]);
 
   const featured = useMemo(() => {
     const featuredList = filtered.filter((w) => w.featured);
     const list = featuredList.length ? featuredList : [...filtered];
-    if (canUseWorkVote()) {
+    if (canUseWorkVote() && voteAvailable) {
       list.sort(
         (a, b) => Number(voteCache[b.id] ?? b.votes ?? 0) - Number(voteCache[a.id] ?? a.votes ?? 0)
       );
@@ -337,7 +351,7 @@ export default function SearchPage() {
       list.sort((a, b) => getWorkTime(b) - getWorkTime(a));
     }
     return list.slice(0, 8);
-  }, [filtered, voteCache]);
+  }, [filtered, voteCache, voteAvailable]);
 
   const newest = useMemo(() => {
     return [...filtered].sort((a, b) => getWorkTime(b) - getWorkTime(a)).slice(0, 8);
@@ -347,17 +361,20 @@ export default function SearchPage() {
     return [...filtered].sort((a, b) => getWorkTime(a) - getWorkTime(b)).slice(0, 8);
   }, [filtered]);
 
-  const categories = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const w of works) {
-      const meta = metaCache[w.id];
-      const raw = String(meta?.category || w.metaCategory || w.category || "").trim();
-      if (!raw) continue;
-      const key = raw.toLowerCase();
-      if (!map.has(key)) map.set(key, raw);
-    }
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [works, metaCache]);
+  const categories = useMemo(() => [
+    { value: "pop", label: "Pop" },
+    { value: "rock", label: "Rock" },
+    { value: "hip-hop/rap", label: "Hip-Hop/Rap" },
+    { value: "electronic/dance", label: "Electronic/Dance" },
+    { value: "jazz", label: "Jazz" },
+    { value: "classical", label: "Classical" },
+    { value: "country", label: "Country" },
+    { value: "r&b/soul", label: "R&B/Soul" },
+    { value: "reggae", label: "Reggae" },
+    { value: "folk", label: "Folk" },
+    { value: "alternative", label: "Alternative" },
+    { value: "other", label: "Other" },
+  ], []);
 
   const languages = useMemo(() => {
     const map = new Map<string, string>();
@@ -371,18 +388,49 @@ export default function SearchPage() {
     return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
   }, [works, metaCache]);
 
-  async function handleVote(workId: string) {
-    if (!suiClient) return;
-    setVotingId(workId);
+  const warnedVoteRef = useRef(false);
+
+  const showToast = (message: string, _type?: string) => {
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.warn("[toast]", message);
+    }
+  };
+
+  async function handleVote(work: Work) {
+    const canVote = canUseWorkVote() && voteAvailable;
+    if (!canVote) {
+      if (!warnedVoteRef.current) {
+        showToast("Voting not configured. Check WORK_VOTE env/package/board.", "warning");
+        warnedVoteRef.current = true;
+      }
+      return;
+    }
+    if (!suiClient) {
+      showToast("Connect wallet to vote.", "warning");
+      return;
+    }
+    const voteKey = resolveWorkVoteKey(work);
+    if (!voteKey) {
+      showToast("Missing NFT object id for voting.", "warning");
+      return;
+    }
+    setVotingId(work.id);
     try {
-      const tx = buildVoteWorkTx(workId);
+      const tx = buildVoteWorkTx(voteKey);
       await signAndExecuteTransaction({ transaction: tx });
-      const n = await getVoteCountForWork({ suiClient: suiClient as any, workId });
-      setVoteCache((prev) => ({ ...prev, [workId]: n }));
-    } catch {
-      // ignore
+      const n = await getVoteCountForWork({ suiClient: suiClient as any, workKey: voteKey });
+      setVoteCache((prev) => ({ ...prev, [work.id]: n }));
+    } catch (e: any) {
+      const msg = String(e?.message || "").toLowerCase();
+      if (msg.includes("object does not exist") || msg.includes("package object does not exist")) {
+        setVoteAvailable(false);
+        showToast("Vote package/board not found on this network. Votes hidden.", "error");
+      } else {
+        showToast("Vote failed. Please try again.", "error");
+      }
     } finally {
-      setVotingId((prev) => (prev === workId ? null : prev));
+      setVotingId((prev) => (prev === work.id ? null : prev));
     }
   }
 
@@ -516,7 +564,7 @@ function WorkBlock({
   works: Work[];
   metaCache: Record<string, MetaPreview>;
   voteCache?: Record<string, number>;
-  onVote?: (workId: string) => void;
+  onVote?: (work: Work) => void;
   votingId?: string | null;
   votingDisabled?: boolean;
   profileTick: number;
@@ -549,6 +597,7 @@ function WorkBlock({
           const vote = voteCache
             ? Number(voteCache[w.id] ?? w.votes ?? 0)
             : Number(w.votes ?? 0) || null;
+          const voteKey = resolveWorkVoteKey(w);
           return (
             <div key={w.id} className={styles.card}>
               <Link className={styles.cardLink} href={`/work/${w.id}`}>
@@ -602,8 +651,9 @@ function WorkBlock({
                   <button
                     type="button"
                     className={styles.voteBtn}
-                    onClick={() => onVote(w.id)}
-                    disabled={votingDisabled || votingId === w.id}
+                    onClick={() => onVote(w)}
+                    disabled={votingDisabled || votingId === w.id || !voteKey}
+                    title={voteKey ? "Vote this work" : "Mint this work to enable voting"}
                   >
                     {votingId === w.id ? "Voting..." : "Like"}
                   </button>

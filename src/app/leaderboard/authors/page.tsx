@@ -6,7 +6,11 @@ import styles from "./leaderboard.module.css";
 
 import { getWorks, syncWorksFromChain, type Work } from "@/lib/workStore";
 import { loadProfile } from "@/lib/profileStore";
-import { canUseWorkVote, getVoteCountForWork } from "@/lib/workVoteChain";
+import {
+  canUseWorkVote,
+  getVoteCountForWork,
+  resolveWorkVoteKey,
+} from "@/lib/workVoteChain";
 import { useSuiClient } from "@mysten/dapp-kit";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -64,6 +68,9 @@ export default function AuthorLeaderboardPage() {
           const data: any = docSnap.data();
           if (data?.deletedAt) {
             next[docSnap.id.toLowerCase()] = true;
+            if (data?.workId) {
+              next[String(data.workId).toLowerCase()] = true;
+            }
           }
         });
         setDeletedMap(next);
@@ -75,9 +82,14 @@ export default function AuthorLeaderboardPage() {
 
   const visibleWorks = useMemo(() => {
     return works.filter((w) => {
+      if (w.deletedAt) return false;
       if (String(w.status || "") !== "verified") return false;
       const nftId = String(w.nftObjectId || "").toLowerCase();
-      return !(nftId && deletedMap[nftId]);
+      const workId = String(w.id || "").toLowerCase();
+      return !(
+        (nftId && deletedMap[nftId]) ||
+        (workId && deletedMap[workId])
+      );
     });
   }, [works, deletedMap]);
 
@@ -117,26 +129,30 @@ export default function AuthorLeaderboardPage() {
       setLoading(true);
       const voteMap: Record<string, number> = {};
 
-      const ids = visibleWorks.map((w) => String(w.id || "").trim()).filter(Boolean);
+      const queue = visibleWorks
+        .filter((w) => w?.id)
+        .filter((w) => !!resolveWorkVoteKey(w));
       const CONC = 6;
       let i = 0;
 
       async function worker() {
         while (alive) {
           const idx = i++;
-          if (idx >= ids.length) break;
-          const id = ids[idx];
+          if (idx >= queue.length) break;
+          const work = queue[idx];
+          const voteKey = resolveWorkVoteKey(work);
+          if (!voteKey) continue;
           try {
-            const n = await getVoteCountForWork({ suiClient: suiClient as any, workId: id });
-            voteMap[id] = n;
+            const n = await getVoteCountForWork({ suiClient: suiClient as any, workKey: voteKey });
+            voteMap[work.id] = n;
           } catch {
-            voteMap[id] = 0;
+            voteMap[work.id] = 0;
           }
           await new Promise((r) => setTimeout(r, 40));
         }
       }
 
-      await Promise.all(Array.from({ length: Math.min(CONC, ids.length) }, () => worker()));
+      await Promise.all(Array.from({ length: Math.min(CONC, queue.length) }, () => worker()));
       if (!alive) return;
 
       const byAuthor: Record<string, AuthorRow> = {};
