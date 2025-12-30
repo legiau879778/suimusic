@@ -21,6 +21,7 @@ import {
 } from "@/lib/workStore";
 import type { Work } from "@/lib/workStore";
 import { addTrade } from "@/lib/tradeStore";
+import { AI_LYRICS_EVENT, loadAiLyrics, removeAiLyrics, type AiLyricsItem } from "@/lib/aiStore";
 
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -54,7 +55,7 @@ import { Transaction } from "@mysten/sui/transactions";
 /* ✅ network-aware config */
 import { getChainstormConfig, normalizeSuiNet } from "@/lib/chainstormConfig";
 
-type ViewMode = "active" | "trash" | "pending";
+type ViewMode = "active" | "trash" | "pending" | "ai";
 type MarketFilter = "all" | "sell" | "license";
 
 const PAGE_SIZE = 12;
@@ -474,6 +475,7 @@ export default function ManagePage() {
 
   const [works, setWorks] = useState<Work[]>([]);
   const [pendingProofs, setPendingProofs] = useState<any[]>([]);
+  const [aiList, setAiList] = useState<AiLyricsItem[]>([]);
   const pendingUnsubRef = useRef<(() => void) | undefined>(undefined);
   const [page, setPage] = useState(1);
 
@@ -595,10 +597,21 @@ export default function ManagePage() {
     autoCleanTrash();
     if (view === "pending") {
       loadPending();
+    } else if (view === "ai") {
+      setAiList(loadAiLyrics(userId || userEmail || "guest"));
     } else {
       syncWorksFromChain({ force: true }).then(load).catch(() => load());
     }
     window.addEventListener("works_updated", load);
+    if (view === "ai") {
+      const onAiUpdate = () => setAiList(loadAiLyrics(userId || userEmail || "guest"));
+      window.addEventListener(AI_LYRICS_EVENT, onAiUpdate);
+      return () => {
+        window.removeEventListener("works_updated", load);
+        window.removeEventListener(AI_LYRICS_EVENT, onAiUpdate);
+        if (pendingUnsubRef.current) pendingUnsubRef.current();
+      };
+    }
     return () => {
       window.removeEventListener("works_updated", load);
       if (pendingUnsubRef.current) pendingUnsubRef.current();
@@ -834,20 +847,22 @@ export default function ManagePage() {
 
   /* ================= Pagination ================= */
 
-  const totalPages = useMemo(
-    () =>
-      Math.max(
-        1,
-        Math.ceil((view === "pending" ? pendingProofs.length : works.length) / PAGE_SIZE)
-      ),
-    [view, pendingProofs.length, works.length]
-  );
+  const totalPages = useMemo(() => {
+    const count =
+      view === "pending"
+        ? pendingProofs.length
+        : view === "ai"
+          ? aiList.length
+          : works.length;
+    return Math.max(1, Math.ceil(count / PAGE_SIZE));
+  }, [view, pendingProofs.length, works.length, aiList.length]);
 
   const visible = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     if (view === "pending") return pendingProofs.slice(start, start + PAGE_SIZE);
+    if (view === "ai") return aiList.slice(start, start + PAGE_SIZE);
     return works.slice(start, start + PAGE_SIZE);
-  }, [works, pendingProofs, page, view]);
+  }, [works, pendingProofs, aiList, page, view]);
 
   /* ================= Auto-sync chain -> store ================= */
 
@@ -1497,6 +1512,7 @@ export default function ManagePage() {
             >
               <option value="active">Active</option>
               <option value="pending">Pending</option>
+              <option value="ai">A.I</option>
               <option value="trash">Trash</option>
             </select>
           </div>
@@ -1504,16 +1520,28 @@ export default function ManagePage() {
       </div>
 
       {/* ===== Empty ===== */}
-      {(view === "pending" ? pendingProofs.length === 0 : works.length === 0) ? (
+      {(
+        view === "pending"
+          ? pendingProofs.length === 0
+          : view === "ai"
+            ? aiList.length === 0
+            : works.length === 0
+      ) ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>🎵</div>
           <div className={styles.emptyTitle}>
-            {view === "pending" ? "No submissions yet" : "No works yet"}
+            {view === "pending"
+              ? "No submissions yet"
+              : view === "ai"
+                ? "No AI drafts yet"
+                : "No works yet"}
           </div>
           <div className={styles.emptySub}>
             {view === "pending"
               ? "Submit a filing in Register Work to see it here."
-              : "Register your first work to mint NFT."}
+              : view === "ai"
+                ? "Generate lyrics in AI Generator to save them here."
+                : "Register your first work to mint NFT."}
           </div>
         </div>
       ) : null}
@@ -1528,6 +1556,20 @@ export default function ManagePage() {
               net={activeNet}
               onMint={() => handleMintProof(p.id)}
               mintingProofId={mintingProofId}
+            />
+          ))}
+        </div>
+      ) : view === "ai" ? (
+        <div className={styles.grid}>
+          {visible.map((item: AiLyricsItem) => (
+            <AiCard
+              key={item.id}
+              item={item}
+              onCopy={() => navigator.clipboard.writeText(item.lyrics)}
+              onRemove={() => {
+                removeAiLyrics(userId || userEmail || "guest", item.id);
+                setAiList(loadAiLyrics(userId || userEmail || "guest"));
+              }}
             />
           ))}
         </div>
@@ -1558,7 +1600,13 @@ export default function ManagePage() {
       )}
 
       {/* ===== Pagination ===== */}
-      {(view === "pending" ? pendingProofs.length > 0 : works.length > 0) ? (
+      {(
+        view === "pending"
+          ? pendingProofs.length > 0
+          : view === "ai"
+            ? aiList.length > 0
+            : works.length > 0
+      ) ? (
         <div className={styles.pager}>
           <button
             className={styles.pagerBtn}
@@ -1570,7 +1618,14 @@ export default function ManagePage() {
 
           <div className={styles.pagerInfo}>
             Trang <b>{page}</b>/<b>{totalPages}</b> •{" "}
-            <span className={styles.muted}>{works.length} items</span>
+            <span className={styles.muted}>
+              {(view === "pending"
+                ? pendingProofs.length
+                : view === "ai"
+                  ? aiList.length
+                  : works.length)}{" "}
+              items
+            </span>
           </div>
 
           <button
@@ -1703,6 +1758,53 @@ export default function ManagePage() {
 }
 
 /* ================= Components ================= */
+
+function AiCard({
+  item,
+  onCopy,
+  onRemove,
+}: {
+  item: AiLyricsItem;
+  onCopy: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHead}>
+        <div className={styles.cardTitle}>AI Lyrics Draft</div>
+        <div className={styles.badges}>
+          <span className={styles.badge} data-status="pending">
+            AI
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.aiMeta}>
+        <div>
+          <b>Genre:</b> {item.genre || "—"}
+        </div>
+        <div>
+          <b>Language:</b> {item.language || "—"}
+        </div>
+      </div>
+
+      <div className={styles.aiPrompt}>
+        <b>Prompt:</b> {item.prompt || "—"}
+      </div>
+
+      <div className={styles.aiLyrics}>{item.lyrics || "—"}</div>
+
+      <div className={styles.aiActions}>
+        <button className={styles.btnSecondary} onClick={onCopy} type="button">
+          Copy
+        </button>
+        <button className={styles.btnDanger} onClick={onRemove} type="button">
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function WorkCard(props: {
   work: Work;

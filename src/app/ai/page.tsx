@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useModal } from '@/context/ModalContext';
 import { getMembershipEntitlements } from '@/lib/membershipStore';
 import { saveRedirect } from '@/lib/redirect';
+import { addAiLyrics } from '@/lib/aiStore';
 
 export default function AIGeneratorPage() {
   const [prompt, setPrompt] = useState('');
@@ -37,6 +38,14 @@ export default function AIGeneratorPage() {
       const data = await response.json();
       if (data.lyrics) {
         setLyrics(data.lyrics);
+        addAiLyrics(user?.id || user?.email || "guest", {
+          id: crypto.randomUUID(),
+          prompt: prompt.trim(),
+          genre: finalGenre || genre,
+          language,
+          lyrics: data.lyrics,
+          createdAt: Date.now(),
+        });
       } else {
         alert('Failed to generate lyrics');
       }
